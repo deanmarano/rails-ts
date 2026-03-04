@@ -10,7 +10,11 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2"
   }
 }

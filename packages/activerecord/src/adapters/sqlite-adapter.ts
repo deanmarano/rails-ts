@@ -1,0 +1,132 @@
+import Database from "better-sqlite3";
+import type { DatabaseAdapter } from "../adapter.js";
+
+/**
+ * SQLite adapter — connects ActiveRecord to a real SQLite database.
+ *
+ * Mirrors: ActiveRecord::ConnectionAdapters::SQLite3Adapter
+ */
+export class SqliteAdapter implements DatabaseAdapter {
+  private db: Database.Database;
+  private _inTransaction = false;
+  private _savepointCounter = 0;
+
+  constructor(filename: string | ":memory:" = ":memory:") {
+    this.db = new Database(filename);
+    // Enable WAL mode for better concurrent read performance
+    this.db.pragma("journal_mode = WAL");
+    // Enable foreign keys
+    this.db.pragma("foreign_keys = ON");
+  }
+
+  /**
+   * Execute a SELECT query and return rows.
+   */
+  async execute(
+    sql: string,
+    binds: unknown[] = []
+  ): Promise<Record<string, unknown>[]> {
+    const stmt = this.db.prepare(sql);
+    return stmt.all(...binds) as Record<string, unknown>[];
+  }
+
+  /**
+   * Execute an INSERT/UPDATE/DELETE and return affected rows or insert ID.
+   */
+  async executeMutation(
+    sql: string,
+    binds: unknown[] = []
+  ): Promise<number> {
+    const stmt = this.db.prepare(sql);
+    const result = stmt.run(...binds);
+
+    // For INSERT, return the last inserted rowid
+    if (sql.trimStart().toUpperCase().startsWith("INSERT")) {
+      return Number(result.lastInsertRowid);
+    }
+
+    // For UPDATE/DELETE, return affected rows
+    return result.changes;
+  }
+
+  /**
+   * Begin a transaction.
+   */
+  async beginTransaction(): Promise<void> {
+    this.db.exec("BEGIN");
+    this._inTransaction = true;
+  }
+
+  /**
+   * Commit the current transaction.
+   */
+  async commit(): Promise<void> {
+    this.db.exec("COMMIT");
+    this._inTransaction = false;
+  }
+
+  /**
+   * Rollback the current transaction.
+   */
+  async rollback(): Promise<void> {
+    this.db.exec("ROLLBACK");
+    this._inTransaction = false;
+  }
+
+  /**
+   * Create a savepoint (nested transaction).
+   */
+  async createSavepoint(name: string): Promise<void> {
+    this.db.exec(`SAVEPOINT "${name}"`);
+  }
+
+  /**
+   * Release a savepoint.
+   */
+  async releaseSavepoint(name: string): Promise<void> {
+    this.db.exec(`RELEASE SAVEPOINT "${name}"`);
+  }
+
+  /**
+   * Rollback to a savepoint.
+   */
+  async rollbackToSavepoint(name: string): Promise<void> {
+    this.db.exec(`ROLLBACK TO SAVEPOINT "${name}"`);
+  }
+
+  /**
+   * Close the database connection.
+   */
+  close(): void {
+    this.db.close();
+  }
+
+  /**
+   * Check if the database is open.
+   */
+  get isOpen(): boolean {
+    return this.db.open;
+  }
+
+  /**
+   * Check if we're in a transaction.
+   */
+  get inTransaction(): boolean {
+    return this._inTransaction;
+  }
+
+  /**
+   * Execute raw SQL (for DDL and other non-query statements).
+   */
+  exec(sql: string): void {
+    this.db.exec(sql);
+  }
+
+  /**
+   * Get the underlying better-sqlite3 Database instance.
+   * Escape hatch for advanced usage.
+   */
+  get raw(): Database.Database {
+    return this.db;
+  }
+}
