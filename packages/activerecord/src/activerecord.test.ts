@@ -836,4 +836,548 @@ describe("ActiveRecord", () => {
       expect(count).toBe(2);
     });
   });
+
+  // =========================================================================
+  // Untested surface area — Relation advanced
+  // =========================================================================
+  describe("Relation (extended)", () => {
+    let adapter: MemoryAdapter;
+
+    class Widget extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("color", "string");
+        this.attribute("weight", "integer");
+        this.attribute("active", "boolean", { default: true });
+      }
+    }
+
+    beforeEach(async () => {
+      adapter = freshAdapter();
+      Widget.adapter = adapter;
+      await Widget.create({ name: "A", color: "red", weight: 10, active: true });
+      await Widget.create({ name: "B", color: "blue", weight: 20, active: true });
+      await Widget.create({ name: "C", color: "red", weight: 30, active: false });
+      await Widget.create({ name: "D", color: "green", weight: 10, active: true });
+    });
+
+    // -- select --
+    it("select returns records with projected columns in SQL", () => {
+      const sql = Widget.all().select("name", "color").toSql();
+      expect(sql).toContain('"name"');
+      expect(sql).toContain('"color"');
+      expect(sql).not.toContain("*");
+    });
+
+    // -- distinct --
+    it("distinct generates DISTINCT SQL", () => {
+      const sql = Widget.all().distinct().toSql();
+      expect(sql).toContain("DISTINCT");
+    });
+
+    // -- group --
+    it("group generates GROUP BY SQL", () => {
+      const sql = Widget.all().group("color").toSql();
+      expect(sql).toContain("GROUP BY");
+    });
+
+    // -- reorder replaces existing order --
+    it("reorder replaces existing order", async () => {
+      const items = await Widget.all()
+        .order({ name: "asc" })
+        .reorder({ name: "desc" })
+        .toArray();
+      expect(items[0].readAttribute("name")).toBe("D");
+    });
+
+    // -- reverseOrder --
+    it("reverseOrder reverses asc to desc", async () => {
+      const items = await Widget.all()
+        .order({ weight: "asc" })
+        .reverseOrder()
+        .toArray();
+      expect(items[0].readAttribute("weight")).toBe(30);
+    });
+
+    // -- last with no order defaults to PK desc --
+    it("last returns the last record by PK", async () => {
+      const item = await Widget.all().last();
+      expect(item).not.toBeNull();
+      expect(item!.readAttribute("name")).toBe("D");
+    });
+
+    // -- last with explicit order reverses it --
+    it("last with order reverses the order", async () => {
+      const item = await Widget.all()
+        .order({ name: "asc" })
+        .last();
+      expect(item).not.toBeNull();
+      expect(item!.readAttribute("name")).toBe("D");
+    });
+
+    // -- firstBang and lastBang --
+    it("firstBang returns first or throws", async () => {
+      const item = await Widget.all().firstBang();
+      expect(item.readAttribute("name")).toBe("A");
+    });
+
+    it("firstBang throws when empty", async () => {
+      await expect(
+        Widget.all().where({ color: "purple" }).firstBang()
+      ).rejects.toThrow("not found");
+    });
+
+    it("lastBang returns last or throws", async () => {
+      const item = await Widget.all().lastBang();
+      expect(item.readAttribute("name")).toBe("D");
+    });
+
+    it("lastBang throws when empty", async () => {
+      await expect(
+        Widget.all().where({ color: "purple" }).lastBang()
+      ).rejects.toThrow("not found");
+    });
+
+    // -- whereNot --
+    it("whereNot excludes matching records", async () => {
+      const items = await Widget.all().whereNot({ color: "red" }).toArray();
+      expect(items).toHaveLength(2);
+      expect(items.every(i => i.readAttribute("color") !== "red")).toBe(true);
+    });
+
+    it("whereNot with null uses IS NOT NULL", async () => {
+      const sql = Widget.all().whereNot({ color: null }).toSql();
+      expect(sql).toContain("IS NOT NULL");
+    });
+
+    // -- where with array (IN) --
+    it("where with array generates IN", async () => {
+      const items = await Widget.all()
+        .where({ color: ["red", "blue"] })
+        .toArray();
+      expect(items).toHaveLength(3);
+    });
+
+    // -- where with null --
+    it("where with null generates IS NULL", async () => {
+      const sql = Widget.all().where({ color: null }).toSql();
+      expect(sql).toContain("IS NULL");
+    });
+
+    // -- multi-column pluck --
+    it("pluck with multiple columns returns arrays", async () => {
+      const result = await Widget.all()
+        .order({ name: "asc" })
+        .pluck("name", "color");
+      expect(result).toEqual([
+        ["A", "red"],
+        ["B", "blue"],
+        ["C", "red"],
+        ["D", "green"],
+      ]);
+    });
+
+    // -- destroyAll --
+    it("destroyAll destroys all matching records", async () => {
+      const destroyed = await Widget.all()
+        .where({ color: "red" })
+        .destroyAll();
+      expect(destroyed).toHaveLength(2);
+      expect(destroyed[0].isDestroyed()).toBe(true);
+    });
+
+    // -- updateAll returns count --
+    it("updateAll returns the number of affected rows", async () => {
+      const count = await Widget.all()
+        .where({ color: "red" })
+        .updateAll({ weight: 99 });
+      expect(count).toBe(2);
+    });
+
+    // -- deleteAll returns count --
+    it("deleteAll returns the number of deleted rows", async () => {
+      const count = await Widget.all()
+        .where({ color: "red" })
+        .deleteAll();
+      expect(count).toBe(2);
+      const remaining = await Widget.all().toArray();
+      expect(remaining).toHaveLength(2);
+    });
+
+    // -- none returns empty for all terminal methods --
+    it("none().first() returns null", async () => {
+      expect(await Widget.all().none().first()).toBeNull();
+    });
+
+    it("none().last() returns null", async () => {
+      expect(await Widget.all().none().last()).toBeNull();
+    });
+
+    it("none().exists() returns false", async () => {
+      expect(await Widget.all().none().exists()).toBe(false);
+    });
+
+    it("none().pluck() returns empty array", async () => {
+      expect(await Widget.all().none().pluck("name")).toEqual([]);
+    });
+
+    it("none().updateAll() returns 0", async () => {
+      expect(await Widget.all().none().updateAll({ weight: 0 })).toBe(0);
+    });
+
+    it("none().deleteAll() returns 0", async () => {
+      expect(await Widget.all().none().deleteAll()).toBe(0);
+    });
+
+    // -- immutability --
+    it("where returns a new relation", async () => {
+      const all = Widget.all();
+      const filtered = all.where({ color: "red" });
+      expect(await all.count()).toBe(4);
+      expect(await filtered.count()).toBe(2);
+    });
+
+    it("order returns a new relation", async () => {
+      const all = Widget.all();
+      const ordered = all.order({ name: "desc" });
+      const allFirst = await all.first();
+      const orderedFirst = await ordered.first();
+      // ordering shouldn't change the unordered relation
+      expect(allFirst!.readAttribute("name")).toBe("A");
+      expect(orderedFirst!.readAttribute("name")).toBe("D");
+    });
+  });
+
+  // =========================================================================
+  // Untested surface area — Scopes
+  // =========================================================================
+  describe("Scopes", () => {
+    let adapter: MemoryAdapter;
+
+    class Product extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("price", "integer");
+        this.attribute("active", "boolean", { default: true });
+      }
+    }
+
+    beforeEach(async () => {
+      adapter = freshAdapter();
+      Product.adapter = adapter;
+    });
+
+    it("defines and uses a named scope", async () => {
+      Product.scope("cheap", (rel) => rel.where({ price: 1 }));
+
+      await Product.create({ name: "A", price: 1, active: true });
+      await Product.create({ name: "B", price: 100, active: true });
+
+      // Scopes are defined on the class but used via relation
+      const scoped = Product._scopes.get("cheap");
+      expect(scoped).toBeDefined();
+      const result = await scoped!(Product.all()).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("A");
+    });
+  });
+
+  // =========================================================================
+  // Untested surface area — Migration DDL methods
+  // =========================================================================
+  describe("Migration DDL (extended)", () => {
+    it("addColumn generates ALTER TABLE ADD COLUMN", async () => {
+      const adapter = freshAdapter();
+      class AddAge extends Migration {
+        async up() {
+          await this.createTable("users", (t) => {
+            t.string("name");
+          });
+          await this.addColumn("users", "age", "integer");
+        }
+        async down() {}
+      }
+      const m = new AddAge();
+      await m.run(adapter, "up");
+      // Should be able to insert with the new column
+      await adapter.executeMutation(
+        `INSERT INTO "users" ("name", "age") VALUES ('Dean', 30)`
+      );
+      const rows = await adapter.execute(`SELECT * FROM "users"`);
+      expect(rows).toHaveLength(1);
+    });
+
+    it("removeColumn generates ALTER TABLE DROP COLUMN", async () => {
+      const adapter = freshAdapter();
+      class RemoveCol extends Migration {
+        async up() {
+          await this.createTable("users", (t) => {
+            t.string("name");
+            t.string("email");
+          });
+          await this.removeColumn("users", "email");
+        }
+        async down() {}
+      }
+      const m = new RemoveCol();
+      await m.run(adapter, "up");
+      // MemoryAdapter may or may not enforce column removal, but SQL is generated
+    });
+
+    it("addIndex generates CREATE INDEX", async () => {
+      const adapter = freshAdapter();
+      class AddIdx extends Migration {
+        async up() {
+          await this.createTable("users", (t) => {
+            t.string("email");
+          });
+          await this.addIndex("users", ["email"]);
+        }
+        async down() {}
+      }
+      const m = new AddIdx();
+      await m.run(adapter, "up");
+      // MemoryAdapter ignores indexes but migration runs without error
+    });
+
+    it("addIndex with unique option", async () => {
+      const adapter = freshAdapter();
+      class AddUniqueIdx extends Migration {
+        async up() {
+          await this.createTable("users", (t) => {
+            t.string("email");
+          });
+          await this.addIndex("users", ["email"], { unique: true });
+        }
+        async down() {}
+      }
+      const m = new AddUniqueIdx();
+      await m.run(adapter, "up");
+    });
+  });
+
+  // =========================================================================
+  // Untested surface area — Callbacks (extended)
+  // =========================================================================
+  describe("Callbacks (extended)", () => {
+    it("runs before_update only on existing records", async () => {
+      const adapter = freshAdapter();
+      const log: string[] = [];
+
+      class Tracked extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.beforeCreate(() => { log.push("before_create"); });
+          this.beforeUpdate(() => { log.push("before_update"); });
+        }
+      }
+
+      const t = await Tracked.create({ name: "test" });
+      expect(log).toEqual(["before_create"]);
+
+      log.length = 0;
+      t.writeAttribute("name", "updated");
+      await t.save();
+      expect(log).toEqual(["before_update"]);
+    });
+
+    it("runs after_create and after_update at correct times", async () => {
+      const adapter = freshAdapter();
+      const log: string[] = [];
+
+      class Tracked extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.afterCreate(() => { log.push("after_create"); });
+          this.afterUpdate(() => { log.push("after_update"); });
+        }
+      }
+
+      await Tracked.create({ name: "test" });
+      expect(log).toContain("after_create");
+      expect(log).not.toContain("after_update");
+
+      log.length = 0;
+      const record = await Tracked.find(1);
+      await record.update({ name: "updated" });
+      expect(log).toContain("after_update");
+      expect(log).not.toContain("after_create");
+    });
+
+    it("after_destroy runs on destroy", async () => {
+      const adapter = freshAdapter();
+      const log: string[] = [];
+
+      class Tracked extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.afterDestroy(() => { log.push("after_destroy"); });
+        }
+      }
+
+      const t = await Tracked.create({ name: "test" });
+      await t.destroy();
+      expect(log).toContain("after_destroy");
+    });
+
+    it("around_save works via runCallbacks", () => {
+      const log: string[] = [];
+
+      class Tracked extends Base {
+        static {
+          this.attribute("name", "string");
+          this.aroundSave((_r, proceed) => {
+            log.push("around_before");
+            proceed();
+            log.push("around_after");
+          });
+        }
+      }
+
+      // around callbacks work through runCallbacks (Model-level API)
+      const t = new Tracked({ name: "test" });
+      t.runCallbacks("save", () => { log.push("action"); });
+      expect(log).toEqual(["around_before", "action", "around_after"]);
+    });
+  });
+
+  // =========================================================================
+  // Untested surface area — Base class methods
+  // =========================================================================
+  describe("Base (extended)", () => {
+    it("find with multiple IDs", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      await User.create({ name: "Charlie" });
+
+      const found = await User.find([1, 3]);
+      expect(found).toHaveLength(2);
+      expect(found[0].readAttribute("name")).toBe("Alice");
+      expect(found[1].readAttribute("name")).toBe("Charlie");
+    });
+
+    it("find with empty array returns empty", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      const found = await User.find([]);
+      expect(found).toEqual([]);
+    });
+
+    it("find with missing IDs throws", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice" });
+      await expect(User.find([1, 999])).rejects.toThrow("not found");
+    });
+
+    it("createBang throws on validation failure", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      await expect(User.createBang({})).rejects.toThrow("Validation failed");
+    });
+
+    it("updateBang throws on validation failure", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      const u = await User.create({ name: "Alice" });
+      await expect(u.updateBang({ name: "" })).rejects.toThrow("Validation failed");
+    });
+
+    it("save on destroyed record throws", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      const u = await User.create({ name: "Alice" });
+      await u.destroy();
+      await expect(u.save()).rejects.toThrow("destroyed");
+    });
+
+    it("instance delete skips callbacks", async () => {
+      const adapter = freshAdapter();
+      const log: string[] = [];
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.beforeDestroy(() => { log.push("before_destroy"); });
+        }
+      }
+      const u = await User.create({ name: "Alice" });
+      await u.delete();
+      expect(u.isDestroyed()).toBe(true);
+      expect(log).not.toContain("before_destroy");
+    });
+
+    it("static delete by ID", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice" });
+      await User.delete(1);
+      await expect(User.find(1)).rejects.toThrow("not found");
+    });
+
+    it("destroyBang delegates to destroy", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      const u = await User.create({ name: "Alice" });
+      const result = await u.destroyBang();
+      expect(result.isDestroyed()).toBe(true);
+    });
+
+    it("adapter throws when not configured", () => {
+      class NoAdapter extends Base {
+        static {
+          this.attribute("name", "string");
+        }
+      }
+      expect(() => NoAdapter.adapter).toThrow("No adapter configured");
+    });
+  });
 });

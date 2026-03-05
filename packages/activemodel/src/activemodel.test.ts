@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Model, Errors } from "./index.js";
+import { Model, Errors, Types } from "./index.js";
 
 describe("ActiveModel", () => {
   // =========================================================================
@@ -957,6 +957,392 @@ describe("ActiveModel", () => {
     it("toPartialPath returns conventional path", () => {
       const p = new Post();
       expect(p.toPartialPath()).toBe("posts/_post");
+    });
+
+    it("i18nKey is underscored", () => {
+      class BlogPost extends Model {}
+      expect(BlogPost.modelName.i18nKey).toBe("blog_post");
+    });
+  });
+
+  // =========================================================================
+  // Types — Date, DateTime, Decimal
+  // =========================================================================
+  describe("Types", () => {
+    describe("DateType", () => {
+      const type = new Types.DateType();
+
+      it("has name 'date'", () => {
+        expect(type.name).toBe("date");
+      });
+
+      it("casts Date to Date", () => {
+        const d = new Date("2024-01-15");
+        expect(type.cast(d)).toBe(d);
+      });
+
+      it("casts string to Date", () => {
+        const result = type.cast("2024-01-15");
+        expect(result).toBeInstanceOf(Date);
+        expect(result!.getFullYear()).toBe(2024);
+      });
+
+      it("casts null to null", () => {
+        expect(type.cast(null)).toBe(null);
+      });
+
+      it("casts undefined to null", () => {
+        expect(type.cast(undefined)).toBe(null);
+      });
+
+      it("casts invalid string to null", () => {
+        expect(type.cast("not-a-date")).toBe(null);
+      });
+
+      it("deserialize delegates to cast", () => {
+        const result = type.deserialize("2024-01-15");
+        expect(result).toBeInstanceOf(Date);
+      });
+
+      it("serialize delegates to cast", () => {
+        const result = type.serialize("2024-01-15");
+        expect(result).toBeInstanceOf(Date);
+      });
+    });
+
+    describe("DateTimeType", () => {
+      const type = new Types.DateTimeType();
+
+      it("has name 'datetime'", () => {
+        expect(type.name).toBe("datetime");
+      });
+
+      it("casts ISO string to Date", () => {
+        const result = type.cast("2024-01-15T10:30:00Z");
+        expect(result).toBeInstanceOf(Date);
+        expect(result!.getUTCHours()).toBe(10);
+      });
+
+      it("casts null to null", () => {
+        expect(type.cast(null)).toBe(null);
+      });
+
+      it("casts Date to Date", () => {
+        const d = new Date();
+        expect(type.cast(d)).toBe(d);
+      });
+    });
+
+    describe("DecimalType", () => {
+      const type = new Types.DecimalType();
+
+      it("has name 'decimal'", () => {
+        expect(type.name).toBe("decimal");
+      });
+
+      it("casts number to string", () => {
+        expect(type.cast(42.5)).toBe("42.5");
+      });
+
+      it("casts string number to string", () => {
+        expect(type.cast("3.14")).toBe("3.14");
+      });
+
+      it("casts integer to string", () => {
+        expect(type.cast(100)).toBe("100");
+      });
+
+      it("casts null to null", () => {
+        expect(type.cast(null)).toBe(null);
+      });
+
+      it("casts NaN string to null", () => {
+        expect(type.cast("not-a-number")).toBe(null);
+      });
+    });
+
+    describe("TypeRegistry", () => {
+      it("looks up built-in types", () => {
+        const str = Types.typeRegistry.lookup("string");
+        expect(str).toBeInstanceOf(Types.StringType);
+      });
+
+      it("looks up integer type", () => {
+        const int = Types.typeRegistry.lookup("integer");
+        expect(int).toBeInstanceOf(Types.IntegerType);
+      });
+
+      it("looks up all built-in types", () => {
+        expect(Types.typeRegistry.lookup("float")).toBeInstanceOf(Types.FloatType);
+        expect(Types.typeRegistry.lookup("boolean")).toBeInstanceOf(Types.BooleanType);
+        expect(Types.typeRegistry.lookup("date")).toBeInstanceOf(Types.DateType);
+        expect(Types.typeRegistry.lookup("datetime")).toBeInstanceOf(Types.DateTimeType);
+        expect(Types.typeRegistry.lookup("decimal")).toBeInstanceOf(Types.DecimalType);
+      });
+
+      it("throws on unknown type", () => {
+        expect(() => Types.typeRegistry.lookup("imaginary")).toThrow("Unknown type: imaginary");
+      });
+
+      it("registers custom type", () => {
+        Types.typeRegistry.register("custom", () => new Types.StringType());
+        const t = Types.typeRegistry.lookup("custom");
+        expect(t).toBeInstanceOf(Types.StringType);
+      });
+    });
+  });
+
+  // =========================================================================
+  // Errors.on() alias
+  // =========================================================================
+  describe("Errors.on()", () => {
+    it("on() is an alias for get()", () => {
+      const e = new Errors();
+      e.add("name", "blank");
+      expect(e.on("name")).toEqual(e.get("name"));
+      expect(e.on("name")).toContain("can't be blank");
+    });
+
+    it("on() returns empty array for unknown attribute", () => {
+      const e = new Errors();
+      expect(e.on("nonexistent")).toEqual([]);
+    });
+  });
+
+  // =========================================================================
+  // Validators — untested options
+  // =========================================================================
+  describe("Validators (extended)", () => {
+    describe("format with 'without' option", () => {
+      class NoNumbers extends Model {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { format: { without: /\d/ } });
+        }
+      }
+
+      it("accepts values not matching 'without'", () => {
+        expect(new NoNumbers({ name: "dean" }).isValid()).toBe(true);
+      });
+
+      it("rejects values matching 'without'", () => {
+        const n = new NoNumbers({ name: "dean123" });
+        expect(n.isValid()).toBe(false);
+        expect(n.errors.get("name")).toContain("is invalid");
+      });
+    });
+
+    describe("numericality comparison operators", () => {
+      it("greaterThanOrEqualTo", () => {
+        class GTE extends Model {
+          static {
+            this.attribute("age", "integer");
+            this.validates("age", { numericality: { greaterThanOrEqualTo: 18 } });
+          }
+        }
+        expect(new GTE({ age: 18 }).isValid()).toBe(true);
+        expect(new GTE({ age: 17 }).isValid()).toBe(false);
+      });
+
+      it("lessThanOrEqualTo", () => {
+        class LTE extends Model {
+          static {
+            this.attribute("rating", "integer");
+            this.validates("rating", { numericality: { lessThanOrEqualTo: 5 } });
+          }
+        }
+        expect(new LTE({ rating: 5 }).isValid()).toBe(true);
+        expect(new LTE({ rating: 6 }).isValid()).toBe(false);
+      });
+
+      it("equalTo", () => {
+        class EQ extends Model {
+          static {
+            this.attribute("answer", "integer");
+            this.validates("answer", { numericality: { equalTo: 42 } });
+          }
+        }
+        expect(new EQ({ answer: 42 }).isValid()).toBe(true);
+        expect(new EQ({ answer: 41 }).isValid()).toBe(false);
+      });
+
+      it("otherThan", () => {
+        class OT extends Model {
+          static {
+            this.attribute("count", "integer");
+            this.validates("count", { numericality: { otherThan: 0 } });
+          }
+        }
+        expect(new OT({ count: 1 }).isValid()).toBe(true);
+        expect(new OT({ count: 0 }).isValid()).toBe(false);
+      });
+    });
+
+    describe("inclusion allowNil", () => {
+      it("skips nil by default", () => {
+        class WithNil extends Model {
+          static {
+            this.attribute("status", "string");
+            this.validates("status", { inclusion: { in: ["a", "b"] } });
+          }
+        }
+        expect(new WithNil({}).isValid()).toBe(true);
+      });
+
+      it("validates nil when allowNil is false", () => {
+        class NoNil extends Model {
+          static {
+            this.attribute("status", "string");
+            this.validates("status", { inclusion: { in: ["a", "b"], allowNil: false } });
+          }
+        }
+        expect(new NoNil({}).isValid()).toBe(false);
+      });
+    });
+
+    describe("exclusion allowNil", () => {
+      it("skips nil by default", () => {
+        class WithNil extends Model {
+          static {
+            this.attribute("role", "string");
+            this.validates("role", { exclusion: { in: ["admin"] } });
+          }
+        }
+        expect(new WithNil({}).isValid()).toBe(true);
+      });
+    });
+
+    describe("acceptance skips nil", () => {
+      it("skips nil by default", () => {
+        class Terms extends Model {
+          static {
+            this.attribute("terms", "string");
+            this.validates("terms", { acceptance: true });
+          }
+        }
+        expect(new Terms({}).isValid()).toBe(true);
+      });
+    });
+
+    describe("custom messages", () => {
+      it("presence with custom message", () => {
+        class Custom extends Model {
+          static {
+            this.attribute("name", "string");
+            this.validates("name", { presence: { message: "is required" } });
+          }
+        }
+        const c = new Custom();
+        c.isValid();
+        expect(c.errors.get("name")).toContain("is required");
+      });
+
+      it("length with custom tooShort and tooLong", () => {
+        class Custom extends Model {
+          static {
+            this.attribute("name", "string");
+            this.validates("name", {
+              length: { minimum: 3, maximum: 5, tooShort: "too few!", tooLong: "too many!" },
+            });
+          }
+        }
+        const short = new Custom({ name: "ab" });
+        short.isValid();
+        expect(short.errors.get("name")).toContain("too few!");
+
+        const long = new Custom({ name: "abcdef" });
+        long.isValid();
+        expect(long.errors.get("name")).toContain("too many!");
+      });
+    });
+  });
+
+  // =========================================================================
+  // Callbacks — after_validation
+  // =========================================================================
+  describe("Callbacks (extended)", () => {
+    it("afterValidation runs after validation", () => {
+      const order: string[] = [];
+      class Validated extends Model {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true });
+          this.afterValidation(() => { order.push("after_validation"); });
+        }
+      }
+      const v = new Validated({ name: "dean" });
+      v.isValid();
+      expect(order).toContain("after_validation");
+    });
+
+    it("afterValidation runs even when invalid", () => {
+      const order: string[] = [];
+      class Validated extends Model {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true });
+          this.afterValidation(() => { order.push("after_validation"); });
+        }
+      }
+      const v = new Validated();
+      v.isValid();
+      expect(order).toContain("after_validation");
+    });
+
+    it("callback inheritance — child inherits parent callbacks", () => {
+      const order: string[] = [];
+      class Parent extends Model {
+        static {
+          this.attribute("name", "string");
+          this.beforeSave(() => { order.push("parent_before"); });
+        }
+      }
+      class Child extends Parent {
+        static {
+          this.beforeSave(() => { order.push("child_before"); });
+        }
+      }
+      const c = new Child();
+      c.runCallbacks("save", () => { order.push("action"); });
+      expect(order).toContain("parent_before");
+      expect(order).toContain("child_before");
+      expect(order.indexOf("parent_before")).toBeLessThan(order.indexOf("child_before"));
+    });
+
+    it("child callbacks do not affect parent", () => {
+      const parentOrder: string[] = [];
+      const childOrder: string[] = [];
+      class Parent extends Model {
+        static {
+          this.attribute("name", "string");
+          this.beforeSave(() => { parentOrder.push("parent"); childOrder.push("parent"); });
+        }
+      }
+      class Child extends Parent {
+        static {
+          this.beforeSave(() => { childOrder.push("child"); });
+        }
+      }
+      new Parent().runCallbacks("save", () => { parentOrder.push("action"); });
+      expect(parentOrder).not.toContain("child");
+    });
+
+    it("custom validate with method name string", () => {
+      class WithMethod extends Model {
+        static {
+          this.attribute("value", "integer");
+          this.validate("validateCustom");
+        }
+        validateCustom() {
+          if (this.readAttribute("value") === 0) {
+            this.errors.add("value", "invalid", { message: "cannot be zero" });
+          }
+        }
+      }
+      expect(new WithMethod({ value: 1 }).isValid()).toBe(true);
+      const w = new WithMethod({ value: 0 });
+      expect(w.isValid()).toBe(false);
+      expect(w.errors.get("value")).toContain("cannot be zero");
     });
   });
 });

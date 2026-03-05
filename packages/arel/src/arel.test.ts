@@ -9,6 +9,7 @@ import {
   DeleteManager,
   Nodes,
   Visitors,
+  Collectors,
 } from "./index.js";
 
 describe("Arel", () => {
@@ -763,6 +764,417 @@ describe("Arel", () => {
       const avgQuery = users.project(users.get("karma").average());
       // Subquery as a node in a comparison
       expect(avgQuery.ast).toBeInstanceOf(Nodes.SelectStatement);
+    });
+
+    // -- attribute.count(true) with DISTINCT --
+    it("attribute.count(true) generates COUNT(DISTINCT ...)", () => {
+      expect(users.project(users.get("name").count(true)).toSql()).toBe(
+        'SELECT COUNT(DISTINCT "users"."name") FROM "users"'
+      );
+    });
+
+    // -- Lock with custom string --
+    it("lock with custom clause", () => {
+      expect(
+        users.project(star).lock("FOR SHARE").toSql()
+      ).toBe('SELECT * FROM "users" FOR SHARE');
+    });
+
+    // -- Casted node --
+    it("Casted node renders the quoted value", () => {
+      const visitor = new Visitors.ToSql();
+      const attr = users.get("name");
+      const casted = new Nodes.Casted("hello", attr);
+      expect(visitor.compile(casted)).toBe("'hello'");
+    });
+
+    it("Casted node with number", () => {
+      const visitor = new Visitors.ToSql();
+      const attr = users.get("age");
+      const casted = new Nodes.Casted(42, attr);
+      expect(visitor.compile(casted)).toBe("42");
+    });
+
+    it("Casted node with null", () => {
+      const visitor = new Visitors.ToSql();
+      const attr = users.get("name");
+      const casted = new Nodes.Casted(null, attr);
+      expect(visitor.compile(casted)).toBe("NULL");
+    });
+  });
+
+  // =========================================================================
+  // Window framing
+  // =========================================================================
+  describe("Window framing", () => {
+    const visitor = new Visitors.ToSql();
+
+    it("ROWS UNBOUNDED PRECEDING", () => {
+      const w = new Nodes.Window();
+      w.order(users.get("id").asc());
+      w.frame(new Nodes.Rows(new Nodes.Preceding()));
+      const fn = new Nodes.NamedFunction("SUM", [users.get("amount")]);
+      const result = visitor.compile(new Nodes.Over(fn, w));
+      expect(result).toContain("ROWS UNBOUNDED PRECEDING");
+    });
+
+    it("ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING", () => {
+      const w = new Nodes.Window();
+      w.order(users.get("id").asc());
+      w.frame(new Nodes.Rows(new Nodes.Between(
+        new Nodes.CurrentRow(),
+        new Nodes.Following()
+      )));
+      const fn = new Nodes.NamedFunction("SUM", [users.get("amount")]);
+      const result = visitor.compile(new Nodes.Over(fn, w));
+      expect(result).toContain("ROWS");
+      expect(result).toContain("CURRENT ROW");
+    });
+
+    it("RANGE frame", () => {
+      const w = new Nodes.Window();
+      w.order(users.get("id").asc());
+      w.frame(new Nodes.Range(new Nodes.Preceding()));
+      const fn = new Nodes.NamedFunction("SUM", [users.get("amount")]);
+      const result = visitor.compile(new Nodes.Over(fn, w));
+      expect(result).toContain("RANGE UNBOUNDED PRECEDING");
+    });
+
+    it("Preceding with N rows", () => {
+      const visitor = new Visitors.ToSql();
+      const result = visitor.compile(new Nodes.Preceding(new Nodes.Quoted(3)));
+      expect(result).toBe("3 PRECEDING");
+    });
+
+    it("Following with N rows", () => {
+      const visitor = new Visitors.ToSql();
+      const result = visitor.compile(new Nodes.Following(new Nodes.Quoted(5)));
+      expect(result).toBe("5 FOLLOWING");
+    });
+
+    it("UNBOUNDED FOLLOWING", () => {
+      const visitor = new Visitors.ToSql();
+      const result = visitor.compile(new Nodes.Following());
+      expect(result).toBe("UNBOUNDED FOLLOWING");
+    });
+
+    it("CurrentRow", () => {
+      const visitor = new Visitors.ToSql();
+      const result = visitor.compile(new Nodes.CurrentRow());
+      expect(result).toBe("CURRENT ROW");
+    });
+
+    it("NamedWindow renders WINDOW name AS (...)", () => {
+      const nw = new Nodes.NamedWindow("w");
+      nw.order(users.get("id").asc());
+      const result = visitor.compile(nw);
+      expect(result).toBe('"w" AS (ORDER BY "users"."id" ASC)');
+    });
+
+    it("Window with partition and order", () => {
+      const w = new Nodes.Window();
+      w.partition(users.get("department_id"));
+      w.order(users.get("salary").desc());
+      const result = visitor.compile(w);
+      expect(result).toBe('(PARTITION BY "users"."department_id" ORDER BY "users"."salary" DESC)');
+    });
+  });
+
+  // =========================================================================
+  // Additional join types
+  // =========================================================================
+  describe("Join types", () => {
+    it("RIGHT OUTER JOIN", () => {
+      const mgr = new SelectManager(users);
+      mgr.project(star);
+      const onNode = new Nodes.On(users.get("id").eq(posts.get("user_id")));
+      mgr.ast.cores[0].source.right.push(
+        new Nodes.RightOuterJoin(posts, onNode)
+      );
+      expect(mgr.toSql()).toBe(
+        'SELECT * FROM "users" RIGHT OUTER JOIN "posts" ON "users"."id" = "posts"."user_id"'
+      );
+    });
+
+    it("FULL OUTER JOIN", () => {
+      const mgr = new SelectManager(users);
+      mgr.project(star);
+      const onNode = new Nodes.On(users.get("id").eq(posts.get("user_id")));
+      mgr.ast.cores[0].source.right.push(
+        new Nodes.FullOuterJoin(posts, onNode)
+      );
+      expect(mgr.toSql()).toBe(
+        'SELECT * FROM "users" FULL OUTER JOIN "posts" ON "users"."id" = "posts"."user_id"'
+      );
+    });
+
+    it("CROSS JOIN", () => {
+      const mgr = new SelectManager(users);
+      mgr.project(star);
+      mgr.ast.cores[0].source.right.push(new Nodes.CrossJoin(posts));
+      expect(mgr.toSql()).toBe(
+        'SELECT * FROM "users" CROSS JOIN "posts"'
+      );
+    });
+
+    it("StringJoin (raw SQL join)", () => {
+      const mgr = new SelectManager(users);
+      mgr.project(star);
+      mgr.ast.cores[0].source.right.push(
+        new Nodes.StringJoin(new Nodes.SqlLiteral('JOIN "posts" ON "posts"."user_id" = "users"."id"'))
+      );
+      expect(mgr.toSql()).toBe(
+        'SELECT * FROM "users" JOIN "posts" ON "posts"."user_id" = "users"."id"'
+      );
+    });
+  });
+
+  // =========================================================================
+  // _any / _all remaining variants
+  // =========================================================================
+  describe("Additional _any/_all variants", () => {
+    it("notEqAny", () => {
+      const result = users
+        .project(star)
+        .where(users.get("name").notEqAny(["dean", "sam"]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."name" != 'dean' OR "users"."name" != 'sam')`
+      );
+    });
+
+    it("notEqAll", () => {
+      const result = users
+        .project(star)
+        .where(users.get("name").notEqAll(["dean", "sam"]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."name" != 'dean' AND "users"."name" != 'sam')`
+      );
+    });
+
+    it("gtAll", () => {
+      const result = users
+        .project(star)
+        .where(users.get("age").gtAll([10, 20]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."age" > 10 AND "users"."age" > 20)`
+      );
+    });
+
+    it("gteqAny", () => {
+      const result = users
+        .project(star)
+        .where(users.get("age").gteqAny([10, 20]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."age" >= 10 OR "users"."age" >= 20)`
+      );
+    });
+
+    it("gteqAll", () => {
+      const result = users
+        .project(star)
+        .where(users.get("age").gteqAll([10, 20]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."age" >= 10 AND "users"."age" >= 20)`
+      );
+    });
+
+    it("ltAny", () => {
+      const result = users
+        .project(star)
+        .where(users.get("age").ltAny([10, 20]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."age" < 10 OR "users"."age" < 20)`
+      );
+    });
+
+    it("lteqAny", () => {
+      const result = users
+        .project(star)
+        .where(users.get("age").lteqAny([10, 20]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."age" <= 10 OR "users"."age" <= 20)`
+      );
+    });
+
+    it("lteqAll", () => {
+      const result = users
+        .project(star)
+        .where(users.get("age").lteqAll([10, 20]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."age" <= 10 AND "users"."age" <= 20)`
+      );
+    });
+
+    it("matchesAll", () => {
+      const result = users
+        .project(star)
+        .where(users.get("name").matchesAll(["%d%", "%e%"]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."name" LIKE '%d%' AND "users"."name" LIKE '%e%')`
+      );
+    });
+
+    it("doesNotMatchAny", () => {
+      const result = users
+        .project(star)
+        .where(users.get("name").doesNotMatchAny(["%d%", "%e%"]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."name" NOT LIKE '%d%' OR "users"."name" NOT LIKE '%e%')`
+      );
+    });
+
+    it("doesNotMatchAll", () => {
+      const result = users
+        .project(star)
+        .where(users.get("name").doesNotMatchAll(["%d%", "%e%"]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."name" NOT LIKE '%d%' AND "users"."name" NOT LIKE '%e%')`
+      );
+    });
+
+    it("inAny", () => {
+      const result = users
+        .project(star)
+        .where(users.get("id").inAny([[1, 2], [3, 4]]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."id" IN (1, 2) OR "users"."id" IN (3, 4))`
+      );
+    });
+
+    it("inAll", () => {
+      const result = users
+        .project(star)
+        .where(users.get("id").inAll([[1, 2], [3, 4]]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."id" IN (1, 2) AND "users"."id" IN (3, 4))`
+      );
+    });
+
+    it("notInAny", () => {
+      const result = users
+        .project(star)
+        .where(users.get("id").notInAny([[1, 2], [3, 4]]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."id" NOT IN (1, 2) OR "users"."id" NOT IN (3, 4))`
+      );
+    });
+
+    it("notInAll", () => {
+      const result = users
+        .project(star)
+        .where(users.get("id").notInAll([[1, 2], [3, 4]]))
+        .toSql();
+      expect(result).toBe(
+        `SELECT * FROM "users" WHERE ("users"."id" NOT IN (1, 2) AND "users"."id" NOT IN (3, 4))`
+      );
+    });
+  });
+
+  // =========================================================================
+  // Collectors
+  // =========================================================================
+  describe("Collectors", () => {
+    it("Bind collector accumulates binds", () => {
+      const bind = new Collectors.Bind();
+      bind.append("SELECT * FROM users WHERE id = ");
+      bind.addBind(42);
+      bind.append(" AND name = ");
+      bind.addBind("dean");
+      const [sql, binds] = bind.value;
+      expect(sql).toBe("SELECT * FROM users WHERE id = ? AND name = ?");
+      expect(binds).toEqual([42, "dean"]);
+    });
+
+    it("SQLString collector accumulates SQL and binds", () => {
+      const collector = new Collectors.SQLString();
+      collector.append("SELECT ");
+      collector.append("*");
+      expect(collector.value).toBe("SELECT *");
+    });
+
+    it("SQLString addBind appends ? placeholder", () => {
+      const collector = new Collectors.SQLString();
+      collector.append("WHERE id = ");
+      collector.addBind(42);
+      expect(collector.value).toBe("WHERE id = ?");
+      expect(collector.bindValues).toEqual([42]);
+    });
+  });
+
+  // =========================================================================
+  // DeleteManager with ORDER BY and LIMIT
+  // =========================================================================
+  describe("DeleteManager advanced", () => {
+    it("DELETE with ORDER BY and LIMIT", () => {
+      const mgr = new DeleteManager();
+      mgr.from(users);
+      mgr.where(users.get("active").eq(false));
+      mgr.order(users.get("created_at").asc());
+      mgr.take(10);
+      expect(mgr.toSql()).toBe(
+        'DELETE FROM "users" WHERE "users"."active" = FALSE ORDER BY "users"."created_at" ASC LIMIT 10'
+      );
+    });
+  });
+
+  // =========================================================================
+  // UpdateManager with ORDER BY and LIMIT
+  // =========================================================================
+  describe("UpdateManager advanced", () => {
+    it("UPDATE with ORDER BY and LIMIT", () => {
+      const mgr = new UpdateManager();
+      mgr.table(users);
+      mgr.set([[users.get("active"), false]]);
+      mgr.where(users.get("age").lt(18));
+      mgr.order(users.get("name").asc());
+      mgr.take(5);
+      expect(mgr.toSql()).toBe(
+        `UPDATE "users" SET "users"."active" = FALSE WHERE "users"."age" < 18 ORDER BY "users"."name" ASC LIMIT 5`
+      );
+    });
+  });
+
+  // =========================================================================
+  // InsertManager.values()
+  // =========================================================================
+  describe("InsertManager advanced", () => {
+    it("multi-row INSERT with ValuesList", () => {
+      const mgr = new InsertManager();
+      mgr.into(users);
+      mgr.ast.columns = [users.get("name"), users.get("age")];
+      mgr.values(new Nodes.ValuesList([
+        [new Nodes.Quoted("dean"), new Nodes.Quoted(30)],
+        [new Nodes.Quoted("sam"), new Nodes.Quoted(25)],
+      ]));
+      expect(mgr.toSql()).toBe(
+        `INSERT INTO "users" ("name", "age") VALUES ('dean', 30), ('sam', 25)`
+      );
+    });
+  });
+
+  // =========================================================================
+  // Table.from()
+  // =========================================================================
+  describe("Table.from()", () => {
+    it("returns a SelectManager with the table as source", () => {
+      const mgr = users.from();
+      expect(mgr).toBeInstanceOf(SelectManager);
+      mgr.project(star);
+      expect(mgr.toSql()).toBe('SELECT * FROM "users"');
     });
   });
 });
