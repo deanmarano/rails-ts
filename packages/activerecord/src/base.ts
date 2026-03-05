@@ -327,6 +327,27 @@ export class Base extends Model {
     return this._suppressed;
   }
 
+  /**
+   * Validate that all named associations are themselves valid.
+   *
+   * Mirrors: ActiveRecord::Validations::ClassMethods#validates_associated
+   */
+  static validatesAssociated(...associationNames: string[]): void {
+    this.beforeValidation(async function(this: Base) {
+      for (const name of associationNames) {
+        const cached = (this as any)._preloadedAssociations?.get(name) ??
+          (this as any)._cachedAssociations?.get(name);
+        if (!cached) continue;
+        const records = Array.isArray(cached) ? cached : [cached];
+        for (const record of records) {
+          if (record && typeof record.isValid === "function" && !record.isValid()) {
+            this.errors.add(name, "invalid");
+          }
+        }
+      }
+    });
+  }
+
   // -- Scopes registry (used by Relation) --
   static _scopes: Map<string, (rel: any, ...args: any[]) => any> = new Map();
   static _defaultScope: ((rel: any) => any) | null = null;
@@ -1855,6 +1876,30 @@ export class Base extends Model {
       result[key] = this.readAttribute(key);
     }
     return result;
+  }
+
+  /**
+   * Return a GlobalID-like URI for this record.
+   *
+   * Mirrors: ActiveRecord::Base#to_gid (simplified, no app name)
+   */
+  toGid(): string {
+    const ctor = this.constructor as typeof Base;
+    return `gid://${ctor.name}/${this.id}`;
+  }
+
+  /**
+   * Return a signed GlobalID-like URI for this record.
+   * Uses a simple base64 encoding (not cryptographically signed).
+   *
+   * Mirrors: ActiveRecord::Base#to_sgid (simplified)
+   */
+  toSgid(): string {
+    const gid = this.toGid();
+    if (typeof btoa === "function") {
+      return btoa(gid);
+    }
+    return Buffer.from(gid).toString("base64");
   }
 
   /**

@@ -910,6 +910,33 @@ describe("ActiveModel", () => {
       expect(parsed.title).toBe("Hello");
       expect(parsed.rating).toBe(5);
     });
+
+    it("include option serializes nested associations", () => {
+      const p = new Post({ title: "Hello", body: "World", rating: 5 });
+      // Simulate preloaded association
+      const comment = { _attributes: new Map([["text", "Great!"]]) };
+      (p as any)._preloadedAssociations = new Map([["comments", [comment]]]);
+      const result = p.serializableHash({ include: ["comments"] });
+      expect(Array.isArray(result.comments)).toBe(true);
+      expect((result.comments as any[])[0].text).toBe("Great!");
+    });
+
+    it("include with options filters nested attributes", () => {
+      const p = new Post({ title: "Hello", body: "World", rating: 5 });
+      const comment = { _attributes: new Map([["text", "Great!"], ["author", "Bob"]]) };
+      (p as any)._preloadedAssociations = new Map([["comments", [comment]]]);
+      const result = p.serializableHash({ include: { comments: { only: ["text"] } } });
+      expect((result.comments as any[])[0].text).toBe("Great!");
+      expect((result.comments as any[])[0].author).toBeUndefined();
+    });
+
+    it("include as string for single association", () => {
+      const p = new Post({ title: "Hello", body: "World", rating: 5 });
+      const author = { _attributes: new Map([["name", "Alice"]]) };
+      (p as any)._preloadedAssociations = new Map([["author", author]]);
+      const result = p.serializableHash({ include: "author" });
+      expect((result.author as any).name).toBe("Alice");
+    });
   });
 
   describe("Naming", () => {

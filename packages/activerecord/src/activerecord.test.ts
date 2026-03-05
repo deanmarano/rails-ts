@@ -8334,6 +8334,54 @@ describe("ActiveRecord", () => {
   });
 
   // ===========================================================================
+  // toGid / toSgid
+  // ===========================================================================
+  describe("toGid / toSgid", () => {
+    it("returns a GlobalID-like URI", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice" });
+      expect(u.toGid()).toBe(`gid://User/${u.id}`);
+    });
+
+    it("returns a base64-encoded signed GID", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice" });
+      const sgid = u.toSgid();
+      // Decode and verify
+      const decoded = Buffer.from(sgid, "base64").toString();
+      expect(decoded).toBe(`gid://User/${u.id}`);
+    });
+  });
+
+  // ===========================================================================
+  // serializableHash with include option
+  // ===========================================================================
+  describe("serializableHash with include", () => {
+    it("includes nested associations when preloaded", async () => {
+      const adapter = freshAdapter();
+      class Author extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const author = await Author.create({ name: "Alice" });
+      // Simulate preloaded associations
+      const fakePost = { _attributes: new Map([["title", "Hello"], ["id", 1]]) };
+      (author as any)._preloadedAssociations = new Map([["posts", [fakePost]]]);
+
+      const { serializableHash } = await import("@rails-js/activemodel");
+      const hash = serializableHash(author, { include: ["posts"] });
+      expect(hash.name).toBe("Alice");
+      expect(Array.isArray(hash.posts)).toBe(true);
+      expect((hash.posts as any[])[0].title).toBe("Hello");
+    });
+  });
+
+  // ===========================================================================
   // columnDefaults
   // ===========================================================================
   describe("Base.columnDefaults", () => {

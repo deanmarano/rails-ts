@@ -5,6 +5,7 @@ export interface SerializeOptions {
   only?: string[];
   except?: string[];
   methods?: string[];
+  include?: Record<string, SerializeOptions> | string[] | string;
 }
 
 /**
@@ -40,5 +41,40 @@ export function serializableHash(
     }
   }
 
+  // Handle include option for nested associations
+  if (options.include) {
+    const includes = normalizeIncludes(options.include);
+    for (const [assocName, assocOpts] of Object.entries(includes)) {
+      // Check for cached/preloaded associations
+      const cached = record._preloadedAssociations?.get(assocName) ??
+        record._cachedAssociations?.get(assocName);
+      if (cached !== undefined) {
+        if (Array.isArray(cached)) {
+          result[assocName] = cached.map((r: any) => serializableHash(r, assocOpts));
+        } else if (cached && typeof cached === "object" && cached._attributes) {
+          result[assocName] = serializableHash(cached, assocOpts);
+        } else {
+          result[assocName] = cached;
+        }
+      }
+    }
+  }
+
   return result;
+}
+
+function normalizeIncludes(
+  include: Record<string, SerializeOptions> | string[] | string
+): Record<string, SerializeOptions> {
+  if (typeof include === "string") {
+    return { [include]: {} };
+  }
+  if (Array.isArray(include)) {
+    const result: Record<string, SerializeOptions> = {};
+    for (const name of include) {
+      result[name] = {};
+    }
+    return result;
+  }
+  return include;
 }
