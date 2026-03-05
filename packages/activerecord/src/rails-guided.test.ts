@@ -7198,4 +7198,48 @@ describe("Grouped Calculations (Rails-guided)", () => {
     const saved2 = await book2.save();
     expect(saved2).toBe(true);
   });
+
+  // Rails: test "where with named binds"
+  it("where replaces :name placeholders with quoted values", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("age", "integer"); this.adapter = adapter; }
+    }
+
+    await User.create({ name: "Alice", age: 25 });
+    await User.create({ name: "Bob", age: 15 });
+
+    const results = await User.all().where("age >= :min", { min: 20 }).toArray();
+    expect(results.length).toBe(1);
+    expect(results[0].readAttribute("name")).toBe("Alice");
+  });
+
+  // Rails: test "only keeps specified relation parts"
+  it("only() keeps only specified query components", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    await User.create({ name: "Alice" });
+    await User.create({ name: "Bob" });
+
+    const rel = User.all().where({ name: "Alice" }).order("name").limit(1);
+    const onlyWhere = rel.only("where");
+    const results = await onlyWhere.toArray();
+    expect(results.length).toBe(1);
+  });
+
+  // Rails: test "unscope removes specified relation parts"
+  it("unscope() removes specified query components", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    await User.create({ name: "Alice" });
+    await User.create({ name: "Bob" });
+
+    const rel = User.all().where({ name: "Alice" }).limit(1);
+    const withoutLimit = rel.unscope("limit");
+    const results = await withoutLimit.toArray();
+    expect(results.length).toBe(1); // still has where clause
+  });
 });

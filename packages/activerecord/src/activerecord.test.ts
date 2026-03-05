@@ -7780,4 +7780,79 @@ describe("ActiveRecord", () => {
       expect(saved).toBe(true);
     });
   });
+
+  describe("where with named binds", () => {
+    it("replaces :name placeholders with values", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.attribute("age", "integer");
+      User.adapter = adapter;
+
+      await User.create({ name: "Alice", age: 25 });
+      await User.create({ name: "Bob", age: 15 });
+      await User.create({ name: "Charlie", age: 35 });
+
+      const results = await User.all().where("age > :min AND age < :max", { min: 20, max: 30 }).toArray();
+      expect(results.length).toBe(1);
+      expect(results[0].readAttribute("name")).toBe("Alice");
+    });
+
+    it("handles string named binds with quoting", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+
+      const results = await User.all().where("name = :name", { name: "Alice" }).toArray();
+      expect(results.length).toBe(1);
+      expect(results[0].readAttribute("name")).toBe("Alice");
+    });
+  });
+
+  describe("only()", () => {
+    it("keeps only specified query parts", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      await User.create({ name: "Charlie" });
+
+      // Build a complex relation
+      const rel = User.all().where({ name: "Alice" }).order("name").limit(1);
+      // Keep only where — strips order and limit
+      const simplified = rel.only("where");
+      const results = await simplified.toArray();
+      expect(results.length).toBe(1);
+      expect(results[0].readAttribute("name")).toBe("Alice");
+    });
+  });
+
+  describe("unscope()", () => {
+    it("removes specified query parts", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+
+      const rel = User.all().where({ name: "Alice" }).limit(1);
+      const withoutWhere = rel.unscope("where");
+      const results = await withoutWhere.toArray();
+      // Without the where clause, should get 1 record (limit still applies)
+      expect(results.length).toBe(1);
+    });
+  });
 });

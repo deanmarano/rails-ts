@@ -75,17 +75,33 @@ export class Relation<T extends Base> {
   where(conditionsOrSql: Record<string, unknown> | string, ...binds: unknown[]): Relation<T> {
     const rel = this._clone();
     if (typeof conditionsOrSql === "string") {
-      // Raw SQL with bind params — substitute ? placeholders
       let sql = conditionsOrSql;
-      for (const bind of binds) {
-        const replacement = bind === null
-          ? "NULL"
-          : typeof bind === "number"
-            ? String(bind)
-            : typeof bind === "boolean"
-              ? bind ? "TRUE" : "FALSE"
-              : `'${String(bind).replace(/'/g, "''")}'`;
-        sql = sql.replace("?", replacement);
+
+      // Check for named binds: where("age > :min AND age < :max", { min: 18, max: 65 })
+      if (binds.length === 1 && typeof binds[0] === "object" && binds[0] !== null && !Array.isArray(binds[0])) {
+        const namedBinds = binds[0] as Record<string, unknown>;
+        for (const [name, value] of Object.entries(namedBinds)) {
+          const replacement = value === null
+            ? "NULL"
+            : typeof value === "number"
+              ? String(value)
+              : typeof value === "boolean"
+                ? value ? "TRUE" : "FALSE"
+                : `'${String(value).replace(/'/g, "''")}'`;
+          sql = sql.replace(new RegExp(`:${name}\\b`, "g"), replacement);
+        }
+      } else {
+        // Positional ? placeholders
+        for (const bind of binds) {
+          const replacement = bind === null
+            ? "NULL"
+            : typeof bind === "number"
+              ? String(bind)
+              : typeof bind === "boolean"
+                ? bind ? "TRUE" : "FALSE"
+                : `'${String(bind).replace(/'/g, "''")}'`;
+          sql = sql.replace("?", replacement);
+        }
       }
       rel._whereRawClauses.push(sql);
     } else {
@@ -587,6 +603,19 @@ export class Relation<T extends Base> {
       }
     }
     return rel;
+  }
+
+  /**
+   * Keep only the specified query parts and remove everything else.
+   *
+   * Mirrors: ActiveRecord::SpawnMethods#only
+   */
+  only(...types: Array<"where" | "order" | "limit" | "offset" | "group" | "having" | "select" | "distinct" | "lock" | "readonly" | "from">): Relation<T> {
+    const allTypes: Array<"where" | "order" | "limit" | "offset" | "group" | "having" | "select" | "distinct" | "lock" | "readonly" | "from"> = [
+      "where", "order", "limit", "offset", "group", "having", "select", "distinct", "lock", "readonly", "from",
+    ];
+    const toRemove = allTypes.filter((t) => !types.includes(t));
+    return this.unscope(...toRemove);
   }
 
   /**
