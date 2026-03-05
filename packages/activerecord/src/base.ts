@@ -512,6 +512,88 @@ export class Base extends Model {
   }
 
   /**
+   * Check if a record exists. Accepts a primary key, conditions hash, or no arguments.
+   *
+   * Mirrors: ActiveRecord::Base.exists?
+   */
+  static async exists(
+    idOrConditions?: unknown
+  ): Promise<boolean> {
+    if (idOrConditions === undefined) {
+      return this.all().isAny();
+    }
+    if (typeof idOrConditions === "object" && idOrConditions !== null && !Array.isArray(idOrConditions)) {
+      return this.all().where(idOrConditions as Record<string, unknown>).isAny();
+    }
+    // Treat as primary key
+    const record = await this.findBy({ [this.primaryKey]: idOrConditions });
+    return record !== null;
+  }
+
+  /**
+   * Return the count of all records.
+   *
+   * Mirrors: ActiveRecord::Base.count
+   */
+  static async count(): Promise<number> {
+    return this.all().count() as Promise<number>;
+  }
+
+  /**
+   * Return the minimum value of a column.
+   *
+   * Mirrors: ActiveRecord::Base.minimum
+   */
+  static async minimum(column: string): Promise<unknown> {
+    return this.all().minimum(column);
+  }
+
+  /**
+   * Return the maximum value of a column.
+   *
+   * Mirrors: ActiveRecord::Base.maximum
+   */
+  static async maximum(column: string): Promise<unknown> {
+    return this.all().maximum(column);
+  }
+
+  /**
+   * Return the average value of a column.
+   *
+   * Mirrors: ActiveRecord::Base.average
+   */
+  static async average(column: string): Promise<unknown> {
+    return this.all().average(column);
+  }
+
+  /**
+   * Return the sum of a column.
+   *
+   * Mirrors: ActiveRecord::Base.sum
+   */
+  static async sum(column: string): Promise<unknown> {
+    return this.all().sum(column);
+  }
+
+  /**
+   * Pluck column values.
+   *
+   * Mirrors: ActiveRecord::Base.pluck
+   */
+  static async pluck(...columns: string[]): Promise<unknown[]> {
+    return this.all().pluck(...columns);
+  }
+
+  /**
+   * Return primary key values.
+   *
+   * Mirrors: ActiveRecord::Base.ids
+   */
+  static async ids(): Promise<unknown[]> {
+    return this.all().ids();
+  }
+
+  /**
    * Find the first record matching conditions, or create one.
    *
    * Mirrors: ActiveRecord::Base.find_or_create_by

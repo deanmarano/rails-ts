@@ -6948,4 +6948,49 @@ describe("Grouped Calculations (Rails-guided)", () => {
     saved.writeAttribute("name", "Changed");
     expect(saved.isChangedForAutosave()).toBe(true);
   });
+
+  // Rails: test "exists?"
+  it("exists? checks record existence by id, conditions, or no args", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    expect(await User.exists()).toBe(false);
+    const user = await User.create({ name: "Alice" });
+    expect(await User.exists()).toBe(true);
+    expect(await User.exists(user.id)).toBe(true);
+    expect(await User.exists(999)).toBe(false);
+    expect(await User.exists({ name: "Alice" })).toBe(true);
+    expect(await User.exists({ name: "Missing" })).toBe(false);
+  });
+
+  // Rails: test "class-level aggregates"
+  it("Base.count, minimum, maximum, sum, average delegate to Relation", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("age", "integer"); this.adapter = adapter; }
+    }
+
+    await User.create({ age: 20 });
+    await User.create({ age: 40 });
+
+    expect(await User.count()).toBe(2);
+    expect(await User.minimum("age")).toBe(20);
+    expect(await User.maximum("age")).toBe(40);
+    expect(await User.sum("age")).toBe(60);
+    expect(await User.average("age")).toBe(30);
+  });
+
+  // Rails: test "pluck and ids class methods"
+  it("Base.pluck and Base.ids return extracted values", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    await User.create({ name: "Alice" });
+    await User.create({ name: "Bob" });
+
+    const names = (await User.pluck("name")).sort();
+    expect(names).toEqual(["Alice", "Bob"]);
+    expect((await User.ids()).length).toBe(2);
+  });
 });

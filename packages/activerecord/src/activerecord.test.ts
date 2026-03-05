@@ -7301,6 +7301,93 @@ describe("ActiveRecord", () => {
     });
   });
 
+  describe("Base.exists", () => {
+    it("returns true when records exist (no args)", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      expect(await User.exists()).toBe(false);
+      await User.create({ name: "Alice" });
+      expect(await User.exists()).toBe(true);
+    });
+
+    it("checks by primary key", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = await User.create({ name: "Alice" });
+      expect(await User.exists(user.id)).toBe(true);
+      expect(await User.exists(999)).toBe(false);
+    });
+
+    it("checks by conditions hash", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      await User.create({ name: "Alice" });
+      expect(await User.exists({ name: "Alice" })).toBe(true);
+      expect(await User.exists({ name: "Unknown" })).toBe(false);
+    });
+  });
+
+  describe("Base class aggregate delegates", () => {
+    it("count returns total records", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.attribute("age", "integer");
+      User.adapter = adapter;
+
+      await User.create({ name: "Alice", age: 25 });
+      await User.create({ name: "Bob", age: 30 });
+
+      expect(await User.count()).toBe(2);
+    });
+
+    it("minimum/maximum/average/sum work as class methods", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("age", "integer");
+      User.adapter = adapter;
+
+      await User.create({ age: 20 });
+      await User.create({ age: 30 });
+
+      expect(await User.minimum("age")).toBe(20);
+      expect(await User.maximum("age")).toBe(30);
+      expect(await User.sum("age")).toBe(50);
+      expect(await User.average("age")).toBe(25);
+    });
+
+    it("pluck and ids work as class methods", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+
+      const names = (await User.pluck("name")).sort();
+      expect(names).toEqual(["Alice", "Bob"]);
+
+      const ids = await User.ids();
+      expect(ids.length).toBe(2);
+    });
+  });
+
   describe("isChangedForAutosave", () => {
     it("returns true for new records", () => {
       const adapter = freshAdapter();
