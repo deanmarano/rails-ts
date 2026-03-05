@@ -1809,6 +1809,108 @@ export class Relation<T extends Base> {
     return this._scopeAttributes();
   }
 
+  // -- Value accessors (for introspection) --
+
+  /**
+   * Return the LIMIT clause value.
+   *
+   * Mirrors: ActiveRecord::Relation#limit_value
+   */
+  get limitValue(): number | null {
+    return this._limitValue;
+  }
+
+  /**
+   * Return the OFFSET clause value.
+   *
+   * Mirrors: ActiveRecord::Relation#offset_value
+   */
+  get offsetValue(): number | null {
+    return this._offsetValue;
+  }
+
+  /**
+   * Return the SELECT columns.
+   *
+   * Mirrors: ActiveRecord::Relation#select_values
+   */
+  get selectValues(): string[] {
+    return this._selectColumns ?? [];
+  }
+
+  /**
+   * Return the ORDER clauses.
+   *
+   * Mirrors: ActiveRecord::Relation#order_values
+   */
+  get orderValues(): Array<string | [string, "asc" | "desc"]> {
+    return [...this._orderClauses];
+  }
+
+  /**
+   * Return the GROUP BY columns.
+   *
+   * Mirrors: ActiveRecord::Relation#group_values
+   */
+  get groupValues(): string[] {
+    return [...this._groupColumns];
+  }
+
+  /**
+   * Return the DISTINCT flag.
+   *
+   * Mirrors: ActiveRecord::Relation#distinct_value
+   */
+  get distinctValue(): boolean {
+    return this._isDistinct;
+  }
+
+  /**
+   * Return the WHERE clause hashes.
+   *
+   * Mirrors: ActiveRecord::Relation#where_clause
+   */
+  get whereValues(): Array<Record<string, unknown>> {
+    return [...this._whereClauses];
+  }
+
+  // -- Collection convenience methods --
+
+  /**
+   * Load records and group them by the value of a column or function.
+   *
+   * Mirrors: Enumerable#group_by (used on ActiveRecord::Relation)
+   */
+  async groupByColumn(keyOrFn: string | ((record: T) => unknown)): Promise<Record<string, T[]>> {
+    const records = await this.toArray();
+    const result: Record<string, T[]> = {};
+    for (const record of records) {
+      const key = typeof keyOrFn === "string"
+        ? String(record.readAttribute(keyOrFn))
+        : String(keyOrFn(record));
+      if (!result[key]) result[key] = [];
+      result[key].push(record);
+    }
+    return result;
+  }
+
+  /**
+   * Load records and index them by a column value (last wins on collision).
+   *
+   * Mirrors: Enumerable#index_by (used on ActiveRecord::Relation)
+   */
+  async indexBy(keyOrFn: string | ((record: T) => unknown)): Promise<Record<string, T>> {
+    const records = await this.toArray();
+    const result: Record<string, T> = {};
+    for (const record of records) {
+      const key = typeof keyOrFn === "string"
+        ? String(record.readAttribute(keyOrFn))
+        : String(keyOrFn(record));
+      result[key] = record;
+    }
+    return result;
+  }
+
   private _scopeAttributes(): Record<string, unknown> {
     const attrs: Record<string, unknown> = {};
     for (const clause of this._whereClauses) {

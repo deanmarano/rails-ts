@@ -140,6 +140,119 @@ export class Errors {
     );
   }
 
+  /**
+   * Check if a specific error has already been added.
+   *
+   * Mirrors: ActiveModel::Errors#added?
+   */
+  added(attribute: string, type: string = "invalid", options?: Record<string, unknown>): boolean {
+    return this._errors.some(
+      (e) => e.attribute === attribute && e.type === type
+    );
+  }
+
+  /**
+   * Delete errors for an attribute, optionally filtering by type.
+   *
+   * Mirrors: ActiveModel::Errors#delete
+   */
+  delete(attribute: string, type?: string): ErrorDetail[] {
+    const removed: ErrorDetail[] = [];
+    this._errors = this._errors.filter((e) => {
+      if (e.attribute === attribute && (type === undefined || e.type === type)) {
+        removed.push(e);
+        return false;
+      }
+      return true;
+    });
+    return removed;
+  }
+
+  /**
+   * Iterate over each error.
+   *
+   * Mirrors: ActiveModel::Errors#each
+   */
+  each(fn: (error: ErrorDetail) => void): void {
+    for (const error of this._errors) {
+      fn(error);
+    }
+  }
+
+  /**
+   * Copy errors from another Errors instance.
+   *
+   * Mirrors: ActiveModel::Errors#copy!
+   */
+  copy(other: Errors): void {
+    for (const error of other._errors) {
+      this._errors.push({ ...error });
+    }
+  }
+
+  /**
+   * Merge errors from another Errors instance (alias for copy).
+   *
+   * Mirrors: ActiveModel::Errors#merge!
+   */
+  merge(other: Errors): void {
+    this.copy(other);
+  }
+
+  /**
+   * Group error messages by attribute.
+   *
+   * Mirrors: ActiveModel::Errors#to_hash
+   */
+  toHash(): Record<string, string[]> {
+    const result: Record<string, string[]> = {};
+    for (const error of this._errors) {
+      if (!result[error.attribute]) {
+        result[error.attribute] = [];
+      }
+      result[error.attribute].push(error.message);
+    }
+    return result;
+  }
+
+  /**
+   * Check if there are errors for a specific attribute.
+   *
+   * Mirrors: ActiveModel::Errors#include?
+   */
+  include(attribute: string): boolean {
+    return this._errors.some((e) => e.attribute === attribute);
+  }
+
+  /**
+   * Return the errors as an array of [attribute, message] pairs.
+   *
+   * Mirrors: ActiveModel::Errors#to_a (alias for full_messages)
+   */
+  toArray(): string[] {
+    return this.fullMessages;
+  }
+
+  /**
+   * Generate a full error message for an attribute and message.
+   *
+   * Mirrors: ActiveModel::Errors#full_message
+   */
+  fullMessage(attribute: string, message: string): string {
+    if (attribute === "base") return message;
+    const attr = attribute.charAt(0).toUpperCase() + attribute.slice(1);
+    return `${attr} ${message}`;
+  }
+
+  /**
+   * Return all error messages as a flat array.
+   *
+   * Mirrors: ActiveModel::Errors#messages (as flat list)
+   */
+  get messages(): Record<string, string[]> {
+    return this.toHash();
+  }
+
   private defaultMessage(
     type: string,
     _options?: Record<string, unknown>

@@ -2528,4 +2528,138 @@ describe("ActiveModel", () => {
       expect(User.validatorsOn("bio")).toEqual([]);
     });
   });
+
+  describe("custom validation contexts", () => {
+    it("validates with custom context", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("terms_accepted", "string");
+          this.validates("name", { presence: true });
+          this.validates("terms_accepted", { presence: true, on: "registration" as any });
+        }
+      }
+      const u = new User({ name: "Alice" });
+      // Without context, terms_accepted validation is skipped
+      expect(u.isValid()).toBe(true);
+      // With custom context, terms_accepted presence validation runs
+      expect(u.isValid("registration")).toBe(false);
+    });
+
+    it("standard create/update contexts still work", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.validates("name", { presence: true });
+          this.validates("email", { presence: true, on: "create" as any });
+        }
+      }
+      const u = new User({ name: "Alice" });
+      expect(u.isValid("create")).toBe(false);
+      expect(u.isValid("update")).toBe(true);
+    });
+  });
+
+  describe("Errors enhancements", () => {
+    it("added? checks if a specific error was already added", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({});
+      u.errors.add("name", "blank");
+      expect(u.errors.added("name", "blank")).toBe(true);
+      expect(u.errors.added("name", "invalid")).toBe(false);
+    });
+
+    it("delete removes errors for an attribute", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({});
+      u.errors.add("name", "blank");
+      u.errors.add("name", "too_short");
+      u.errors.add("email", "blank");
+      const removed = u.errors.delete("name");
+      expect(removed.length).toBe(2);
+      expect(u.errors.count).toBe(1);
+    });
+
+    it("delete with type only removes matching errors", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({});
+      u.errors.add("name", "blank");
+      u.errors.add("name", "too_short");
+      const removed = u.errors.delete("name", "blank");
+      expect(removed.length).toBe(1);
+      expect(u.errors.count).toBe(1);
+    });
+
+    it("each iterates over all errors", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({});
+      u.errors.add("name", "blank");
+      u.errors.add("email", "invalid");
+      const collected: string[] = [];
+      u.errors.each((e) => collected.push(`${e.attribute}:${e.type}`));
+      expect(collected).toEqual(["name:blank", "email:invalid"]);
+    });
+
+    it("copy/merge copies errors from another instance", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u1 = new User({});
+      const u2 = new User({});
+      u1.errors.add("name", "blank");
+      u2.errors.merge(u1.errors);
+      expect(u2.errors.count).toBe(1);
+      expect(u2.errors.get("name")).toEqual(["can't be blank"]);
+    });
+
+    it("toHash groups messages by attribute", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({});
+      u.errors.add("name", "blank");
+      u.errors.add("name", "too_short");
+      u.errors.add("email", "invalid");
+      const hash = u.errors.toHash();
+      expect(hash.name.length).toBe(2);
+      expect(hash.email.length).toBe(1);
+    });
+
+    it("include checks if attribute has errors", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({});
+      u.errors.add("name", "blank");
+      expect(u.errors.include("name")).toBe(true);
+      expect(u.errors.include("email")).toBe(false);
+    });
+
+    it("messages returns grouped messages", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({});
+      u.errors.add("name", "blank");
+      expect(u.errors.messages).toEqual({ name: ["can't be blank"] });
+    });
+
+    it("fullMessage generates a complete message", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({});
+      expect(u.errors.fullMessage("name", "is required")).toBe("Name is required");
+      expect(u.errors.fullMessage("base", "Something went wrong")).toBe("Something went wrong");
+    });
+  });
 });

@@ -29,7 +29,7 @@ interface AttributeDefinition {
 interface ValidationEntry {
   attribute: string;
   validator: Validator;
-  on?: "create" | "update";
+  on?: string;
 }
 
 interface CustomValidationEntry {
@@ -179,7 +179,7 @@ export class Model {
       this._validations = [...this._validations];
     }
 
-    const onContext = rules.on as "create" | "update" | undefined;
+    const onContext = rules.on as string | undefined;
 
     if (rules.presence) {
       const opts = rules.presence === true ? {} : (rules.presence as any);
@@ -736,9 +736,9 @@ export class Model {
 
   // -- Validations --
 
-  _validationContext: "create" | "update" | null = null;
+  _validationContext: string | null = null;
 
-  isValid(context?: "create" | "update"): boolean {
+  isValid(context?: string): boolean {
     this.errors.clear();
     const ctor = this.constructor as typeof Model;
     const effectiveContext = context ?? this._validationContext;

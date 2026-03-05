@@ -9045,4 +9045,156 @@ describe("ActiveRecord", () => {
       expect(user!.isStrictLoading()).toBe(false);
     });
   });
+
+  describe("Relation value accessors", () => {
+    it("limitValue returns the limit", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+        }
+      }
+      const rel = User.where({ name: "Alice" }).limit(10);
+      expect(rel.limitValue).toBe(10);
+    });
+
+    it("offsetValue returns the offset", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+        }
+      }
+      const rel = User.where({}).offset(5);
+      expect(rel.offsetValue).toBe(5);
+    });
+
+    it("selectValues returns selected columns", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+        }
+      }
+      const rel = User.where({}).select("name", "id");
+      expect(rel.selectValues).toEqual(["name", "id"]);
+    });
+
+    it("orderValues returns order clauses", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+        }
+      }
+      const rel = User.where({}).order("name", { id: "desc" });
+      expect(rel.orderValues).toEqual(["name", ["id", "desc"]]);
+    });
+
+    it("groupValues returns group columns", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("role", "string");
+        }
+      }
+      const rel = User.where({}).group("role");
+      expect(rel.groupValues).toEqual(["role"]);
+    });
+
+    it("distinctValue returns the distinct flag", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+        }
+      }
+      expect(User.where({}).distinctValue).toBe(false);
+      expect(User.where({}).distinct().distinctValue).toBe(true);
+    });
+
+    it("whereValues returns where clause hashes", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+        }
+      }
+      const rel = User.where({ name: "Alice" });
+      expect(rel.whereValues).toEqual([{ name: "Alice" }]);
+    });
+  });
+
+  describe("Relation collection convenience methods", () => {
+    it("groupByColumn groups records by column value", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.attribute("role", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice", role: "admin" });
+      await User.create({ name: "Bob", role: "user" });
+      await User.create({ name: "Carol", role: "admin" });
+      const groups = await User.where({}).groupByColumn("role");
+      expect(groups["admin"].length).toBe(2);
+      expect(groups["user"].length).toBe(1);
+    });
+
+    it("groupByColumn accepts a function", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Adam" });
+      await User.create({ name: "Bob" });
+      const groups = await User.where({}).groupByColumn(
+        (u: any) => String(u.readAttribute("name")).charAt(0)
+      );
+      expect(groups["A"].length).toBe(2);
+      expect(groups["B"].length).toBe(1);
+    });
+
+    it("indexBy indexes records by column value", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      const indexed = await User.where({}).indexBy("name");
+      expect(indexed["Alice"].readAttribute("name")).toBe("Alice");
+      expect(indexed["Bob"].readAttribute("name")).toBe("Bob");
+    });
+
+    it("indexBy accepts a function", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      const indexed = await User.where({}).indexBy(
+        (u: any) => String(u.readAttribute("name")).toLowerCase()
+      );
+      expect(indexed["alice"]).toBeDefined();
+      expect(indexed["bob"]).toBeDefined();
+    });
+  });
 });
