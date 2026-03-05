@@ -5100,3 +5100,133 @@ describe("inverse_of (Rails-guided)", () => {
     }
   });
 });
+
+// ==========================================================================
+// Association Scopes (Rails: associations_test.rb)
+// ==========================================================================
+
+describe("Association Scopes (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test "has_many with scope"
+  it("has_many applies a scope lambda to filter results", async () => {
+    class Comment extends Base {
+      static { this._tableName = "comments"; this.attribute("id", "integer"); this.attribute("body", "string"); this.attribute("approved", "boolean"); this.attribute("post_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Comment);
+
+    class Post extends Base {
+      static { this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+    registerModel(Post);
+
+    const post = await Post.create({ title: "Hello" });
+    await Comment.create({ body: "Approved", approved: true, post_id: post.id });
+    await Comment.create({ body: "Rejected", approved: false, post_id: post.id });
+    await Comment.create({ body: "Also approved", approved: true, post_id: post.id });
+
+    const approved = await loadHasMany(post, "comments", {
+      scope: (rel: any) => rel.where({ approved: true }),
+    });
+    expect(approved.length).toBe(2);
+    expect(approved.every((c: any) => c.readAttribute("approved") === true)).toBe(true);
+  });
+
+  // Rails: test "has_many scope with ordering"
+  it("has_many scope can include ordering", async () => {
+    class Comment extends Base {
+      static { this._tableName = "comments"; this.attribute("id", "integer"); this.attribute("body", "string"); this.attribute("position", "integer"); this.attribute("post_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Comment);
+
+    class Post extends Base {
+      static { this._tableName = "posts"; this.attribute("id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Post);
+
+    const post = await Post.create({});
+    await Comment.create({ body: "Third", position: 3, post_id: post.id });
+    await Comment.create({ body: "First", position: 1, post_id: post.id });
+    await Comment.create({ body: "Second", position: 2, post_id: post.id });
+
+    const ordered = await loadHasMany(post, "comments", {
+      scope: (rel: any) => rel.order({ position: "asc" }),
+    });
+    expect(ordered.map((c: any) => c.readAttribute("body"))).toEqual(["First", "Second", "Third"]);
+  });
+});
+
+// ==========================================================================
+// Grouped Calculations (Rails: calculations_test.rb)
+// ==========================================================================
+
+describe("Grouped Calculations (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test "group count"
+  it("group().count() returns counts keyed by group value", async () => {
+    class Order extends Base {
+      static { this._tableName = "orders"; this.attribute("id", "integer"); this.attribute("status", "string"); this.attribute("total", "integer"); this.adapter = adapter; }
+    }
+
+    await Order.create({ status: "new", total: 100 });
+    await Order.create({ status: "new", total: 200 });
+    await Order.create({ status: "paid", total: 150 });
+    await Order.create({ status: "shipped", total: 300 });
+    await Order.create({ status: "shipped", total: 250 });
+    await Order.create({ status: "shipped", total: 175 });
+
+    const counts = await Order.all().group("status").count();
+    expect(counts).toEqual({ new: 2, paid: 1, shipped: 3 });
+  });
+
+  // Rails: test "group sum"
+  it("group().sum() returns sums keyed by group value", async () => {
+    class Order extends Base {
+      static { this._tableName = "orders"; this.attribute("id", "integer"); this.attribute("status", "string"); this.attribute("total", "integer"); this.adapter = adapter; }
+    }
+
+    await Order.create({ status: "new", total: 100 });
+    await Order.create({ status: "new", total: 200 });
+    await Order.create({ status: "paid", total: 150 });
+
+    const sums = await Order.all().group("status").sum("total");
+    expect(sums).toEqual({ new: 300, paid: 150 });
+  });
+
+  // Rails: test "group maximum"
+  it("group().maximum() returns max values keyed by group value", async () => {
+    class Order extends Base {
+      static { this._tableName = "orders"; this.attribute("id", "integer"); this.attribute("status", "string"); this.attribute("total", "integer"); this.adapter = adapter; }
+    }
+
+    await Order.create({ status: "new", total: 100 });
+    await Order.create({ status: "new", total: 200 });
+    await Order.create({ status: "paid", total: 150 });
+
+    const maxes = await Order.all().group("status").maximum("total");
+    expect(maxes).toEqual({ new: 200, paid: 150 });
+  });
+
+  // Rails: test "group minimum"
+  it("group().minimum() returns min values keyed by group value", async () => {
+    class Order extends Base {
+      static { this._tableName = "orders"; this.attribute("id", "integer"); this.attribute("status", "string"); this.attribute("total", "integer"); this.adapter = adapter; }
+    }
+
+    await Order.create({ status: "new", total: 100 });
+    await Order.create({ status: "new", total: 200 });
+    await Order.create({ status: "paid", total: 150 });
+
+    const mins = await Order.all().group("status").minimum("total");
+    expect(mins).toEqual({ new: 100, paid: 150 });
+  });
+});

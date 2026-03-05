@@ -15,6 +15,7 @@ export interface AssociationOptions {
   as?: string;
   counterCache?: boolean | string;
   touch?: boolean;
+  scope?: (rel: any) => any;
 }
 
 export interface AssociationDefinition {
@@ -234,7 +235,14 @@ export async function loadHasOne(
   }
 
   const foreignKey = options.foreignKey ?? `${underscore(ctor.name)}_id`;
-  const result = await targetModel.findBy({ [foreignKey]: pkValue });
+  let result: Base | null;
+  if (options.scope) {
+    let rel = (targetModel as any).all().where({ [foreignKey]: pkValue });
+    rel = options.scope(rel);
+    result = await rel.first();
+  } else {
+    result = await targetModel.findBy({ [foreignKey]: pkValue });
+  }
 
   // Set inverse_of: store reference back to the owner
   if (result && options.inverseOf) {
@@ -287,7 +295,11 @@ export async function loadHasMany(
   }
 
   const foreignKey = options.foreignKey ?? `${underscore(ctor.name)}_id`;
-  const rel = (targetModel as any).all().where({ [foreignKey]: pkValue });
+  let rel = (targetModel as any).all().where({ [foreignKey]: pkValue });
+  // Apply association scope
+  if (options.scope) {
+    rel = options.scope(rel);
+  }
   const results: Base[] = await rel.toArray();
 
   // Set inverse_of on each loaded child

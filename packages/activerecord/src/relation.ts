@@ -524,11 +524,17 @@ export class Relation<T extends Base> {
 
   /**
    * Count records. Optionally count a specific column (ignores NULLs).
+   * When used with group(), returns a Record keyed by group value.
    *
    * Mirrors: ActiveRecord::Relation#count
    */
-  async count(column?: string): Promise<number> {
-    if (this._isNone) return 0;
+  async count(column?: string): Promise<number | Record<string, number>> {
+    if (this._isNone) return this._groupColumns.length > 0 ? {} : 0;
+
+    // Grouped count: SELECT group_col, COUNT(*) FROM ... GROUP BY group_col
+    if (this._groupColumns.length > 0) {
+      return this._groupedAggregate("COUNT", column ?? "*");
+    }
 
     const table = this._modelClass.arelTable;
     const countExpr = column
@@ -544,43 +550,82 @@ export class Relation<T extends Base> {
 
   /**
    * Sum a column.
+   * When used with group(), returns a Record keyed by group value.
    *
    * Mirrors: ActiveRecord::Relation#sum
    */
-  async sum(column: string): Promise<number> {
-    if (this._isNone) return 0;
+  async sum(column: string): Promise<number | Record<string, number>> {
+    if (this._isNone) return this._groupColumns.length > 0 ? {} : 0;
+    if (this._groupColumns.length > 0) {
+      return this._groupedAggregate("SUM", column);
+    }
     const result = await this._aggregate("SUM", column);
     return result ?? 0;
   }
 
   /**
    * Average a column.
+   * When used with group(), returns a Record keyed by group value.
    *
    * Mirrors: ActiveRecord::Relation#average
    */
-  async average(column: string): Promise<number | null> {
-    if (this._isNone) return null;
+  async average(column: string): Promise<number | null | Record<string, number>> {
+    if (this._isNone) return this._groupColumns.length > 0 ? {} : null;
+    if (this._groupColumns.length > 0) {
+      return this._groupedAggregate("AVG", column);
+    }
     return this._aggregate("AVG", column);
   }
 
   /**
    * Minimum value of a column.
+   * When used with group(), returns a Record keyed by group value.
    *
    * Mirrors: ActiveRecord::Relation#minimum
    */
-  async minimum(column: string): Promise<unknown> {
-    if (this._isNone) return null;
+  async minimum(column: string): Promise<unknown | Record<string, unknown>> {
+    if (this._isNone) return this._groupColumns.length > 0 ? {} : null;
+    if (this._groupColumns.length > 0) {
+      return this._groupedAggregate("MIN", column);
+    }
     return this._aggregate("MIN", column);
   }
 
   /**
    * Maximum value of a column.
+   * When used with group(), returns a Record keyed by group value.
    *
    * Mirrors: ActiveRecord::Relation#maximum
    */
-  async maximum(column: string): Promise<unknown> {
-    if (this._isNone) return null;
+  async maximum(column: string): Promise<unknown | Record<string, unknown>> {
+    if (this._isNone) return this._groupColumns.length > 0 ? {} : null;
+    if (this._groupColumns.length > 0) {
+      return this._groupedAggregate("MAX", column);
+    }
     return this._aggregate("MAX", column);
+  }
+
+  private async _groupedAggregate(fn: string, column: string): Promise<Record<string, number>> {
+    const table = this._modelClass.arelTable;
+    const groupCol = this._groupColumns[0]; // Support single group column
+    const aggExpr = column === "*"
+      ? `${fn}(*) AS val`
+      : `${fn}("${table.name}"."${column}") AS val`;
+    const manager = table.project(
+      `"${table.name}"."${groupCol}" AS group_key, ${aggExpr}`
+    );
+    this._applyWheresToManager(manager, table);
+    manager.group(groupCol);
+
+    const sql = manager.toSql();
+    const rows = await this._modelClass.adapter.execute(sql);
+
+    const result: Record<string, number> = {};
+    for (const row of rows) {
+      const key = String(row.group_key ?? "null");
+      result[key] = Number(row.val ?? 0);
+    }
+    return result;
   }
 
   private async _aggregate(fn: string, column: string): Promise<number | null> {

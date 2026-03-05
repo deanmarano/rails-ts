@@ -5423,4 +5423,79 @@ describe("ActiveRecord", () => {
       }
     });
   });
+
+  // -- Association scopes --
+  describe("association scopes", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("applies scope to has_many association", async () => {
+      class Comment extends Base { static _tableName = "comments"; }
+      Comment.attribute("id", "integer");
+      Comment.attribute("body", "string");
+      Comment.attribute("approved", "boolean");
+      Comment.attribute("post_id", "integer");
+      Comment.adapter = adapter;
+      registerModel(Comment);
+
+      class Post extends Base { static _tableName = "posts"; }
+      Post.attribute("id", "integer");
+      Post.attribute("title", "string");
+      Post.adapter = adapter;
+      Associations.hasMany.call(Post, "approvedComments", {
+        className: "Comment",
+        scope: (rel: any) => rel.where({ approved: true }),
+      });
+      registerModel(Post);
+
+      const post = await Post.create({ title: "Hello" });
+      await Comment.create({ body: "Good", approved: true, post_id: post.id });
+      await Comment.create({ body: "Bad", approved: false, post_id: post.id });
+      await Comment.create({ body: "Great", approved: true, post_id: post.id });
+
+      const approved = await loadHasMany(post, "approvedComments", {
+        className: "Comment",
+        scope: (rel: any) => rel.where({ approved: true }),
+      });
+      expect(approved.length).toBe(2);
+    });
+  });
+
+  // -- Grouped calculations --
+  describe("grouped calculations", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("group().count() returns hash of counts", async () => {
+      class Order extends Base { static _tableName = "orders"; }
+      Order.attribute("id", "integer");
+      Order.attribute("status", "string");
+      Order.attribute("total", "integer");
+      Order.adapter = adapter;
+
+      await Order.create({ status: "pending", total: 100 });
+      await Order.create({ status: "pending", total: 200 });
+      await Order.create({ status: "shipped", total: 150 });
+      await Order.create({ status: "delivered", total: 300 });
+      await Order.create({ status: "delivered", total: 250 });
+
+      const counts = await Order.all().group("status").count();
+      expect(counts).toEqual({ pending: 2, shipped: 1, delivered: 2 });
+    });
+
+    it("group().sum() returns hash of sums", async () => {
+      class Order extends Base { static _tableName = "orders"; }
+      Order.attribute("id", "integer");
+      Order.attribute("status", "string");
+      Order.attribute("total", "integer");
+      Order.adapter = adapter;
+
+      await Order.create({ status: "pending", total: 100 });
+      await Order.create({ status: "pending", total: 200 });
+      await Order.create({ status: "shipped", total: 150 });
+
+      const sums = await Order.all().group("status").sum("total");
+      expect(sums).toEqual({ pending: 300, shipped: 150 });
+    });
+  });
 });

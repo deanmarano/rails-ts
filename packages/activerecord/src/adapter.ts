@@ -101,6 +101,61 @@ export class MemoryAdapter implements DatabaseAdapter {
     // Strip trailing lock clause (FOR UPDATE, etc.) before parsing
     let cleanedSql = sql.replace(/\s+FOR\s+(UPDATE|SHARE|NO\s+KEY\s+UPDATE|KEY\s+SHARE)(\s+.*)?$/i, "");
 
+    // Grouped aggregate queries: SELECT group_col, AGG(col) FROM ... GROUP BY col
+    const groupAggMatch = cleanedSql.match(
+      /SELECT\s+"?\w+"?\."?(\w+)"?\s*AS\s+group_key\s*,\s*(COUNT|SUM|AVG|MIN|MAX)\((\*|"?\w+"?(?:\."?\w+"?)?)\)\s*AS\s+val\s+FROM\s+"(\w+)"(?:\s+WHERE\s+(.+?))?\s+GROUP\s+BY\s+"?\w+"?$/i
+    );
+    if (groupAggMatch) {
+      const [, groupCol, fn, colExpr, tableName, where] = groupAggMatch;
+      let rows = [...(this.tables.get(tableName) ?? [])];
+      if (where) {
+        rows = rows.filter((row) => this.evaluateWhere(row, where));
+      }
+
+      // Group rows by the group column
+      const groups = new Map<unknown, Record<string, unknown>[]>();
+      for (const row of rows) {
+        const key = row[groupCol];
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(row);
+      }
+
+      const upperFn = fn.toUpperCase();
+      const results: Record<string, unknown>[] = [];
+      for (const [key, groupRows] of groups) {
+        let val: number;
+        if (upperFn === "COUNT") {
+          if (colExpr === "*") {
+            val = groupRows.length;
+          } else {
+            const col = colExpr.replace(/"/g, "").split(".").pop()!;
+            val = groupRows.filter((r) => r[col] !== null && r[col] !== undefined).length;
+          }
+        } else {
+          const col = colExpr.replace(/"/g, "").split(".").pop()!;
+          const nums = groupRows
+            .map((r) => r[col])
+            .filter((v) => v !== null && v !== undefined)
+            .map(Number);
+          if (nums.length === 0) {
+            val = 0;
+          } else if (upperFn === "SUM") {
+            val = nums.reduce((a, b) => a + b, 0);
+          } else if (upperFn === "AVG") {
+            val = nums.reduce((a, b) => a + b, 0) / nums.length;
+          } else if (upperFn === "MIN") {
+            val = Math.min(...nums);
+          } else if (upperFn === "MAX") {
+            val = Math.max(...nums);
+          } else {
+            val = 0;
+          }
+        }
+        results.push({ group_key: key, val });
+      }
+      return results;
+    }
+
     // Aggregate queries: COUNT(*), COUNT(col), SUM, AVG, MIN, MAX
     const aggMatch = cleanedSql.match(
       /SELECT\s+(COUNT|SUM|AVG|MIN|MAX)\((\*|"?\w+"?(?:\."?\w+"?)?)\)\s*(?:AS\s+\w+\s+)?FROM\s+"(\w+)"(?:\s+WHERE\s+(.+?))?$/i
