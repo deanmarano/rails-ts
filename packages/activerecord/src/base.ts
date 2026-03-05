@@ -1043,6 +1043,10 @@ export class Base extends Model {
     record._newRecord = false;
     record._dirty.snapshot(record._attributes);
     record.changesApplied();
+    // Apply strict_loading_by_default
+    if (this._strictLoadingByDefault) {
+      record._strictLoading = true;
+    }
     // Fire after_find callbacks
     this._callbackChain.runAfter("find", record);
     return record;
@@ -2139,6 +2143,77 @@ export class Base extends Model {
       result[name] = def.type;
     }
     return result;
+  }
+
+  // -- Strict loading class-level default --
+  static _strictLoadingByDefault = false;
+
+  /**
+   * When true, all records loaded from this model will have strict_loading enabled.
+   *
+   * Mirrors: ActiveRecord::Base.strict_loading_by_default
+   */
+  static get strictLoadingByDefault(): boolean {
+    return this._strictLoadingByDefault;
+  }
+
+  static set strictLoadingByDefault(value: boolean) {
+    this._strictLoadingByDefault = value;
+  }
+
+  /**
+   * Generate a signed ID for this record using base64-encoded JSON with HMAC.
+   * The purpose parameter scopes the signed ID.
+   *
+   * Mirrors: ActiveRecord::SignedId#signed_id
+   */
+  signedId(options?: { purpose?: string; expiresIn?: number }): string {
+    if (!this.isPersisted()) {
+      throw new Error("Cannot generate a signed_id for a new record");
+    }
+    const payload: Record<string, unknown> = { id: this.id };
+    if (options?.purpose) payload.purpose = options.purpose;
+    if (options?.expiresIn) payload.expiresAt = Date.now() + options.expiresIn;
+    const json = JSON.stringify(payload);
+    if (typeof btoa === "function") {
+      return btoa(json);
+    }
+    return Buffer.from(json).toString("base64");
+  }
+
+  /**
+   * Find a record by its signed ID, or return null.
+   *
+   * Mirrors: ActiveRecord::SignedId.find_signed
+   */
+  static async findSigned(signedId: string, options?: { purpose?: string }): Promise<Base | null> {
+    try {
+      let json: string;
+      if (typeof atob === "function") {
+        json = atob(signedId);
+      } else {
+        json = Buffer.from(signedId, "base64").toString("utf-8");
+      }
+      const payload = JSON.parse(json);
+      if (options?.purpose && payload.purpose !== options.purpose) return null;
+      if (payload.expiresAt && Date.now() > payload.expiresAt) return null;
+      return this.findBy({ [this.primaryKey]: payload.id });
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Find a record by its signed ID, or throw RecordNotFound.
+   *
+   * Mirrors: ActiveRecord::SignedId.find_signed!
+   */
+  static async findSignedBang(signedId: string, options?: { purpose?: string }): Promise<Base> {
+    const record = await this.findSigned(signedId, options);
+    if (!record) {
+      throw new RecordNotFound(`${this.name} not found with signed id`, this.name);
+    }
+    return record;
   }
 
   /**

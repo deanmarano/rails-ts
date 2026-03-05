@@ -2486,4 +2486,46 @@ describe("ActiveModel", () => {
       expect((u as any)["reset_name_to_default"]()).toBe("Alice");
     });
   });
+
+  describe("validators / validatorsOn", () => {
+    it("returns all registered validators", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.validates("name", { presence: true });
+          this.validates("email", { presence: true, length: { minimum: 5 } });
+        }
+      }
+      const validators = User.validators();
+      // presence on name, presence on email, length on email
+      expect(validators.length).toBe(3);
+    });
+
+    it("returns validators for a specific attribute", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.validates("name", { presence: true, length: { minimum: 2, maximum: 50 } });
+          this.validates("email", { presence: true });
+        }
+      }
+      const nameValidators = User.validatorsOn("name");
+      expect(nameValidators.length).toBe(2); // presence + length
+      const emailValidators = User.validatorsOn("email");
+      expect(emailValidators.length).toBe(1); // presence only
+    });
+
+    it("returns empty array for attribute with no validators", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("bio", "string");
+          this.validates("name", { presence: true });
+        }
+      }
+      expect(User.validatorsOn("bio")).toEqual([]);
+    });
+  });
 });

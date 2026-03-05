@@ -1675,6 +1675,40 @@ export class Relation<T extends Base> {
   }
 
   /**
+   * Find the first record matching the current where chain, or create one.
+   * Extra attributes can be passed to set on the new record.
+   *
+   * Mirrors: ActiveRecord::Relation#first_or_create
+   */
+  async firstOrCreate(extra?: Record<string, unknown>): Promise<T> {
+    const records = await this.limit(1).toArray();
+    if (records.length > 0) return records[0];
+    return this._modelClass.create({ ...this._scopeAttributes(), ...extra }) as Promise<T>;
+  }
+
+  /**
+   * Find the first record matching the current where chain, or create one (raises on validation failure).
+   *
+   * Mirrors: ActiveRecord::Relation#first_or_create!
+   */
+  async firstOrCreateBang(extra?: Record<string, unknown>): Promise<T> {
+    const records = await this.limit(1).toArray();
+    if (records.length > 0) return records[0];
+    return this._modelClass.createBang({ ...this._scopeAttributes(), ...extra }) as Promise<T>;
+  }
+
+  /**
+   * Find the first record matching the current where chain, or instantiate one (unsaved).
+   *
+   * Mirrors: ActiveRecord::Relation#first_or_initialize
+   */
+  async firstOrInitialize(extra?: Record<string, unknown>): Promise<T> {
+    const records = await this.limit(1).toArray();
+    if (records.length > 0) return records[0];
+    return new (this._modelClass as any)({ ...this._scopeAttributes(), ...extra }) as T;
+  }
+
+  /**
    * Insert multiple records in a single INSERT statement (skip callbacks/validations).
    *
    * Mirrors: ActiveRecord::Base.insert_all

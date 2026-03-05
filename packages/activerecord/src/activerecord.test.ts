@@ -8834,4 +8834,215 @@ describe("ActiveRecord", () => {
       await expect(rel.createBang({})).rejects.toThrow();
     });
   });
+
+  describe("firstOrCreate / firstOrInitialize", () => {
+    it("firstOrCreate returns existing record when found", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.attribute("role", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice", role: "admin" });
+      const result = await User.where({ role: "admin" }).firstOrCreate({ name: "Bob" });
+      expect(result.readAttribute("name")).toBe("Alice");
+    });
+
+    it("firstOrCreate creates a new record when not found", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.attribute("role", "string");
+          this.adapter = adapter;
+        }
+      }
+      const result = await User.where({ role: "admin" }).firstOrCreate({ name: "Charlie" });
+      expect(result.isPersisted()).toBe(true);
+      expect(result.readAttribute("role")).toBe("admin");
+      expect(result.readAttribute("name")).toBe("Charlie");
+    });
+
+    it("firstOrCreateBang raises on validation failure", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.attribute("role", "string");
+          this.adapter = adapter;
+          this.validates("name", { presence: true });
+        }
+      }
+      await expect(User.where({ role: "admin" }).firstOrCreateBang({})).rejects.toThrow();
+    });
+
+    it("firstOrInitialize returns existing record when found", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.attribute("role", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice", role: "admin" });
+      const result = await User.where({ role: "admin" }).firstOrInitialize({ name: "Bob" });
+      expect(result.readAttribute("name")).toBe("Alice");
+      expect(result.isPersisted()).toBe(true);
+    });
+
+    it("firstOrInitialize returns unsaved record when not found", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.attribute("role", "string");
+          this.adapter = adapter;
+        }
+      }
+      const result = await User.where({ role: "admin" }).firstOrInitialize({ name: "Eve" });
+      expect(result.isNewRecord()).toBe(true);
+      expect(result.readAttribute("role")).toBe("admin");
+      expect(result.readAttribute("name")).toBe("Eve");
+    });
+  });
+
+  describe("signedId / findSigned / findSignedBang", () => {
+    it("generates a signed ID for a persisted record", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      const user = await User.create({ name: "Alice" });
+      const sid = user.signedId();
+      expect(typeof sid).toBe("string");
+      expect(sid.length).toBeGreaterThan(0);
+    });
+
+    it("throws for new records", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+        }
+      }
+      const user = new User({ name: "Alice" });
+      expect(() => user.signedId()).toThrow("Cannot generate a signed_id for a new record");
+    });
+
+    it("findSigned recovers the record from its signed ID", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      const user = await User.create({ name: "Bob" });
+      const sid = user.signedId();
+      const found = await User.findSigned(sid);
+      expect(found).not.toBeNull();
+      expect(found!.id).toBe(user.id);
+    });
+
+    it("findSigned returns null for invalid signed ID", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      const found = await User.findSigned("not-valid-base64!!!");
+      expect(found).toBeNull();
+    });
+
+    it("findSigned respects purpose option", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      const user = await User.create({ name: "Carol" });
+      const sid = user.signedId({ purpose: "password_reset" });
+      // Wrong purpose returns null
+      const wrongPurpose = await User.findSigned(sid, { purpose: "login" });
+      expect(wrongPurpose).toBeNull();
+      // Correct purpose finds the record
+      const rightPurpose = await User.findSigned(sid, { purpose: "password_reset" });
+      expect(rightPurpose).not.toBeNull();
+      expect(rightPurpose!.id).toBe(user.id);
+    });
+
+    it("findSignedBang throws when not found", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await expect(User.findSignedBang("invalid")).rejects.toThrow();
+    });
+  });
+
+  describe("strictLoadingByDefault", () => {
+    it("defaults to false", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+        }
+      }
+      expect(User.strictLoadingByDefault).toBe(false);
+    });
+
+    it("sets strict loading on instantiated records when enabled", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.strictLoadingByDefault = true;
+        }
+      }
+      await User.create({ name: "Alice" });
+      const user = await User.findBy({ name: "Alice" });
+      expect(user!.isStrictLoading()).toBe(true);
+      // Clean up
+      User.strictLoadingByDefault = false;
+    });
+
+    it("does not affect records when disabled", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Bob" });
+      const user = await User.findBy({ name: "Bob" });
+      expect(user!.isStrictLoading()).toBe(false);
+    });
+  });
 });

@@ -314,6 +314,26 @@ export class Model {
     }, { if: ifOpt, unless: unlessOpt, on: onOpt });
   }
 
+  /**
+   * Return all validators registered on this model.
+   *
+   * Mirrors: ActiveModel::Validations.validators
+   */
+  static validators(): Array<{ attribute: string; validator: Validator; on?: "create" | "update" }> {
+    return [...this._validations];
+  }
+
+  /**
+   * Return validators registered for a specific attribute.
+   *
+   * Mirrors: ActiveModel::Validations.validators_on
+   */
+  static validatorsOn(attribute: string): Validator[] {
+    return this._validations
+      .filter((entry) => entry.attribute === attribute)
+      .map((entry) => entry.validator);
+  }
+
   // -- Callbacks (Phase 1200) --
 
   static beforeValidation(fn: CallbackFn, conditions?: CallbackConditions): void {
