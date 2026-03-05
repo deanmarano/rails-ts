@@ -534,6 +534,9 @@ export class Base extends Model {
   _newRecord = true;
   private _destroyed = false;
   private _readonly = false;
+  private _frozen = false;
+  private _previouslyNewRecord = false;
+  private _destroyedByAssociation: unknown = null;
   _strictLoading = false;
   _preloadedAssociations: Map<string, unknown> = new Map();
 
@@ -600,6 +603,62 @@ export class Base extends Model {
   strictLoadingBang(): this {
     this._strictLoading = true;
     return this;
+  }
+
+  /**
+   * Returns true if this record was a new record before the last save.
+   *
+   * Mirrors: ActiveRecord::Base#previously_new_record?
+   */
+  isPreviouslyNewRecord(): boolean {
+    return this._previouslyNewRecord;
+  }
+
+  /**
+   * Returns true if the record is frozen (e.g. after destroy).
+   *
+   * Mirrors: ActiveRecord::Base#frozen?
+   */
+  isFrozen(): boolean {
+    return this._frozen;
+  }
+
+  /**
+   * Freeze the record, preventing further modifications.
+   *
+   * Mirrors: ActiveRecord::Base#freeze
+   */
+  freeze(): this {
+    this._frozen = true;
+    return this;
+  }
+
+  /**
+   * Get the association that triggered the destruction of this record (if any).
+   *
+   * Mirrors: ActiveRecord::Base#destroyed_by_association
+   */
+  get destroyedByAssociation(): unknown {
+    return this._destroyedByAssociation;
+  }
+
+  /**
+   * Set the association that triggered the destruction of this record.
+   *
+   * Mirrors: ActiveRecord::Base#destroyed_by_association=
+   */
+  set destroyedByAssociation(assoc: unknown) {
+    this._destroyedByAssociation = assoc;
+  }
+
+  /**
+   * Override writeAttribute to prevent modifications on frozen records.
+   */
+  writeAttribute(name: string, value: unknown): void {
+    if (this._frozen) {
+      throw new Error(`Cannot modify a frozen ${(this.constructor as typeof Base).name}`);
+    }
+    super.writeAttribute(name, value);
   }
 
   /**
@@ -796,6 +855,7 @@ export class Base extends Model {
 
     if (saved) {
       const wasNewRecord = this._newRecord;
+      this._previouslyNewRecord = wasNewRecord;
       this._newRecord = false;
       this.changesApplied();
 
@@ -998,6 +1058,7 @@ export class Base extends Model {
     }
 
     this._destroyed = true;
+    this._frozen = true;
 
     // Counter cache: decrement on destroy
     const { updateCounterCaches } = await import("./associations.js");
@@ -1033,6 +1094,7 @@ export class Base extends Model {
     await ctor.adapter.executeMutation(sql);
 
     this._destroyed = true;
+    this._frozen = true;
     return this;
   }
 

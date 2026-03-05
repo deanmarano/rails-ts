@@ -6678,4 +6678,128 @@ describe("ActiveRecord", () => {
       expect((item as any).isAccessAdmin()).toBe(true);
     });
   });
+
+  describe("previouslyNewRecord", () => {
+    it("returns false before first save", () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = new User({ name: "Alice" });
+      expect(user.isPreviouslyNewRecord()).toBe(false);
+    });
+
+    it("returns true after first save", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = new User({ name: "Alice" });
+      await user.save();
+      expect(user.isPreviouslyNewRecord()).toBe(true);
+      expect(user.isNewRecord()).toBe(false);
+    });
+
+    it("returns false after subsequent saves", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = await User.create({ name: "Alice" });
+      expect(user.isPreviouslyNewRecord()).toBe(true);
+      await user.update({ name: "Bob" });
+      expect(user.isPreviouslyNewRecord()).toBe(false);
+    });
+  });
+
+  describe("frozen / isFrozen", () => {
+    it("is not frozen by default", () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = new User({ name: "Alice" });
+      expect(user.isFrozen()).toBe(false);
+    });
+
+    it("is frozen after destroy", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = await User.create({ name: "Alice" });
+      await user.destroy();
+      expect(user.isFrozen()).toBe(true);
+    });
+
+    it("is frozen after delete", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = await User.create({ name: "Alice" });
+      await user.delete();
+      expect(user.isFrozen()).toBe(true);
+    });
+
+    it("prevents modification of frozen record", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = await User.create({ name: "Alice" });
+      await user.destroy();
+      expect(() => user.writeAttribute("name", "Bob")).toThrow("Cannot modify a frozen");
+    });
+
+    it("can be manually frozen", () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = new User({ name: "Alice" });
+      user.freeze();
+      expect(user.isFrozen()).toBe(true);
+      expect(() => user.writeAttribute("name", "Bob")).toThrow("Cannot modify a frozen");
+    });
+  });
+
+  describe("destroyedByAssociation", () => {
+    it("is null by default", () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.adapter = adapter;
+
+      const user = new User({});
+      expect(user.destroyedByAssociation).toBeNull();
+    });
+
+    it("can be set and read", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.adapter = adapter;
+
+      const user = await User.create({});
+      user.destroyedByAssociation = { name: "posts", type: "hasMany" };
+      expect(user.destroyedByAssociation).toEqual({ name: "posts", type: "hasMany" });
+    });
+  });
 });

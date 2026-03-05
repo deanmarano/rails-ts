@@ -6524,4 +6524,73 @@ describe("Grouped Calculations (Rails-guided)", () => {
     const conv = await Conversation.create({ question_type: 0 });
     expect((conv as any).isMultipleQuestionType()).toBe(true);
   });
+
+  // Rails: test "previously_new_record?"
+  it("previously_new_record? returns true after first save", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    const user = new User({ name: "Alice" });
+    expect(user.isPreviouslyNewRecord()).toBe(false);
+    expect(user.isNewRecord()).toBe(true);
+
+    await user.save();
+    expect(user.isPreviouslyNewRecord()).toBe(true);
+    expect(user.isNewRecord()).toBe(false);
+
+    await user.update({ name: "Bob" });
+    expect(user.isPreviouslyNewRecord()).toBe(false);
+  });
+
+  // Rails: test "frozen after destroy"
+  it("record is frozen after destroy and prevents modification", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    const user = await User.create({ name: "Alice" });
+    expect(user.isFrozen()).toBe(false);
+
+    await user.destroy();
+    expect(user.isFrozen()).toBe(true);
+    expect(user.isDestroyed()).toBe(true);
+    expect(() => user.writeAttribute("name", "Bob")).toThrow("Cannot modify a frozen");
+  });
+
+  // Rails: test "frozen after delete"
+  it("record is frozen after delete", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    const user = await User.create({ name: "Alice" });
+    await user.delete();
+    expect(user.isFrozen()).toBe(true);
+  });
+
+  // Rails: test "destroyed_by_association"
+  it("destroyed_by_association tracks which association triggered destroy", async () => {
+    class Post extends Base {
+      static { this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+
+    const post = await Post.create({ title: "Hello" });
+    expect(post.destroyedByAssociation).toBeNull();
+
+    post.destroyedByAssociation = { name: "user", type: "belongsTo" };
+    expect(post.destroyedByAssociation).toEqual({ name: "user", type: "belongsTo" });
+  });
+
+  // Rails: test "freeze manually"
+  it("freeze prevents attribute modification", () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    const user = new User({ name: "Alice" });
+    user.freeze();
+    expect(user.isFrozen()).toBe(true);
+    expect(() => user.writeAttribute("name", "Bob")).toThrow();
+  });
 });

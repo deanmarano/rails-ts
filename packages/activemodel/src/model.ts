@@ -198,6 +198,41 @@ export class Model {
     this._customValidations.push({ method: methodOrFn, options });
   }
 
+  /**
+   * Validates each of the specified attributes with a block.
+   *
+   * Mirrors: ActiveModel::Validations.validates_each
+   */
+  static validatesEach(
+    attributes: string[],
+    fn: (record: any, attribute: string, value: unknown) => void,
+    options: ConditionalOptions = {}
+  ): void {
+    this.validate((record: any) => {
+      for (const attr of attributes) {
+        const value = record.readAttribute(attr);
+        fn(record, attr, value);
+      }
+    }, options);
+  }
+
+  /**
+   * Validates using a custom validator class instance.
+   * The validator must implement validate(record).
+   *
+   * Mirrors: ActiveModel::Validations.validates_with
+   */
+  static validatesWith(
+    validatorClass: { new (options?: any): { validate(record: any): void } },
+    options: ConditionalOptions & { [key: string]: unknown } = {}
+  ): void {
+    const { if: ifOpt, unless: unlessOpt, on: onOpt, ...rest } = options;
+    const validator = new validatorClass(rest);
+    this.validate((record: any) => {
+      validator.validate(record);
+    }, { if: ifOpt, unless: unlessOpt, on: onOpt });
+  }
+
   // -- Callbacks (Phase 1200) --
 
   static beforeValidation(fn: CallbackFn, conditions?: CallbackConditions): void {
