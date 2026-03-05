@@ -1794,7 +1794,7 @@ export class Relation<T extends Base> {
    *
    * Mirrors: ActiveRecord::Relation#find_in_batches
    */
-  async *findInBatches({ batchSize = 1000, start, finish }: { batchSize?: number; start?: unknown; finish?: unknown } = {}): AsyncGenerator<T[]> {
+  async *findInBatches({ batchSize = 1000, start, finish, order }: { batchSize?: number; start?: unknown; finish?: unknown; order?: "asc" | "desc" } = {}): AsyncGenerator<T[]> {
     let currentOffset = this._offsetValue ?? 0;
     const pk = this._modelClass.primaryKey;
 
@@ -1804,9 +1804,9 @@ export class Relation<T extends Base> {
       rel._offsetValue = currentOffset;
       rel._loaded = false;
 
-      // Ensure deterministic ordering
+      // Ensure deterministic ordering; support custom order direction (Rails 7.1)
       if (rel._orderClauses.length === 0) {
-        rel._orderClauses.push(pk);
+        rel._orderClauses.push(order ? [pk, order] : pk);
       }
 
       // Apply start/finish range constraints
@@ -1834,8 +1834,8 @@ export class Relation<T extends Base> {
    *
    * Mirrors: ActiveRecord::Relation#find_each
    */
-  async *findEach({ batchSize = 1000, start, finish }: { batchSize?: number; start?: unknown; finish?: unknown } = {}): AsyncGenerator<T> {
-    for await (const batch of this.findInBatches({ batchSize, start, finish })) {
+  async *findEach({ batchSize = 1000, start, finish, order }: { batchSize?: number; start?: unknown; finish?: unknown; order?: "asc" | "desc" } = {}): AsyncGenerator<T> {
+    for await (const batch of this.findInBatches({ batchSize, start, finish, order })) {
       for (const record of batch) {
         yield record;
       }

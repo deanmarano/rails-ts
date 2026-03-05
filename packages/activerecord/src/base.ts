@@ -2034,6 +2034,24 @@ export class Base extends Model {
   }
 
   /**
+   * Shallow clone preserving the primary key and persisted state.
+   *
+   * Mirrors: ActiveRecord::Core#clone
+   */
+  clone(): Base {
+    const ctor = this.constructor as typeof Base;
+    const copy = new ctor(this.attributes);
+    copy._newRecord = this._newRecord;
+    copy._destroyed = this._destroyed;
+    copy._readonly = this._readonly;
+    if (!this._newRecord) {
+      copy._dirty.snapshot(copy._attributes);
+      copy.changesApplied();
+    }
+    return copy;
+  }
+
+  /**
    * Returns an instance of the specified class with the attributes of this record.
    *
    * Mirrors: ActiveRecord::Base#becomes

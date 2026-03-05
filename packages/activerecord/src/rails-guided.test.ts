@@ -7819,6 +7819,34 @@ describe("Grouped Calculations (Rails-guided)", () => {
     expect(rel).toBeDefined();
   });
 
+  // Rails guide: clone — shallow clone preserving id
+  it("clone preserves id and persisted state", async () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    const u = await User.create({ name: "Alice" });
+    const c = u.clone();
+    expect(c.id).toBe(u.id);
+    expect(c.isPersisted()).toBe(true);
+  });
+
+  // Rails guide: find_each with order: :desc (Rails 7.1)
+  it("findEach supports order option", async () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    await User.create({ name: "A" });
+    await User.create({ name: "B" });
+    const names: string[] = [];
+    const rel = User.where({});
+    for await (const u of rel.findEach({ order: "desc" })) {
+      names.push(u.readAttribute("name") as string);
+    }
+    expect(names[0]).toBe("B");
+  });
+
   // Rails guide: to_gid — GlobalID
   it("toGid returns a GlobalID-like URI", async () => {
     const adapter = new MemoryAdapter();

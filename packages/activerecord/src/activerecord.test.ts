@@ -8334,6 +8334,58 @@ describe("ActiveRecord", () => {
   });
 
   // ===========================================================================
+  // clone
+  // ===========================================================================
+  describe("Base#clone", () => {
+    it("creates a shallow clone preserving id and persisted state", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice" });
+      const c = u.clone();
+      expect(c.id).toBe(u.id);
+      expect(c.readAttribute("name")).toBe("Alice");
+      expect(c.isPersisted()).toBe(true);
+    });
+
+    it("clone is independent from original", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice" });
+      const c = u.clone();
+      c.writeAttribute("name", "Bob");
+      expect(u.readAttribute("name")).toBe("Alice");
+      expect(c.readAttribute("name")).toBe("Bob");
+    });
+  });
+
+  // ===========================================================================
+  // findEach with order option
+  // ===========================================================================
+  describe("findEach with order", () => {
+    it("supports order: desc option", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      await User.create({ name: "Charlie" });
+
+      const names: string[] = [];
+      const rel = User.where({});
+      for await (const u of rel.findEach({ order: "desc" })) {
+        names.push(u.readAttribute("name") as string);
+      }
+      expect(names[0]).toBe("Charlie");
+      expect(names[2]).toBe("Alice");
+    });
+  });
+
+  // ===========================================================================
   // toGid / toSgid
   // ===========================================================================
   describe("toGid / toSgid", () => {
