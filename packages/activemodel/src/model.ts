@@ -325,6 +325,11 @@ export class Model {
     this._callbackChain.register("after", "find", fn, conditions);
   }
 
+  static afterTouch(fn: CallbackFn, conditions?: CallbackConditions): void {
+    this._ensureOwnCallbacks();
+    this._callbackChain.register("after", "touch", fn, conditions);
+  }
+
   private static _ensureOwnCallbacks(): void {
     if (!Object.prototype.hasOwnProperty.call(this, "_callbackChain")) {
       // Clone parent's chain so subclass inherits existing callbacks

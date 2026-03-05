@@ -7108,4 +7108,51 @@ describe("Grouped Calculations (Rails-guided)", () => {
     User.ignoredColumns = ["old_field", "deprecated_col"];
     expect(User.ignoredColumns).toEqual(["old_field", "deprecated_col"]);
   });
+
+  // Rails: test "new"
+  it("Base.new() creates an unsaved record", () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    const user = User.new({ name: "Alice" });
+    expect(user.isNewRecord()).toBe(true);
+    expect(user.readAttribute("name")).toBe("Alice");
+  });
+
+  // Rails: test "attribute_present?"
+  it("attributePresent returns true for non-blank values", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("email", "string"); this.adapter = adapter; }
+    }
+
+    const user = await User.create({ name: "Alice" });
+    expect(user.attributePresent("name")).toBe(true);
+    expect(user.attributePresent("email")).toBe(false);
+  });
+
+  // Rails: test "to_key"
+  it("toKey returns [id] for persisted records, null for new", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    const newUser = new User({ name: "Alice" });
+    expect(newUser.toKey()).toBeNull();
+
+    const saved = await User.create({ name: "Alice" });
+    expect(saved.toKey()).toEqual([saved.id]);
+  });
+
+  // Rails: test "after_touch callback"
+  it("afterTouch fires after touch()", async () => {
+    const log: string[] = [];
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("updated_at", "datetime"); this.afterTouch((r: any) => log.push("touched")); this.adapter = adapter; }
+    }
+
+    const user = await User.create({ name: "Alice" });
+    await user.touch();
+    expect(log).toEqual(["touched"]);
+  });
 });

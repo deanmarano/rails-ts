@@ -677,6 +677,15 @@ export class Base extends Model {
   }
 
   /**
+   * Instantiate a new record (not yet saved).
+   *
+   * Mirrors: ActiveRecord::Base.new (Ruby convention)
+   */
+  static new(attrs: Record<string, unknown> = {}): Base {
+    return new this(attrs);
+  }
+
+  /**
    * Create a record and save it to the database.
    *
    * Mirrors: ActiveRecord::Base.create
@@ -1596,6 +1605,9 @@ export class Base extends Model {
     if (Object.keys(attrs).length === 0) return false;
 
     await this.updateColumns(attrs);
+
+    // Fire after_touch callbacks
+    ctor._callbackChain.runAfter("touch", this);
     return true;
   }
 
@@ -1700,6 +1712,37 @@ export class Base extends Model {
    */
   hasAttribute(name: string): boolean {
     return this._attributes.has(name);
+  }
+
+  /**
+   * Check whether an attribute is present (not null, not undefined, not empty string).
+   *
+   * Mirrors: ActiveRecord::Base#attribute_present?
+   */
+  attributePresent(name: string): boolean {
+    const value = this.readAttribute(name);
+    if (value === null || value === undefined) return false;
+    if (typeof value === "string" && value.trim() === "") return false;
+    return true;
+  }
+
+  /**
+   * Return the list of attribute names for this record instance.
+   *
+   * Mirrors: ActiveRecord::Base#attribute_names
+   */
+  get attributeNamesList(): string[] {
+    return [...this._attributes.keys()];
+  }
+
+  /**
+   * Return an array for cache key identification: [model_name, id].
+   *
+   * Mirrors: ActiveRecord::Base#to_key
+   */
+  toKey(): unknown[] | null {
+    const pk = this.id;
+    return pk != null ? [pk] : null;
   }
 
   /**

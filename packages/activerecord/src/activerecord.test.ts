@@ -7594,4 +7594,84 @@ describe("ActiveRecord", () => {
       expect(User.sanitizeSql(["name = ? AND age > ?", "Alice", 30])).toBe("name = 'Alice' AND age > 30");
     });
   });
+
+  describe("Base.new()", () => {
+    it("creates an unsaved record instance", () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = User.new({ name: "Alice" });
+      expect(user.isNewRecord()).toBe(true);
+      expect(user.readAttribute("name")).toBe("Alice");
+    });
+  });
+
+  describe("attributePresent()", () => {
+    it("returns true for non-null, non-empty values", () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.attribute("email", "string");
+      User.adapter = adapter;
+
+      const user = new User({ name: "Alice" });
+      expect(user.attributePresent("name")).toBe(true);
+      expect(user.attributePresent("email")).toBe(false); // null
+    });
+
+    it("returns false for empty strings", () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = new User({ name: "  " });
+      expect(user.attributePresent("name")).toBe(false);
+    });
+  });
+
+  describe("toKey()", () => {
+    it("returns [id] for persisted records", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = await User.create({ name: "Alice" });
+      expect(user.toKey()).toEqual([user.id]);
+    });
+
+    it("returns null for new records", () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.adapter = adapter;
+
+      const user = new User({});
+      expect(user.toKey()).toBeNull();
+    });
+  });
+
+  describe("afterTouch callback", () => {
+    it("fires after touch() is called", async () => {
+      const adapter = freshAdapter();
+      const touched: string[] = [];
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.attribute("updated_at", "datetime");
+      User.afterTouch((record: any) => { touched.push(record.readAttribute("name")); });
+      User.adapter = adapter;
+
+      const user = await User.create({ name: "Alice" });
+      await user.touch();
+      expect(touched).toEqual(["Alice"]);
+    });
+  });
 });
