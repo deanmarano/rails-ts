@@ -1267,4 +1267,77 @@ describe("Arel", () => {
       expect(sql).toContain("'Unknown'");
     });
   });
+
+  describe("Case node", () => {
+    it("generates simple CASE WHEN THEN END", () => {
+      const caseNode = new Nodes.Case()
+        .when(new Nodes.SqlLiteral("1 = 1"), new Nodes.SqlLiteral("'yes'"));
+      const visitor = new Visitors.ToSql();
+      const sql = visitor.compile(caseNode);
+      expect(sql).toBe("CASE WHEN 1 = 1 THEN 'yes' END");
+    });
+
+    it("generates CASE with operand", () => {
+      const status = users.get("status");
+      const caseNode = new Nodes.Case(status)
+        .when(new Nodes.Quoted(1), new Nodes.SqlLiteral("'active'"))
+        .when(new Nodes.Quoted(2), new Nodes.SqlLiteral("'inactive'"));
+      const visitor = new Visitors.ToSql();
+      const sql = visitor.compile(caseNode);
+      expect(sql).toContain('CASE "users"."status"');
+      expect(sql).toContain("WHEN 1 THEN 'active'");
+      expect(sql).toContain("WHEN 2 THEN 'inactive'");
+      expect(sql).toContain("END");
+    });
+
+    it("generates CASE with ELSE", () => {
+      const caseNode = new Nodes.Case()
+        .when(new Nodes.SqlLiteral("x > 0"), new Nodes.SqlLiteral("'positive'"))
+        .else(new Nodes.SqlLiteral("'non-positive'"));
+      const visitor = new Visitors.ToSql();
+      const sql = visitor.compile(caseNode);
+      expect(sql).toBe("CASE WHEN x > 0 THEN 'positive' ELSE 'non-positive' END");
+    });
+
+    it("generates CASE with multiple conditions and else", () => {
+      const caseNode = new Nodes.Case()
+        .when(new Nodes.SqlLiteral("score >= 90"), new Nodes.SqlLiteral("'A'"))
+        .when(new Nodes.SqlLiteral("score >= 80"), new Nodes.SqlLiteral("'B'"))
+        .when(new Nodes.SqlLiteral("score >= 70"), new Nodes.SqlLiteral("'C'"))
+        .else(new Nodes.SqlLiteral("'F'"));
+      const visitor = new Visitors.ToSql();
+      const sql = visitor.compile(caseNode);
+      expect(sql).toBe(
+        "CASE WHEN score >= 90 THEN 'A' WHEN score >= 80 THEN 'B' WHEN score >= 70 THEN 'C' ELSE 'F' END"
+      );
+    });
+
+    it("supports string/number shorthand in when()", () => {
+      const caseNode = new Nodes.Case()
+        .when("active", 1)
+        .when("inactive", 0);
+      const visitor = new Visitors.ToSql();
+      const sql = visitor.compile(caseNode);
+      expect(sql).toBe("CASE WHEN active THEN 1 WHEN inactive THEN 0 END");
+    });
+
+    it("supports .as() for aliasing", () => {
+      const caseNode = new Nodes.Case()
+        .when(new Nodes.SqlLiteral("1 = 1"), new Nodes.SqlLiteral("'yes'"))
+        .as("result");
+      const visitor = new Visitors.ToSql();
+      const sql = visitor.compile(caseNode);
+      expect(sql).toBe("CASE WHEN 1 = 1 THEN 'yes' END AS result");
+    });
+
+    it("is immutable — chaining returns new instances", () => {
+      const c1 = new Nodes.Case();
+      const c2 = c1.when(new Nodes.SqlLiteral("a"), new Nodes.SqlLiteral("b"));
+      const c3 = c2.else(new Nodes.SqlLiteral("c"));
+      expect(c1.conditions.length).toBe(0);
+      expect(c2.conditions.length).toBe(1);
+      expect(c2.defaultValue).toBeNull();
+      expect(c3.defaultValue).not.toBeNull();
+    });
+  });
 });

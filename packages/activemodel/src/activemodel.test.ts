@@ -1952,4 +1952,82 @@ describe("ActiveModel", () => {
       expect(u.readAttribute("last_name")).toBe("SMITH");
     });
   });
+
+  describe("attributeChanged with from/to options", () => {
+    it("returns true when from/to match the change", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Alice" });
+      u.changesApplied();
+      u.writeAttribute("name", "Bob");
+      expect(u.attributeChanged("name", { from: "Alice", to: "Bob" })).toBe(true);
+    });
+
+    it("returns false when from does not match", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Alice" });
+      u.changesApplied();
+      u.writeAttribute("name", "Bob");
+      expect(u.attributeChanged("name", { from: "Charlie", to: "Bob" })).toBe(false);
+    });
+
+    it("returns false when to does not match", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Alice" });
+      u.changesApplied();
+      u.writeAttribute("name", "Bob");
+      expect(u.attributeChanged("name", { from: "Alice", to: "Charlie" })).toBe(false);
+    });
+
+    it("supports only from option", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Alice" });
+      u.changesApplied();
+      u.writeAttribute("name", "Bob");
+      expect(u.attributeChanged("name", { from: "Alice" })).toBe(true);
+      expect(u.attributeChanged("name", { from: "Wrong" })).toBe(false);
+    });
+
+    it("supports only to option", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Alice" });
+      u.changesApplied();
+      u.writeAttribute("name", "Bob");
+      expect(u.attributeChanged("name", { to: "Bob" })).toBe(true);
+      expect(u.attributeChanged("name", { to: "Wrong" })).toBe(false);
+    });
+
+    it("willSaveChangeToAttribute supports from/to", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Alice" });
+      u.changesApplied();
+      u.writeAttribute("name", "Bob");
+      expect(u.willSaveChangeToAttribute("name", { from: "Alice", to: "Bob" })).toBe(true);
+      expect(u.willSaveChangeToAttribute("name", { from: "Wrong" })).toBe(false);
+    });
+
+    it("savedChangeToAttribute supports from/to", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Alice" });
+      u.changesApplied();
+      u.writeAttribute("name", "Bob");
+      u.changesApplied();
+      expect(u.savedChangeToAttribute("name", { from: "Alice", to: "Bob" })).toBe(true);
+      expect(u.savedChangeToAttribute("name", { from: "Alice", to: "Wrong" })).toBe(false);
+      expect(u.savedChangeToAttribute("name", { from: "Wrong", to: "Bob" })).toBe(false);
+    });
+  });
 });

@@ -523,18 +523,24 @@ export class Model {
     return this._dirty.changes;
   }
 
-  attributeChanged(name: string): boolean {
-    return this._dirty.attributeChanged(name);
+  attributeChanged(name: string, options?: { from?: unknown; to?: unknown }): boolean {
+    if (!this._dirty.attributeChanged(name)) return false;
+    if (!options) return true;
+    const change = this._dirty.attributeChange(name);
+    if (!change) return false;
+    if ("from" in options && change[0] !== options.from) return false;
+    if ("to" in options && change[1] !== options.to) return false;
+    return true;
   }
 
   /**
    * Check if a specific attribute will be saved on the next save.
-   * Alias for attributeChanged — mirrors Rails naming.
+   * Supports from: and to: options like Rails.
    *
    * Mirrors: ActiveModel::Dirty#will_save_change_to_attribute?
    */
-  willSaveChangeToAttribute(name: string): boolean {
-    return this._dirty.attributeChanged(name);
+  willSaveChangeToAttribute(name: string, options?: { from?: unknown; to?: unknown }): boolean {
+    return this.attributeChanged(name, options);
   }
 
   attributeWas(name: string): unknown {
@@ -572,8 +578,14 @@ export class Model {
    *
    * Mirrors: ActiveModel::Dirty#saved_change_to_attribute?
    */
-  savedChangeToAttribute(name: string): boolean {
-    return name in this._dirty.previousChanges;
+  savedChangeToAttribute(name: string, options?: { from?: unknown; to?: unknown }): boolean {
+    const changes = this._dirty.previousChanges;
+    if (!(name in changes)) return false;
+    if (!options) return true;
+    const change = changes[name];
+    if ("from" in options && change[0] !== options.from) return false;
+    if ("to" in options && change[1] !== options.to) return false;
+    return true;
   }
 
   /**

@@ -7320,4 +7320,31 @@ describe("Grouped Calculations (Rails-guided)", () => {
     const records = await rel.records();
     expect(records.length).toBe(2);
   });
+
+  // Rails guide: attributeChanged?(from:, to:) — Active Model Dirty
+  it("attributeChanged? supports from: and to: options (Active Model Dirty)", async () => {
+    const adapter = new MemoryAdapter();
+
+    class Person extends Base {
+      static { this._tableName = "people"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("age", "integer"); this.adapter = adapter; }
+    }
+
+    const p = await Person.create({ name: "Alice", age: 25 });
+    p.writeAttribute("age", 30);
+
+    // Rails: person.attribute_changed?(:age) => true
+    expect(p.attributeChanged("age")).toBe(true);
+    // Rails: person.attribute_changed?(:age, from: 25, to: 30) => true
+    expect(p.attributeChanged("age", { from: 25, to: 30 })).toBe(true);
+    // Rails: person.attribute_changed?(:age, from: 20) => false
+    expect(p.attributeChanged("age", { from: 20 })).toBe(false);
+    // Rails: person.will_save_change_to_attribute?(:age, from: 25) => true
+    expect(p.willSaveChangeToAttribute("age", { from: 25 })).toBe(true);
+
+    await p.save();
+
+    // Rails: person.saved_change_to_attribute?(:age, from: 25, to: 30) => true
+    expect(p.savedChangeToAttribute("age", { from: 25, to: 30 })).toBe(true);
+    expect(p.savedChangeToAttribute("age", { to: 99 })).toBe(false);
+  });
 });

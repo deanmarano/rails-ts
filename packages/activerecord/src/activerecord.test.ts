@@ -7970,4 +7970,43 @@ describe("ActiveRecord", () => {
       expect(second.length).toBe(2);
     });
   });
+
+  describe("attributeChanged with from/to options", () => {
+    it("attributeChanged with from and to after save", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const user = await User.create({ name: "Alice" });
+      user.writeAttribute("name", "Bob");
+      expect(user.attributeChanged("name")).toBe(true);
+      expect(user.attributeChanged("name", { from: "Alice", to: "Bob" })).toBe(true);
+      expect(user.attributeChanged("name", { from: "Wrong" })).toBe(false);
+    });
+
+    it("savedChangeToAttribute with from/to after save", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const user = await User.create({ name: "Alice" });
+      user.writeAttribute("name", "Bob");
+      await user.save();
+      expect(user.savedChangeToAttribute("name")).toBe(true);
+      expect(user.savedChangeToAttribute("name", { from: "Alice", to: "Bob" })).toBe(true);
+      expect(user.savedChangeToAttribute("name", { from: "Wrong" })).toBe(false);
+    });
+  });
 });

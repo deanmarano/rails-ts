@@ -89,6 +89,9 @@ export class ToSql implements NodeVisitor<SQLString> {
     if (node instanceof Nodes.Following) return this.visitFollowing(node);
     if (node instanceof Nodes.CurrentRow) return this.visitCurrentRow(node);
 
+    // Case
+    if (node instanceof Nodes.Case) return this.visitCase(node);
+
     // Functions
     if (node instanceof Nodes.NamedFunction) return this.visitNamedFunction(node);
     if (node instanceof Nodes.Exists) return this.visitExists(node);
@@ -617,6 +620,28 @@ export class ToSql implements NodeVisitor<SQLString> {
       this.collector.append(" ");
       this.visit(node.expr);
     }
+    return this.collector;
+  }
+
+  // -- Case --
+
+  private visitCase(node: Nodes.Case): SQLString {
+    this.collector.append("CASE");
+    if (node.operand) {
+      this.collector.append(" ");
+      this.visit(node.operand);
+    }
+    for (const cond of node.conditions) {
+      this.collector.append(" WHEN ");
+      this.visit(cond.when);
+      this.collector.append(" THEN ");
+      this.visit(cond.then);
+    }
+    if (node.defaultValue) {
+      this.collector.append(" ELSE ");
+      this.visit(node.defaultValue);
+    }
+    this.collector.append(" END");
     return this.collector;
   }
 

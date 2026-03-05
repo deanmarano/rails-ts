@@ -77,6 +77,7 @@ export {
 
 export { Union, UnionAll, Intersect, Except } from "./set-operations.js";
 export { With, WithRecursive, TableAlias } from "./with.js";
+export { Case } from "./case.js";
 
 import { SqlLiteral } from "./sql-literal.js";
 
