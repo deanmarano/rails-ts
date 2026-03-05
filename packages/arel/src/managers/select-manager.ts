@@ -67,6 +67,43 @@ export class SelectManager {
   }
 
   /**
+   * Return the current list of projections.
+   *
+   * Mirrors: Arel::SelectManager#projections
+   */
+  get projections(): Node[] {
+    return [...this.core.projections];
+  }
+
+  /**
+   * Replace all projections.
+   *
+   * Mirrors: Arel::SelectManager#projections=
+   */
+  set projections(value: Node[]) {
+    this.core.projections.length = 0;
+    this.core.projections.push(...value);
+  }
+
+  /**
+   * Return the current WHERE conditions.
+   *
+   * Mirrors: Arel::SelectManager#constraints
+   */
+  get constraints(): Node[] {
+    return [...this.core.wheres];
+  }
+
+  /**
+   * Return the source (FROM clause).
+   *
+   * Mirrors: Arel::SelectManager#source
+   */
+  get source(): any {
+    return this.core.source;
+  }
+
+  /**
    * Add a WHERE condition.
    */
   where(condition: Node): this {

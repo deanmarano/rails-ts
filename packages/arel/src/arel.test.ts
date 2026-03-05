@@ -1600,4 +1600,37 @@ describe("Arel", () => {
       expect(visitor.compile(node)).toBe('FLOOR("users"."score")');
     });
   });
+
+  describe("SelectManager introspection", () => {
+    it("projections getter returns current projections", () => {
+      const users = new Table("users");
+      const manager = users.project(users.attr("name"), users.attr("age"));
+      expect(manager.projections.length).toBe(2);
+    });
+
+    it("projections setter replaces all projections", () => {
+      const users = new Table("users");
+      const manager = users.project(users.attr("name"));
+      expect(manager.projections.length).toBe(1);
+      manager.projections = [users.attr("age")];
+      expect(manager.projections.length).toBe(1);
+      const sql = manager.toSql();
+      expect(sql).toContain('"age"');
+      expect(sql).not.toContain('"name"');
+    });
+
+    it("constraints returns where conditions", () => {
+      const users = new Table("users");
+      const manager = users.project("*")
+        .where(users.attr("name").eq("Alice"))
+        .where(users.attr("age").gt(18));
+      expect(manager.constraints.length).toBe(2);
+    });
+
+    it("source returns the FROM source", () => {
+      const users = new Table("users");
+      const manager = users.project("*");
+      expect(manager.source).toBeDefined();
+    });
+  });
 });
