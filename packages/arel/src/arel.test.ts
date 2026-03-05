@@ -249,6 +249,17 @@ describe("Arel", () => {
       );
     });
 
+    it("notBetween generates NOT BETWEEN", () => {
+      expect(
+        users
+          .project(star)
+          .where(users.get("age").notBetween(18, 65))
+          .toSql()
+      ).toBe(
+        'SELECT * FROM "users" WHERE NOT ("users"."age" BETWEEN 18 AND 65)'
+      );
+    });
+
     // -- Null helpers --
     it("isNull generates IS NULL", () => {
       expect(

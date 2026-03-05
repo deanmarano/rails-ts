@@ -23,6 +23,7 @@ import { Quoted } from "./quoted.js";
 import { Grouping } from "./grouping.js";
 import { And } from "./and.js";
 import { Or } from "./or.js";
+import { Not } from "./not.js";
 import { SqlLiteral } from "./sql-literal.js";
 import { NamedFunction } from "./named-function.js";
 import { Extract } from "./extract.js";
@@ -108,6 +109,10 @@ export class Attribute extends Node {
 
   between(begin: unknown, end: unknown): Between {
     return new Between(this, new And([buildQuoted(begin), buildQuoted(end)]));
+  }
+
+  notBetween(begin: unknown, end: unknown): Not {
+    return new Not(this.between(begin, end));
   }
 
   isNull(): Equality {
