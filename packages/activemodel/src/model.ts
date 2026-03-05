@@ -308,6 +308,72 @@ export class Model {
       .map((entry) => entry.validator);
   }
 
+  // -- Individual validator helper methods --
+  // These mirror the Rails validates_*_of shorthand methods
+
+  /**
+   * Mirrors: ActiveModel::Validations::HelperMethods.validates_presence_of
+   */
+  static validatesPresenceOf(...attributes: string[]): void {
+    for (const attr of attributes) this.validates(attr, { presence: true });
+  }
+
+  /**
+   * Mirrors: ActiveModel::Validations::HelperMethods.validates_absence_of
+   */
+  static validatesAbsenceOf(...attributes: string[]): void {
+    for (const attr of attributes) this.validates(attr, { absence: true });
+  }
+
+  /**
+   * Mirrors: ActiveModel::Validations::HelperMethods.validates_length_of
+   */
+  static validatesLengthOf(attribute: string, options: Record<string, unknown>): void {
+    this.validates(attribute, { length: options });
+  }
+
+  /**
+   * Mirrors: ActiveModel::Validations::HelperMethods.validates_numericality_of
+   */
+  static validatesNumericalityOf(attribute: string, options: Record<string, unknown> = {}): void {
+    this.validates(attribute, { numericality: options === true ? {} : options });
+  }
+
+  /**
+   * Mirrors: ActiveModel::Validations::HelperMethods.validates_inclusion_of
+   */
+  static validatesInclusionOf(attribute: string, options: Record<string, unknown>): void {
+    this.validates(attribute, { inclusion: options });
+  }
+
+  /**
+   * Mirrors: ActiveModel::Validations::HelperMethods.validates_exclusion_of
+   */
+  static validatesExclusionOf(attribute: string, options: Record<string, unknown>): void {
+    this.validates(attribute, { exclusion: options });
+  }
+
+  /**
+   * Mirrors: ActiveModel::Validations::HelperMethods.validates_format_of
+   */
+  static validatesFormatOf(attribute: string, options: Record<string, unknown>): void {
+    this.validates(attribute, { format: options });
+  }
+
+  /**
+   * Mirrors: ActiveModel::Validations::HelperMethods.validates_acceptance_of
+   */
+  static validatesAcceptanceOf(...attributes: string[]): void {
+    for (const attr of attributes) this.validates(attr, { acceptance: true });
+  }
+
+  /**
+   * Mirrors: ActiveModel::Validations::HelperMethods.validates_confirmation_of
+   */
+  static validatesConfirmationOf(...attributes: string[]): void {
+    for (const attr of attributes) this.validates(attr, { confirmation: true });
+  }
+
   // -- Callbacks (Phase 1200) --
 
   static beforeValidation(fn: CallbackFn, conditions?: CallbackConditions): void {

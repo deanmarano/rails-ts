@@ -253,6 +253,15 @@ export class Errors {
     return this.toHash();
   }
 
+  /**
+   * Generate a localized error message for an attribute and error type.
+   *
+   * Mirrors: ActiveModel::Errors#generate_message
+   */
+  generateMessage(attribute: string, type: string = "invalid", options?: Record<string, unknown>): string {
+    return this.defaultMessage(type, options);
+  }
+
   private defaultMessage(
     type: string,
     _options?: Record<string, unknown>

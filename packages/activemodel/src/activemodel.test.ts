@@ -2724,4 +2724,105 @@ describe("ActiveModel", () => {
       expect(u.isValid()).toBe(false);
     });
   });
+
+  describe("validates_*_of shorthand methods", () => {
+    it("validatesPresenceOf validates presence", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.validatesPresenceOf("name", "email");
+        }
+      }
+      const u = new User({});
+      expect(u.isValid()).toBe(false);
+      expect(u.errors.get("name").length).toBeGreaterThan(0);
+      expect(u.errors.get("email").length).toBeGreaterThan(0);
+    });
+
+    it("validatesAbsenceOf validates absence", () => {
+      class User extends Model {
+        static {
+          this.attribute("spam", "string");
+          this.validatesAbsenceOf("spam");
+        }
+      }
+      const u = new User({ spam: "not empty" });
+      expect(u.isValid()).toBe(false);
+    });
+
+    it("validatesLengthOf validates length", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.validatesLengthOf("name", { minimum: 3 });
+        }
+      }
+      expect(new User({ name: "AB" }).isValid()).toBe(false);
+      expect(new User({ name: "ABC" }).isValid()).toBe(true);
+    });
+
+    it("validatesNumericalityOf validates numericality", () => {
+      class Item extends Model {
+        static {
+          this.attribute("price", "float");
+          this.validatesNumericalityOf("price", { greaterThan: 0 });
+        }
+      }
+      expect(new Item({ price: -1 }).isValid()).toBe(false);
+      expect(new Item({ price: 10 }).isValid()).toBe(true);
+    });
+
+    it("validatesInclusionOf validates inclusion", () => {
+      class User extends Model {
+        static {
+          this.attribute("role", "string");
+          this.validatesInclusionOf("role", { in: ["admin", "user"] });
+        }
+      }
+      expect(new User({ role: "hacker" }).isValid()).toBe(false);
+      expect(new User({ role: "admin" }).isValid()).toBe(true);
+    });
+
+    it("validatesFormatOf validates format", () => {
+      class User extends Model {
+        static {
+          this.attribute("email", "string");
+          this.validatesFormatOf("email", { with: /@/ });
+        }
+      }
+      expect(new User({ email: "nope" }).isValid()).toBe(false);
+      expect(new User({ email: "a@b.com" }).isValid()).toBe(true);
+    });
+
+    it("validatesConfirmationOf validates confirmation", () => {
+      class User extends Model {
+        static {
+          this.attribute("password", "string");
+          this.validatesConfirmationOf("password");
+        }
+      }
+      const u = new User({ password: "secret", password_confirmation: "mismatch" });
+      expect(u.isValid()).toBe(false);
+    });
+  });
+
+  describe("Errors#generateMessage", () => {
+    it("generates a message for a type", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({});
+      expect(u.errors.generateMessage("name", "blank")).toBe("can't be blank");
+      expect(u.errors.generateMessage("name", "invalid")).toBe("is invalid");
+    });
+
+    it("substitutes options into message", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({});
+      expect(u.errors.generateMessage("age", "greater_than", { count: 0 })).toBe("must be greater than 0");
+    });
+  });
 });
