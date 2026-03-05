@@ -90,6 +90,7 @@ export interface NumericalityOptions extends ConditionalOptions {
   lessThanOrEqualTo?: number;
   equalTo?: number;
   otherThan?: number;
+  in?: [number, number];
   odd?: boolean;
   even?: boolean;
   message?: string;
@@ -130,6 +131,12 @@ export class NumericalityValidator implements Validator {
     }
     if (this.options.otherThan !== undefined && num === this.options.otherThan) {
       errors.add(attribute, "other_than", { count: this.options.otherThan });
+    }
+    if (this.options.in !== undefined) {
+      const [min, max] = this.options.in;
+      if (num < min || num > max) {
+        errors.add(attribute, "not_in_range", { message: this.options.message, count: `${min}..${max}` });
+      }
     }
     if (this.options.odd && num % 2 === 0) {
       errors.add(attribute, "odd");

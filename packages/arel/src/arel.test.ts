@@ -1705,4 +1705,13 @@ describe("Arel", () => {
       expect(manager.joinSources[1]).toBeInstanceOf(Nodes.OuterJoin);
     });
   });
+
+  describe("SelectManager froms", () => {
+    it("returns the FROM source", () => {
+      const manager = users.project("*");
+      const froms = manager.froms;
+      expect(froms.length).toBe(1);
+      expect(froms[0]).toBe(users);
+    });
+  });
 });

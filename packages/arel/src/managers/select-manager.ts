@@ -313,6 +313,15 @@ export class SelectManager {
   }
 
   /**
+   * Return the FROM sources (left side of the source).
+   *
+   * Mirrors: Arel::SelectManager#froms
+   */
+  get froms(): (Node | null)[] {
+    return [this.core.source.left];
+  }
+
+  /**
    * Alias the entire subquery with a name, returning a TableAlias.
    *
    * Mirrors: Arel::SelectManager#as
