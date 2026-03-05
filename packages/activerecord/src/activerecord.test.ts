@@ -9584,4 +9584,39 @@ describe("ActiveRecord", () => {
       expect(results[0].readAttribute("role")).toBe("admin");
     });
   });
+
+  describe("Base.pick (static)", () => {
+    it("picks a column value from the first record", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice", age: 30 });
+      await User.create({ name: "Bob", age: 25 });
+
+      const name = await User.pick("name");
+      expect(name).toBe("Alice");
+    });
+  });
+
+  describe("distinctOn", () => {
+    it("returns a relation with distinctOn columns set", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.attribute("role", "string");
+        }
+      }
+
+      const rel = User.where({}).distinctOn("role");
+      expect(rel.distinctValue).toBe(true);
+    });
+  });
 });

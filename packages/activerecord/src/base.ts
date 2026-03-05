@@ -991,6 +991,15 @@ export class Base extends Model {
   }
 
   /**
+   * Pick column values from the first matching record.
+   *
+   * Mirrors: ActiveRecord::Base.pick
+   */
+  static async pick(...columns: string[]): Promise<unknown> {
+    return this.all().pick(...columns);
+  }
+
+  /**
    * Find the first record matching conditions, or create one.
    *
    * Mirrors: ActiveRecord::Base.find_or_create_by

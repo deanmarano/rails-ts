@@ -686,7 +686,20 @@ export class Model {
   // -- Attribute access --
 
   readAttribute(name: string): unknown {
+    if (!this._attributes.has(name)) {
+      return this.attributeMissing(name);
+    }
     return this._attributes.get(name) ?? null;
+  }
+
+  /**
+   * Hook called when reading an attribute that doesn't exist.
+   * Override in subclasses to provide custom behavior.
+   *
+   * Mirrors: ActiveModel::AttributeMethods#attribute_missing
+   */
+  attributeMissing(_name: string): unknown {
+    return null;
   }
 
   writeAttribute(name: string, value: unknown): void {

@@ -35,6 +35,7 @@ export class Relation<T extends Base> {
   private _offsetValue: number | null = null;
   private _selectColumns: string[] | null = null;
   private _isDistinct = false;
+  private _distinctOnColumns: string[] = [];
   private _groupColumns: string[] = [];
   private _orRelations: Relation<T>[] = [];
   private _havingClauses: string[] = [];
@@ -371,6 +372,18 @@ export class Relation<T extends Base> {
   distinct(): Relation<T> {
     const rel = this._clone();
     rel._isDistinct = true;
+    return rel;
+  }
+
+  /**
+   * PostgreSQL DISTINCT ON — select distinct rows based on specific columns.
+   *
+   * Mirrors: ActiveRecord::Relation#distinct_on (PostgreSQL only)
+   */
+  distinctOn(...columns: string[]): Relation<T> {
+    const rel = this._clone();
+    rel._isDistinct = true;
+    rel._distinctOnColumns = columns;
     return rel;
   }
 
@@ -2549,6 +2562,7 @@ export class Relation<T extends Base> {
       ? [...this._selectColumns]
       : null;
     rel._isDistinct = this._isDistinct;
+    rel._distinctOnColumns = [...this._distinctOnColumns];
     rel._groupColumns = [...this._groupColumns];
     rel._havingClauses = [...this._havingClauses];
     rel._orRelations = [...this._orRelations];

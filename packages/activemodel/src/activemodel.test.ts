@@ -2973,4 +2973,35 @@ describe("ActiveModel", () => {
       expect(u.attributesInDatabase).toEqual({});
     });
   });
+
+  describe("attributeMissing", () => {
+    it("returns null by default for unknown attributes", () => {
+      class User extends Model {
+        constructor(attrs: Record<string, unknown> = {}) {
+          super(attrs);
+        }
+      }
+      User.attribute("name", "string");
+
+      const u = new User({ name: "Alice" });
+      expect(u.readAttribute("nonexistent")).toBeNull();
+    });
+
+    it("can be overridden to provide custom behavior", () => {
+      class User extends Model {
+        constructor(attrs: Record<string, unknown> = {}) {
+          super(attrs);
+        }
+        attributeMissing(name: string): unknown {
+          return `missing:${name}`;
+        }
+      }
+      User.attribute("name", "string");
+
+      const u = new User({ name: "Alice" });
+      expect(u.readAttribute("nonexistent")).toBe("missing:nonexistent");
+      // Known attributes still work normally
+      expect(u.readAttribute("name")).toBe("Alice");
+    });
+  });
 });
