@@ -362,6 +362,17 @@ export class Model {
     }
   }
 
+  /**
+   * Convert an attribute name to a human-readable form.
+   *
+   * Mirrors: ActiveModel::Translation.human_attribute_name
+   */
+  static humanAttributeName(attr: string): string {
+    return attr
+      .replace(/_/g, " ")
+      .replace(/^\w/, (c) => c.toUpperCase());
+  }
+
   // -- Naming (Phase 1300) --
 
   static get modelName(): ModelName {

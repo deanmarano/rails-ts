@@ -55,3 +55,5 @@ export { acceptsNestedAttributesFor, assignNestedAttributes } from "./nested-att
 export { hasSecureToken } from "./secure-token.js";
 export { composedOf } from "./composed-of.js";
 export { serialize } from "./serialize.js";
+export { encrypts, defaultEncryptor, getEncryptor, isEncryptedAttribute } from "./encryption.js";
+export type { Encryptor } from "./encryption.js";

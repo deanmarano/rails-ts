@@ -10,6 +10,7 @@ import {
   StaleObjectError,
   ReadOnlyRecord,
 } from "./errors.js";
+import { encrypts as _encrypts, getEncryptor } from "./encryption.js";
 
 /**
  * Pluralize a name (naive English pluralization).
@@ -187,6 +188,20 @@ export class Base extends Model {
     return Array.from(this._readonlyAttributes);
   }
 
+  // -- Encrypted attributes --
+
+  /**
+   * Declare attributes as encrypted.
+   * Reads decrypt, writes encrypt transparently.
+   *
+   * Mirrors: ActiveRecord::Encryption.encrypts
+   */
+  static encrypts(
+    ...args: Array<string | { encryptor?: import("./encryption.js").Encryptor }>
+  ): void {
+    _encrypts(this, ...args);
+  }
+
   // -- Scopes registry (used by Relation) --
   static _scopes: Map<string, (rel: any, ...args: any[]) => any> = new Map();
   static _defaultScope: ((rel: any) => any) | null = null;
@@ -213,16 +228,33 @@ export class Base extends Model {
     return _wrapWithScopeProxy ? _wrapWithScopeProxy(rel) : rel;
   }
 
+  // Scope extension methods: scope name -> Record of extra methods
+  static _scopeExtensions: Map<string, Record<string, Function>> = new Map();
+
   /**
-   * Define a named scope.
+   * Define a named scope with an optional extension block.
    *
-   * Mirrors: ActiveRecord::Base.scope
+   * The extension object adds extra methods to the returned relation
+   * when the scope is invoked.
+   *
+   * Mirrors: ActiveRecord::Base.scope (with extension block)
    */
-  static scope(name: string, fn: (rel: any, ...args: any[]) => any): void {
+  static scope(
+    name: string,
+    fn: (rel: any, ...args: any[]) => any,
+    extension?: Record<string, Function>
+  ): void {
     if (!Object.prototype.hasOwnProperty.call(this, "_scopes")) {
       this._scopes = new Map(this._scopes);
     }
     this._scopes.set(name, fn);
+
+    if (extension) {
+      if (!Object.prototype.hasOwnProperty.call(this, "_scopeExtensions")) {
+        this._scopeExtensions = new Map(this._scopeExtensions);
+      }
+      this._scopeExtensions.set(name, extension);
+    }
 
     // Define a static method on the class that delegates to all().scopeName()
     Object.defineProperty(this, name, {
@@ -813,7 +845,9 @@ export class Base extends Model {
       return instantiateSti(this, row);
     }
 
+    this._skipEncryption = true;
     const record = new this(row);
+    this._skipEncryption = false;
     record._newRecord = false;
     record._dirty.snapshot(record._attributes);
     record.changesApplied();
@@ -832,6 +866,26 @@ export class Base extends Model {
   private _destroyedByAssociation: unknown = null;
   _strictLoading = false;
   _preloadedAssociations: Map<string, unknown> = new Map();
+
+  /**
+   * Track whether we're inside _instantiate (loading from DB).
+   * In that case, attributes are already encrypted in DB, skip re-encryption.
+   */
+  private static _skipEncryption = false;
+
+  constructor(attrs: Record<string, unknown> = {}) {
+    super(attrs);
+    // Encrypt initial attribute values for encrypted attributes
+    // (skip when loading from DB — values are already encrypted)
+    if (!(this.constructor as typeof Base)._skipEncryption) {
+      for (const [name, value] of this._attributes) {
+        const enc = getEncryptor(this.constructor, name);
+        if (enc && typeof value === "string") {
+          this._attributes.set(name, enc.encrypt(value));
+        }
+      }
+    }
+  }
 
   /**
    * Returns true if the record has not been saved yet.
@@ -987,13 +1041,35 @@ export class Base extends Model {
   }
 
   /**
-   * Override writeAttribute to prevent modifications on frozen records.
+   * Override readAttribute to decrypt encrypted attributes.
+   */
+  readAttribute(name: string): unknown {
+    const value = super.readAttribute(name);
+    const enc = getEncryptor(this.constructor, name);
+    if (enc && typeof value === "string") {
+      try {
+        return enc.decrypt(value);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  }
+
+  /**
+   * Override writeAttribute to prevent modifications on frozen records
+   * and to encrypt encrypted attributes.
    */
   writeAttribute(name: string, value: unknown): void {
     if (this._frozen) {
       throw new Error(`Cannot modify a frozen ${(this.constructor as typeof Base).name}`);
     }
-    super.writeAttribute(name, value);
+    const enc = getEncryptor(this.constructor, name);
+    if (enc && typeof value === "string") {
+      super.writeAttribute(name, enc.encrypt(value));
+    } else {
+      super.writeAttribute(name, value);
+    }
   }
 
   /**

@@ -2194,7 +2194,15 @@ function wrapWithScopeProxy<T extends Base>(rel: Relation<T>): Relation<T> {
       if (modelClass._scopes.has(prop as string)) {
         return (...args: any[]) => {
           const scopeFn = modelClass._scopes.get(prop as string)!;
-          return scopeFn(target, ...args);
+          const result = scopeFn(target, ...args);
+          // Apply scope extensions if any
+          const extensions = modelClass._scopeExtensions?.get(prop as string);
+          if (extensions && result && typeof result === "object") {
+            for (const [name, fn] of Object.entries(extensions)) {
+              (result as any)[name] = fn.bind(result);
+            }
+          }
+          return result;
         };
       }
       return value;

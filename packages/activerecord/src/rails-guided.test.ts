@@ -7419,4 +7419,40 @@ describe("Grouped Calculations (Rails-guided)", () => {
     expect(u.attributesBeforeTypeCast.age).toBe("42");
     expect(u.readAttribute("age")).toBe(42);
   });
+
+  // Rails guide: encrypts — encrypted attributes
+  it("encrypts() transparently encrypts and decrypts attributes", async () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("ssn", "string"); this.adapter = adapter; this.encrypts("ssn"); }
+    }
+    const user = await User.create({ name: "Alice", ssn: "123-45-6789" });
+    expect(user.readAttribute("ssn")).toBe("123-45-6789");
+    // Raw internal value is encrypted
+    expect(user._attributes.get("ssn")).not.toBe("123-45-6789");
+    // Reload from DB still decrypts
+    const loaded = await User.find(1);
+    expect(loaded.readAttribute("ssn")).toBe("123-45-6789");
+  });
+
+  // Rails guide: human_attribute_name on Model (inherited by Base)
+  it("humanAttributeName() is available on Base via Model", () => {
+    expect(Base.humanAttributeName("first_name")).toBe("First name");
+    expect(Base.humanAttributeName("created_at")).toBe("Created at");
+  });
+
+  // Rails guide: scope with extension block
+  it("scope with extension block adds methods to the relation", () => {
+    const adapter = new MemoryAdapter();
+    class Post extends Base {
+      static {
+        this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("status", "string"); this.adapter = adapter;
+        this.scope("published", (rel: any) => rel.where({ status: "published" }), {
+          recentFirst: function (this: any) { return this.order("id", "desc"); },
+        });
+      }
+    }
+    const rel = (Post as any).published();
+    expect(typeof rel.recentFirst).toBe("function");
+  });
 });
