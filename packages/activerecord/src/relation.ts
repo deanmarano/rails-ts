@@ -49,6 +49,7 @@ export class Relation<T extends Base> {
   private _isReadonly = false;
   private _isStrictLoading = false;
   private _annotations: string[] = [];
+  private _optimizerHints: string[] = [];
   private _fromClause: string | null = null;
   private _createWithAttrs: Record<string, unknown> = {};
   private _extending: Array<Record<string, Function>> = [];
@@ -493,6 +494,17 @@ export class Relation<T extends Base> {
   annotate(...comments: string[]): Relation<T> {
     const rel = this._clone();
     rel._annotations.push(...comments);
+    return rel;
+  }
+
+  /**
+   * Add optimizer hints to the query.
+   *
+   * Mirrors: ActiveRecord::Relation#optimizer_hints
+   */
+  optimizerHints(...hints: string[]): Relation<T> {
+    const rel = this._clone();
+    rel._optimizerHints.push(...hints);
     return rel;
   }
 
@@ -1812,6 +1824,12 @@ export class Relation<T extends Base> {
       );
     }
 
+    // Insert optimizer hints after SELECT
+    if (this._optimizerHints.length > 0) {
+      const hints = `/*+ ${this._optimizerHints.join(" ")} */`;
+      sql = sql.replace(/^SELECT/, `SELECT ${hints}`);
+    }
+
     // Append SQL comments from annotate()
     if (this._annotations.length > 0) {
       const comments = this._annotations.map((c) => `/* ${c} */`).join(" ");
@@ -2151,6 +2169,7 @@ export class Relation<T extends Base> {
     rel._isReadonly = this._isReadonly;
     rel._isStrictLoading = this._isStrictLoading;
     rel._annotations = [...this._annotations];
+    rel._optimizerHints = [...this._optimizerHints];
     rel._fromClause = this._fromClause;
     rel._createWithAttrs = { ...this._createWithAttrs };
     rel._extending = [...this._extending];

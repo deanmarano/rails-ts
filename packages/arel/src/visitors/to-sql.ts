@@ -89,8 +89,10 @@ export class ToSql implements NodeVisitor<SQLString> {
     if (node instanceof Nodes.Following) return this.visitFollowing(node);
     if (node instanceof Nodes.CurrentRow) return this.visitCurrentRow(node);
 
-    // Case
+    // Case / Extract / InfixOperation
     if (node instanceof Nodes.Case) return this.visitCase(node);
+    if (node instanceof Nodes.Extract) return this.visitExtract(node);
+    if (node instanceof Nodes.InfixOperation) return this.visitInfixOperation(node);
 
     // Functions
     if (node instanceof Nodes.NamedFunction) return this.visitNamedFunction(node);
@@ -642,6 +644,24 @@ export class ToSql implements NodeVisitor<SQLString> {
       this.visit(node.defaultValue);
     }
     this.collector.append(" END");
+    return this.collector;
+  }
+
+  // -- Extract --
+
+  private visitExtract(node: Nodes.Extract): SQLString {
+    this.collector.append(`EXTRACT(${node.field} FROM `);
+    this.visit(node.expr);
+    this.collector.append(")");
+    return this.collector;
+  }
+
+  // -- InfixOperation --
+
+  private visitInfixOperation(node: Nodes.InfixOperation): SQLString {
+    this.visit(node.left);
+    this.collector.append(` ${node.operator} `);
+    this.visit(node.right);
     return this.collector;
   }
 

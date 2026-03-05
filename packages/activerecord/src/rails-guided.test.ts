@@ -7347,4 +7347,76 @@ describe("Grouped Calculations (Rails-guided)", () => {
     expect(p.savedChangeToAttribute("age", { from: 25, to: 30 })).toBe(true);
     expect(p.savedChangeToAttribute("age", { to: 99 })).toBe(false);
   });
+
+  // Rails guide: optimizer_hints — add database query hints
+  it("optimizerHints() adds hints to generated SQL", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    const sql = User.all().optimizerHints("MAX_EXECUTION_TIME(1000)").toSql();
+    expect(sql).toMatch(/SELECT\s+\/\*\+\s+MAX_EXECUTION_TIME\(1000\)\s+\*\//);
+  });
+
+  // Rails guide: errors.full_messages_for — error messages for specific attribute
+  it("errors.fullMessagesFor() returns messages for specific attribute", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static {
+        this._tableName = "users";
+        this.attribute("id", "integer");
+        this.attribute("name", "string");
+        this.attribute("email", "string");
+        this.validates("name", { presence: true });
+        this.validates("email", { presence: true });
+        this.adapter = adapter;
+      }
+    }
+    const u = new User({});
+    u.isValid();
+    expect(u.errors.fullMessagesFor("name")).toEqual(["Name can't be blank"]);
+    expect(u.errors.fullMessagesFor("email")).toEqual(["Email can't be blank"]);
+  });
+
+  // Rails guide: errors.of_kind? — check for specific error type
+  it("errors.ofKind() checks for error type on attribute", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static {
+        this._tableName = "users";
+        this.attribute("id", "integer");
+        this.attribute("name", "string");
+        this.validates("name", { presence: true });
+        this.adapter = adapter;
+      }
+    }
+    const u = new User({});
+    u.isValid();
+    expect(u.errors.ofKind("name", "blank")).toBe(true);
+    expect(u.errors.ofKind("name", "taken")).toBe(false);
+  });
+
+  // Rails guide: column_for_attribute — attribute metadata
+  it("columnForAttribute() returns type info for attribute", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("age", "integer"); this.adapter = adapter; }
+    }
+    const u = new User({ name: "Alice", age: 25 });
+    const col = u.columnForAttribute("name");
+    expect(col).not.toBeNull();
+    expect(col!.name).toBe("name");
+    expect(u.columnForAttribute("unknown")).toBeNull();
+  });
+
+  // Rails guide: attributes_before_type_cast — raw attribute values
+  it("attributesBeforeTypeCast returns raw values", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("age", "integer"); this.adapter = adapter; }
+    }
+    const u = new User({ age: "42" });
+    expect(u.attributesBeforeTypeCast.age).toBe("42");
+    expect(u.readAttribute("age")).toBe(42);
+  });
 });

@@ -25,6 +25,7 @@ import { And } from "./and.js";
 import { Or } from "./or.js";
 import { SqlLiteral } from "./sql-literal.js";
 import { NamedFunction } from "./named-function.js";
+import { Extract } from "./extract.js";
 
 function buildQuoted(value: unknown): Node {
   if (value instanceof Node) return value;
@@ -261,6 +262,12 @@ export class Attribute extends Node {
 
   upper(): NamedFunction {
     return new NamedFunction("UPPER", [this]);
+  }
+
+  // -- Extract --
+
+  extract(field: string): Extract {
+    return new Extract(this, field);
   }
 
   // -- Null handling --

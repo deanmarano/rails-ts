@@ -8009,4 +8009,65 @@ describe("ActiveRecord", () => {
       expect(user.savedChangeToAttribute("name", { from: "Wrong" })).toBe(false);
     });
   });
+
+  describe("optimizerHints()", () => {
+    it("adds optimizer hints to SQL", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = freshAdapter();
+        }
+      }
+      const sql = User.all().optimizerHints("MAX_EXECUTION_TIME(1000)").toSql();
+      expect(sql).toContain("SELECT /*+ MAX_EXECUTION_TIME(1000) */");
+    });
+
+    it("supports multiple hints", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = freshAdapter();
+        }
+      }
+      const sql = User.all().optimizerHints("NO_INDEX_MERGE(users)", "BKA(users)").toSql();
+      expect(sql).toContain("/*+ NO_INDEX_MERGE(users) BKA(users) */");
+    });
+  });
+
+  describe("attributesBeforeTypeCast on Base", () => {
+    it("returns raw values before type casting", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+      const u = new User({ name: "Alice", age: "25" });
+      const raw = u.attributesBeforeTypeCast;
+      expect(raw.age).toBe("25");
+      expect(u.readAttribute("age")).toBe(25);
+    });
+  });
+
+  describe("columnForAttribute on Base", () => {
+    it("returns column metadata", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = freshAdapter();
+        }
+      }
+      const u = new User({ name: "Alice" });
+      const col = u.columnForAttribute("name");
+      expect(col).not.toBeNull();
+      expect(col!.name).toBe("name");
+      expect(u.columnForAttribute("nope")).toBeNull();
+    });
+  });
 });

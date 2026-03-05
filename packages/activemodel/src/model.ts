@@ -446,6 +446,30 @@ export class Model {
   }
 
   /**
+   * Get all attributes before type cast as a plain object.
+   *
+   * Mirrors: ActiveModel::Attributes#attributes_before_type_cast
+   */
+  get attributesBeforeTypeCast(): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of this._attributesBeforeTypeCast) {
+      result[k] = v;
+    }
+    return result;
+  }
+
+  /**
+   * Get the type/metadata for an attribute.
+   *
+   * Mirrors: ActiveRecord::Base.column_for_attribute
+   */
+  columnForAttribute(name: string): { name: string; type: Type } | null {
+    const def = (this.constructor as typeof Model)._attributeDefinitions.get(name);
+    if (!def) return null;
+    return { name: def.name, type: def.type };
+  }
+
+  /**
    * Check if this model has the given attribute defined.
    *
    * Mirrors: ActiveModel::AttributeMethods#has_attribute?

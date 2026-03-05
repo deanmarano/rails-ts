@@ -111,6 +111,35 @@ export class Errors {
     return [...new Set(this._errors.map((e) => e.attribute))];
   }
 
+  /**
+   * Full messages for a specific attribute.
+   *
+   * Mirrors: ActiveModel::Errors#full_messages_for
+   */
+  fullMessagesFor(attribute: string): string[] {
+    return this._errors
+      .filter((e) => e.attribute === attribute)
+      .map((e) => {
+        if (e.attribute === "base") return e.message;
+        const attr = e.attribute.charAt(0).toUpperCase() + e.attribute.slice(1);
+        return `${attr} ${e.message}`;
+      });
+  }
+
+  /**
+   * Check if an error of a specific kind exists for an attribute.
+   *
+   * Mirrors: ActiveModel::Errors#of_kind?
+   */
+  ofKind(attribute: string, type?: string): boolean {
+    if (type === undefined) {
+      return this._errors.some((e) => e.attribute === attribute);
+    }
+    return this._errors.some(
+      (e) => e.attribute === attribute && e.type === type
+    );
+  }
+
   private defaultMessage(
     type: string,
     _options?: Record<string, unknown>

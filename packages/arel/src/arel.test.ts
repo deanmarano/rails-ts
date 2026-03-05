@@ -1340,4 +1340,50 @@ describe("Arel", () => {
       expect(c3.defaultValue).not.toBeNull();
     });
   });
+
+  describe("Extract node", () => {
+    it("generates EXTRACT(field FROM expr)", () => {
+      const createdAt = users.get("created_at");
+      const node = new Nodes.Extract(createdAt, "YEAR");
+      const visitor = new Visitors.ToSql();
+      const sql = visitor.compile(node);
+      expect(sql).toBe('EXTRACT(YEAR FROM "users"."created_at")');
+    });
+
+    it("supports .as() aliasing", () => {
+      const createdAt = users.get("created_at");
+      const node = new Nodes.Extract(createdAt, "MONTH").as("birth_month");
+      const visitor = new Visitors.ToSql();
+      const sql = visitor.compile(node);
+      expect(sql).toBe('EXTRACT(MONTH FROM "users"."created_at") AS birth_month');
+    });
+
+    it("works via attribute.extract()", () => {
+      const createdAt = users.get("created_at");
+      const node = createdAt.extract("DAY");
+      const visitor = new Visitors.ToSql();
+      const sql = visitor.compile(node);
+      expect(sql).toBe('EXTRACT(DAY FROM "users"."created_at")');
+    });
+  });
+
+  describe("InfixOperation node", () => {
+    it("generates custom infix operation", () => {
+      const a = users.get("age");
+      const b = new Nodes.Quoted(10);
+      const node = new Nodes.InfixOperation("||", a, b);
+      const visitor = new Visitors.ToSql();
+      const sql = visitor.compile(node);
+      expect(sql).toBe('"users"."age" || 10');
+    });
+
+    it("supports .as() aliasing", () => {
+      const first = users.get("first_name");
+      const last = users.get("last_name");
+      const node = new Nodes.InfixOperation("||", first, last).as("full_name");
+      const visitor = new Visitors.ToSql();
+      const sql = visitor.compile(node);
+      expect(sql).toBe('"users"."first_name" || "users"."last_name" AS full_name');
+    });
+  });
 });

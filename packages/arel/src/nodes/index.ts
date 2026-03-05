@@ -78,6 +78,8 @@ export {
 export { Union, UnionAll, Intersect, Except } from "./set-operations.js";
 export { With, WithRecursive, TableAlias } from "./with.js";
 export { Case } from "./case.js";
+export { Extract } from "./extract.js";
+export { InfixOperation } from "./infix-operation.js";
 
 import { SqlLiteral } from "./sql-literal.js";
 

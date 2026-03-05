@@ -2030,4 +2030,82 @@ describe("ActiveModel", () => {
       expect(u.savedChangeToAttribute("name", { from: "Wrong", to: "Bob" })).toBe(false);
     });
   });
+
+  describe("errors.fullMessagesFor()", () => {
+    it("returns full messages for a specific attribute", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.validates("name", { presence: true });
+          this.validates("email", { presence: true });
+        }
+      }
+      const u = new User({});
+      u.isValid();
+      expect(u.errors.fullMessagesFor("name")).toEqual(["Name can't be blank"]);
+      expect(u.errors.fullMessagesFor("email")).toEqual(["Email can't be blank"]);
+      expect(u.errors.fullMessagesFor("other")).toEqual([]);
+    });
+  });
+
+  describe("errors.ofKind()", () => {
+    it("checks if error of specific kind exists", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true });
+        }
+      }
+      const u = new User({});
+      u.isValid();
+      expect(u.errors.ofKind("name", "blank")).toBe(true);
+      expect(u.errors.ofKind("name", "invalid")).toBe(false);
+      expect(u.errors.ofKind("name")).toBe(true);
+      expect(u.errors.ofKind("other")).toBe(false);
+    });
+  });
+
+  describe("attributesBeforeTypeCast", () => {
+    it("returns all raw attribute values", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+        }
+      }
+      const u = new User({ name: "Alice", age: "25" });
+      const raw = u.attributesBeforeTypeCast;
+      expect(raw.name).toBe("Alice");
+      expect(raw.age).toBe("25"); // raw, not cast to integer
+      expect(u.readAttribute("age")).toBe(25); // cast version
+    });
+  });
+
+  describe("columnForAttribute()", () => {
+    it("returns type info for defined attribute", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+        }
+      }
+      const u = new User({ name: "Alice", age: 25 });
+      const col = u.columnForAttribute("name");
+      expect(col).not.toBeNull();
+      expect(col!.name).toBe("name");
+
+      const ageCol = u.columnForAttribute("age");
+      expect(ageCol).not.toBeNull();
+      expect(ageCol!.name).toBe("age");
+    });
+
+    it("returns null for unknown attribute", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Alice" });
+      expect(u.columnForAttribute("nonexistent")).toBeNull();
+    });
+  });
 });
