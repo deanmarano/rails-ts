@@ -1422,6 +1422,17 @@ export class Base extends Model {
   }
 
   /**
+   * Update a single attribute and save, skipping validations.
+   * Runs callbacks, unlike updateColumn.
+   *
+   * Mirrors: ActiveRecord::Base#update_attribute
+   */
+  async updateAttribute(name: string, value: unknown): Promise<boolean> {
+    this.writeAttribute(name, value);
+    return this.save({ validate: false });
+  }
+
+  /**
    * Update a single column directly in the database, skipping
    * validations and callbacks.
    *

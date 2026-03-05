@@ -1511,8 +1511,9 @@ export class Relation<T extends Base> {
    *
    * Mirrors: ActiveRecord::Relation#find_in_batches
    */
-  async *findInBatches({ batchSize = 1000 }: { batchSize?: number } = {}): AsyncGenerator<T[]> {
+  async *findInBatches({ batchSize = 1000, start, finish }: { batchSize?: number; start?: unknown; finish?: unknown } = {}): AsyncGenerator<T[]> {
     let currentOffset = this._offsetValue ?? 0;
+    const pk = this._modelClass.primaryKey;
 
     while (true) {
       const rel = this._clone();
@@ -1522,7 +1523,17 @@ export class Relation<T extends Base> {
 
       // Ensure deterministic ordering
       if (rel._orderClauses.length === 0) {
-        rel._orderClauses.push(this._modelClass.primaryKey);
+        rel._orderClauses.push(pk);
+      }
+
+      // Apply start/finish range constraints
+      if (start !== undefined) {
+        const startQuoted = typeof start === "number" ? String(start) : `'${start}'`;
+        rel._whereRawClauses.push(`"${this._modelClass.arelTable.name}"."${pk}" >= ${startQuoted}`);
+      }
+      if (finish !== undefined) {
+        const finishQuoted = typeof finish === "number" ? String(finish) : `'${finish}'`;
+        rel._whereRawClauses.push(`"${this._modelClass.arelTable.name}"."${pk}" <= ${finishQuoted}`);
       }
 
       const batch = await rel.toArray();
@@ -1540,8 +1551,8 @@ export class Relation<T extends Base> {
    *
    * Mirrors: ActiveRecord::Relation#find_each
    */
-  async *findEach({ batchSize = 1000 }: { batchSize?: number } = {}): AsyncGenerator<T> {
-    for await (const batch of this.findInBatches({ batchSize })) {
+  async *findEach({ batchSize = 1000, start, finish }: { batchSize?: number; start?: unknown; finish?: unknown } = {}): AsyncGenerator<T> {
+    for await (const batch of this.findInBatches({ batchSize, start, finish })) {
       for (const record of batch) {
         yield record;
       }

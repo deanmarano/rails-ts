@@ -6827,4 +6827,67 @@ describe("Grouped Calculations (Rails-guided)", () => {
     expect(user.willSaveChangeToAttribute("name")).toBe(true);
     expect(user.willSaveChangeToAttributeValues("name")).toEqual(["Alice", "Bob"]);
   });
+
+  // Rails: test "update_attribute"
+  it("updateAttribute saves a single attribute skipping validations", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("email", "string"); this.adapter = adapter; this.validates("email", { presence: true }); }
+    }
+
+    const user = await User.create({ name: "Alice", email: "a@b.com" });
+    const result = await user.updateAttribute("email", "");
+    expect(result).toBe(true);
+    expect(user.readAttribute("email")).toBe("");
+  });
+
+  // Rails: test "attribute_in_database"
+  it("attributeInDatabase returns the value before unsaved changes", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    const user = await User.create({ name: "Alice" });
+    user.writeAttribute("name", "Bob");
+    expect(user.attributeInDatabase("name")).toBe("Alice");
+  });
+
+  // Rails: test "attribute_before_last_save"
+  it("attributeBeforeLastSave returns the value from before the last save", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    const user = await User.create({ name: "Alice" });
+    await user.update({ name: "Bob" });
+    expect(user.attributeBeforeLastSave("name")).toBe("Alice");
+  });
+
+  // Rails: test "changed_attribute_names_to_save"
+  it("changedAttributeNamesToSave lists attributes with pending changes", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("age", "integer"); this.adapter = adapter; }
+    }
+
+    const user = await User.create({ name: "Alice", age: 25 });
+    user.writeAttribute("name", "Bob");
+    expect(user.changedAttributeNamesToSave).toContain("name");
+    expect(user.changedAttributeNamesToSave).not.toContain("age");
+  });
+
+  // Rails: test "find_each with start and finish"
+  it("findEach with start/finish limits the PK range", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    for (let i = 0; i < 10; i++) {
+      await User.create({ name: `User ${i}` });
+    }
+
+    const ids: number[] = [];
+    for await (const user of User.all().findEach({ start: 4, finish: 8 })) {
+      ids.push(user.id as number);
+    }
+    expect(ids).toEqual([4, 5, 6, 7, 8]);
+  });
 });

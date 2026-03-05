@@ -7145,4 +7145,82 @@ describe("ActiveRecord", () => {
       expect(Product.readonlyAttributes).toContain("sku");
     });
   });
+
+  describe("updateAttribute", () => {
+    it("updates a single attribute and saves, skipping validations", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.attribute("email", "string");
+      User.adapter = adapter;
+      User.validates("email", { presence: true });
+
+      const user = await User.create({ name: "Alice", email: "alice@test.com" });
+      // updateAttribute skips validations
+      await user.updateAttribute("email", "");
+      expect(user.readAttribute("email")).toBe("");
+      expect(user.isPersisted()).toBe(true);
+    });
+  });
+
+  describe("dirty tracking: attributeInDatabase, attributeBeforeLastSave", () => {
+    it("attributeInDatabase returns the pre-change value", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = await User.create({ name: "Alice" });
+      user.writeAttribute("name", "Bob");
+      expect(user.attributeInDatabase("name")).toBe("Alice");
+    });
+
+    it("attributeBeforeLastSave returns value from before last save", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = await User.create({ name: "Alice" });
+      await user.update({ name: "Bob" });
+      expect(user.attributeBeforeLastSave("name")).toBe("Alice");
+    });
+
+    it("changedAttributeNamesToSave returns pending changes", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.attribute("age", "integer");
+      User.adapter = adapter;
+
+      const user = await User.create({ name: "Alice", age: 25 });
+      user.writeAttribute("name", "Bob");
+      expect(user.changedAttributeNamesToSave).toContain("name");
+      expect(user.changedAttributeNamesToSave).not.toContain("age");
+    });
+  });
+
+  describe("findEach with start/finish", () => {
+    it("finds records within a range", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      for (let i = 0; i < 10; i++) {
+        await User.create({ name: `User ${i}` });
+      }
+
+      const names: string[] = [];
+      for await (const user of User.all().findEach({ start: 3, finish: 7 })) {
+        names.push(user.readAttribute("name") as string);
+      }
+      expect(names.length).toBe(5);
+    });
+  });
 });

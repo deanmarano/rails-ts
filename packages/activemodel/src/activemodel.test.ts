@@ -1678,6 +1678,50 @@ describe("ActiveModel", () => {
     });
   });
 
+  describe("attributeInDatabase / attributeBeforeLastSave / changedAttributeNamesToSave", () => {
+    it("attributeInDatabase returns the pre-change value", () => {
+      class Widget extends Model {
+        static {
+          this.attribute("name", "string");
+        }
+      }
+
+      const w = new Widget({ name: "Test" });
+      w.changesApplied();
+      w.writeAttribute("name", "Changed");
+      expect(w.attributeInDatabase("name")).toBe("Test");
+    });
+
+    it("attributeBeforeLastSave returns old value after save", () => {
+      class Widget extends Model {
+        static {
+          this.attribute("name", "string");
+        }
+      }
+
+      const w = new Widget({ name: "Original" });
+      w.changesApplied();
+      w.writeAttribute("name", "Updated");
+      w.changesApplied();
+      expect(w.attributeBeforeLastSave("name")).toBe("Original");
+    });
+
+    it("changedAttributeNamesToSave lists pending changes", () => {
+      class Widget extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("size", "integer");
+        }
+      }
+
+      const w = new Widget({ name: "Test", size: 5 });
+      w.changesApplied();
+      w.writeAttribute("name", "Changed");
+      expect(w.changedAttributeNamesToSave).toContain("name");
+      expect(w.changedAttributeNamesToSave).not.toContain("size");
+    });
+  });
+
   describe("hasAttribute", () => {
     it("returns true for defined attributes", () => {
       class Widget extends Model {

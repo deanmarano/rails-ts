@@ -691,6 +691,26 @@ export class MemoryAdapter implements DatabaseAdapter {
       return row[col] == val;
     }
 
+    // column >= value (must come before > to avoid false match)
+    const gteMatch = condition.match(
+      /"?(\w+)"?(?:\."?(\w+)"?)?\s*>=\s*(.+)/
+    );
+    if (gteMatch) {
+      const col = getCol(gteMatch[1], gteMatch[2]);
+      const val = this.parseSingleValue(gteMatch[3].trim());
+      return Number(row[col]) >= Number(val);
+    }
+
+    // column <= value (must come before < to avoid false match)
+    const lteMatch = condition.match(
+      /"?(\w+)"?(?:\."?(\w+)"?)?\s*<=\s*(.+)/
+    );
+    if (lteMatch) {
+      const col = getCol(lteMatch[1], lteMatch[2]);
+      const val = this.parseSingleValue(lteMatch[3].trim());
+      return Number(row[col]) <= Number(val);
+    }
+
     // column > value
     const gtMatch = condition.match(
       /"?(\w+)"?(?:\."?(\w+)"?)?\s*>\s*(.+)/

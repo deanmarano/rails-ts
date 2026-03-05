@@ -540,6 +540,35 @@ export class Model {
    *
    * Mirrors: ActiveModel::Dirty#saved_change_to_attribute
    */
+  /**
+   * Get the attribute value before the last save.
+   *
+   * Mirrors: ActiveModel::Dirty#attribute_before_last_save
+   */
+  attributeBeforeLastSave(name: string): unknown {
+    const change = this._dirty.previousChanges[name];
+    return change ? change[0] : this.readAttribute(name);
+  }
+
+  /**
+   * Get the attribute value as it currently exists in the database
+   * (i.e. the value from before any unsaved changes).
+   *
+   * Mirrors: ActiveModel::Dirty#attribute_in_database
+   */
+  attributeInDatabase(name: string): unknown {
+    return this._dirty.attributeWas(name) ?? this.readAttribute(name);
+  }
+
+  /**
+   * Return the list of attribute names that have unsaved changes.
+   *
+   * Mirrors: ActiveModel::Dirty#changed_attribute_names_to_save
+   */
+  get changedAttributeNamesToSave(): string[] {
+    return this.changedAttributes;
+  }
+
   savedChangeToAttributeValues(name: string): [unknown, unknown] | undefined {
     const changes = this._dirty.previousChanges;
     return changes[name];
