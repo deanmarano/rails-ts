@@ -71,6 +71,23 @@ export class Model {
     return Array.from(this._attributeDefinitions.keys());
   }
 
+  /**
+   * Create an alias for an existing attribute.
+   *
+   * Mirrors: ActiveModel::AttributeMethods.alias_attribute
+   */
+  static aliasAttribute(newName: string, originalName: string): void {
+    Object.defineProperty(this.prototype, newName, {
+      get(this: Model) {
+        return this.readAttribute(originalName);
+      },
+      set(this: Model, value: unknown) {
+        this.writeAttribute(originalName, value);
+      },
+      configurable: true,
+    });
+  }
+
   // -- Validations (Phase 1100) --
 
   static validates(

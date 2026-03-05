@@ -162,7 +162,10 @@ export async function loadBelongsTo(
   assocName: string,
   options: AssociationOptions
 ): Promise<Base | null> {
-  // Check preloaded cache first
+  // Check cached (inverse_of) first, then preloaded
+  if ((record as any)._cachedAssociations?.has(assocName)) {
+    return (record as any)._cachedAssociations.get(assocName) as Base | null;
+  }
   if ((record as any)._preloadedAssociations?.has(assocName)) {
     return (record as any)._preloadedAssociations.get(assocName) as Base | null;
   }
@@ -185,7 +188,15 @@ export async function loadBelongsTo(
   const fkValue = record.readAttribute(foreignKey);
   if (fkValue === null || fkValue === undefined) return null;
 
-  return targetModel.findBy({ [primaryKey]: fkValue });
+  const result = await targetModel.findBy({ [primaryKey]: fkValue });
+
+  // Set inverse_of: store reference back to the owner
+  if (result && options.inverseOf) {
+    (result as any)._cachedAssociations = (result as any)._cachedAssociations ?? new Map();
+    (result as any)._cachedAssociations.set(options.inverseOf, record);
+  }
+
+  return result;
 }
 
 /**
@@ -196,7 +207,10 @@ export async function loadHasOne(
   assocName: string,
   options: AssociationOptions
 ): Promise<Base | null> {
-  // Check preloaded cache first
+  // Check cached (inverse_of) first, then preloaded
+  if ((record as any)._cachedAssociations?.has(assocName)) {
+    return (record as any)._cachedAssociations.get(assocName) as Base | null;
+  }
   if ((record as any)._preloadedAssociations?.has(assocName)) {
     return (record as any)._preloadedAssociations.get(assocName) as Base | null;
   }
@@ -220,7 +234,15 @@ export async function loadHasOne(
   }
 
   const foreignKey = options.foreignKey ?? `${underscore(ctor.name)}_id`;
-  return targetModel.findBy({ [foreignKey]: pkValue });
+  const result = await targetModel.findBy({ [foreignKey]: pkValue });
+
+  // Set inverse_of: store reference back to the owner
+  if (result && options.inverseOf) {
+    (result as any)._cachedAssociations = (result as any)._cachedAssociations ?? new Map();
+    (result as any)._cachedAssociations.set(options.inverseOf, record);
+  }
+
+  return result;
 }
 
 /**
@@ -231,7 +253,10 @@ export async function loadHasMany(
   assocName: string,
   options: AssociationOptions
 ): Promise<Base[]> {
-  // Check preloaded cache first
+  // Check cached (inverse_of) first, then preloaded
+  if ((record as any)._cachedAssociations?.has(assocName)) {
+    return (record as any)._cachedAssociations.get(assocName) as Base[];
+  }
   if ((record as any)._preloadedAssociations?.has(assocName)) {
     return (record as any)._preloadedAssociations.get(assocName) as Base[];
   }
@@ -263,7 +288,17 @@ export async function loadHasMany(
 
   const foreignKey = options.foreignKey ?? `${underscore(ctor.name)}_id`;
   const rel = (targetModel as any).all().where({ [foreignKey]: pkValue });
-  return rel.toArray();
+  const results: Base[] = await rel.toArray();
+
+  // Set inverse_of on each loaded child
+  if (options.inverseOf) {
+    for (const child of results) {
+      (child as any)._cachedAssociations = (child as any)._cachedAssociations ?? new Map();
+      (child as any)._cachedAssociations.set(options.inverseOf, record);
+    }
+  }
+
+  return results;
 }
 
 /**

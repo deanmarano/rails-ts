@@ -5351,4 +5351,76 @@ describe("ActiveRecord", () => {
       expect(loaded.readAttribute("tags")).toEqual(["ruby", "rails"]);
     });
   });
+
+  // -- alias_attribute --
+  describe("alias_attribute", () => {
+    it("creates a getter/setter alias for an attribute", () => {
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.aliasAttribute("fullName", "name");
+
+      const u = new User({ name: "Alice" });
+      expect((u as any).fullName).toBe("Alice");
+
+      (u as any).fullName = "Bob";
+      expect(u.readAttribute("name")).toBe("Bob");
+    });
+  });
+
+  // -- inverse_of --
+  describe("inverse_of", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("sets inverse reference on loaded belongs_to", async () => {
+      class Author extends Base { static _tableName = "authors"; }
+      Author.attribute("id", "integer");
+      Author.attribute("name", "string");
+      Author.adapter = adapter;
+      registerModel(Author);
+
+      class Book extends Base { static _tableName = "books"; }
+      Book.attribute("id", "integer");
+      Book.attribute("title", "string");
+      Book.attribute("author_id", "integer");
+      Book.adapter = adapter;
+      Associations.belongsTo.call(Book, "author", { inverseOf: "books" });
+      registerModel(Book);
+
+      const author = await Author.create({ name: "Tolkien" });
+      const book = await Book.create({ title: "The Hobbit", author_id: author.id });
+
+      const loadedAuthor = await loadBelongsTo(book, "author", { inverseOf: "books" });
+      // The loaded author should have a cached inverse pointing to the book
+      expect((loadedAuthor as any)._cachedAssociations?.get("books")).toBe(book);
+    });
+
+    it("sets inverse reference on loaded has_many children", async () => {
+      class Post extends Base { static _tableName = "posts"; }
+      Post.attribute("id", "integer");
+      Post.attribute("title", "string");
+      Post.adapter = adapter;
+      Associations.hasMany.call(Post, "comments", { inverseOf: "post" });
+      registerModel(Post);
+
+      class Comment extends Base { static _tableName = "comments"; }
+      Comment.attribute("id", "integer");
+      Comment.attribute("body", "string");
+      Comment.attribute("post_id", "integer");
+      Comment.adapter = adapter;
+      Associations.belongsTo.call(Comment, "post");
+      registerModel(Comment);
+
+      const post = await Post.create({ title: "Hello" });
+      await Comment.create({ body: "Reply 1", post_id: post.id });
+      await Comment.create({ body: "Reply 2", post_id: post.id });
+
+      const comments = await loadHasMany(post, "comments", { inverseOf: "post" });
+      // Each comment should have the post cached
+      for (const c of comments) {
+        expect((c as any)._cachedAssociations?.get("post")).toBe(post);
+      }
+    });
+  });
 });

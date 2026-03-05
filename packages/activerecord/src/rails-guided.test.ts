@@ -5002,3 +5002,101 @@ describe("serialize (Rails-guided)", () => {
     expect(settings.notify).toBe(true);
   });
 });
+
+// ==========================================================================
+// alias_attribute (Rails: attribute_methods_test.rb)
+// ==========================================================================
+
+describe("alias_attribute (Rails-guided)", () => {
+  // Rails: test "alias_attribute creates accessor alias"
+  it("creates a getter/setter alias", () => {
+    class Person extends Base {
+      static {
+        this._tableName = "people";
+        this.attribute("id", "integer");
+        this.attribute("name", "string");
+        this.aliasAttribute("title", "name");
+      }
+    }
+
+    const p = new Person({ name: "Dr. Smith" });
+    expect((p as any).title).toBe("Dr. Smith");
+
+    (p as any).title = "Prof. Smith";
+    expect(p.readAttribute("name")).toBe("Prof. Smith");
+  });
+
+  // Rails: test "alias_attribute works with different types"
+  it("alias works with integer attributes", () => {
+    class Product extends Base {
+      static {
+        this._tableName = "products";
+        this.attribute("id", "integer");
+        this.attribute("price_cents", "integer");
+        this.aliasAttribute("cost", "price_cents");
+      }
+    }
+
+    const p = new Product({ price_cents: 999 });
+    expect((p as any).cost).toBe(999);
+
+    (p as any).cost = 1500;
+    expect(p.readAttribute("price_cents")).toBe(1500);
+  });
+});
+
+// ==========================================================================
+// inverse_of (Rails: inverse_of_test.rb)
+// ==========================================================================
+
+describe("inverse_of (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test "inverse_of on belongs_to sets parent reference"
+  it("belongs_to with inverse_of caches the owner on the loaded record", async () => {
+    class Author extends Base {
+      static { this._tableName = "authors"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    registerModel(Author);
+
+    class Book extends Base {
+      static { this._tableName = "books"; this.attribute("id", "integer"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+    }
+    Associations.belongsTo.call(Book, "author", { inverseOf: "books" });
+    registerModel(Book);
+
+    const author = await Author.create({ name: "Matz" });
+    const book = await Book.create({ author_id: author.id });
+
+    const loaded = await loadBelongsTo(book, "author", { inverseOf: "books" });
+    expect(loaded).not.toBeNull();
+    expect((loaded as any)._cachedAssociations.get("books")).toBe(book);
+  });
+
+  // Rails: test "inverse_of on has_many sets child reference"
+  it("has_many with inverse_of caches the parent on each child", async () => {
+    class Post extends Base {
+      static { this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+    registerModel(Post);
+
+    class Comment extends Base {
+      static { this._tableName = "comments"; this.attribute("id", "integer"); this.attribute("body", "string"); this.attribute("post_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Comment);
+
+    const post = await Post.create({ title: "Test" });
+    await Comment.create({ body: "A", post_id: post.id });
+    await Comment.create({ body: "B", post_id: post.id });
+
+    const comments = await loadHasMany(post, "comments", { inverseOf: "post" });
+    expect(comments.length).toBe(2);
+    for (const c of comments) {
+      expect((c as any)._cachedAssociations.get("post")).toBe(post);
+    }
+  });
+});
