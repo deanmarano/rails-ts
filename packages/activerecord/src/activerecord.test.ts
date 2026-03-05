@@ -9808,4 +9808,57 @@ describe("ActiveRecord", () => {
       expect(record.readAttribute("name")).toBe("Alice");
     });
   });
+
+  describe("Base.columnsHash", () => {
+    it("returns a hash of column definitions", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+        }
+      }
+
+      const hash = User.columnsHash();
+      expect(hash["name"].type).toBe("string");
+      expect(hash["age"].type).toBe("integer");
+      expect(hash["id"].type).toBe("integer");
+    });
+  });
+
+  describe("Base.contentColumns", () => {
+    it("excludes PK, FK, and timestamp columns", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.attribute("department_id", "integer");
+          this.attribute("created_at", "datetime");
+          this.attribute("updated_at", "datetime");
+        }
+      }
+
+      const content = User.contentColumns();
+      expect(content).toContain("name");
+      expect(content).toContain("email");
+      expect(content).not.toContain("id");
+      expect(content).not.toContain("department_id");
+      expect(content).not.toContain("created_at");
+      expect(content).not.toContain("updated_at");
+    });
+  });
+
+  describe("Base.inheritanceColumn", () => {
+    it("returns null when STI is not enabled", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+        }
+      }
+
+      expect(User.inheritanceColumn).toBeNull();
+    });
+  });
 });

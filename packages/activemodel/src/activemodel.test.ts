@@ -3042,4 +3042,31 @@ describe("ActiveModel", () => {
       expect(u2.isValid()).toBe(true);
     });
   });
+
+  describe("hasChangesToSave", () => {
+    it("returns false when no changes", () => {
+      class User extends Model {
+        constructor(attrs: Record<string, unknown> = {}) {
+          super(attrs);
+        }
+      }
+      User.attribute("name", "string");
+
+      const u = new User({ name: "Alice" });
+      expect(u.hasChangesToSave).toBe(false);
+    });
+
+    it("returns true when there are unsaved changes", () => {
+      class User extends Model {
+        constructor(attrs: Record<string, unknown> = {}) {
+          super(attrs);
+        }
+      }
+      User.attribute("name", "string");
+
+      const u = new User({ name: "Alice" });
+      u.writeAttribute("name", "Bob");
+      expect(u.hasChangesToSave).toBe(true);
+    });
+  });
 });

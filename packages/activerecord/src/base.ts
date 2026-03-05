@@ -192,6 +192,52 @@ export class Base extends Model {
     return this._attributeDefinitions.has(name);
   }
 
+  /**
+   * Return a hash of column definitions keyed by name.
+   *
+   * Mirrors: ActiveRecord::Base.columns_hash
+   */
+  static columnsHash(): Record<string, { name: string; type: string; default: unknown }> {
+    const result: Record<string, { name: string; type: string; default: unknown }> = {};
+    for (const [name, def] of this._attributeDefinitions) {
+      result[name] = { name, type: def.type.name, default: def.defaultValue };
+    }
+    return result;
+  }
+
+  /**
+   * Return columns excluding primary key, foreign keys (_id), and timestamps.
+   *
+   * Mirrors: ActiveRecord::Base.content_columns
+   */
+  static contentColumns(): string[] {
+    const pk = this.primaryKey;
+    return this.columnNames().filter((col) => {
+      if (col === pk) return false;
+      if (col.endsWith("_id")) return false;
+      if (col === "created_at" || col === "updated_at") return false;
+      return true;
+    });
+  }
+
+  /**
+   * Return the STI inheritance column name, if STI is enabled.
+   *
+   * Mirrors: ActiveRecord::Base.inheritance_column
+   */
+  static get inheritanceColumn(): string | null {
+    return (this as any)._inheritanceColumn ?? null;
+  }
+
+  /**
+   * Return the base class in an STI hierarchy.
+   *
+   * Mirrors: ActiveRecord::Base.base_class
+   */
+  static get baseClass(): typeof Base {
+    return getStiBase(this);
+  }
+
   // -- Logger --
   static _logger: { debug?: Function; info?: Function; warn?: Function; error?: Function } | null = null;
 

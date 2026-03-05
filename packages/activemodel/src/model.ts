@@ -863,6 +863,15 @@ export class Model {
     return this._dirty.changed;
   }
 
+  /**
+   * Check if there are any unsaved changes.
+   *
+   * Mirrors: ActiveModel::Dirty#has_changes_to_save?
+   */
+  get hasChangesToSave(): boolean {
+    return this._dirty.changed;
+  }
+
   get changedAttributes(): string[] {
     return this._dirty.changedAttributes;
   }
