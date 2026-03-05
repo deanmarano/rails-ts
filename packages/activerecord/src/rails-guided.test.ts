@@ -7242,4 +7242,17 @@ describe("Grouped Calculations (Rails-guided)", () => {
     const results = await withoutLimit.toArray();
     expect(results.length).toBe(1); // still has where clause
   });
+
+  // Rails: test "normalizes"
+  it("normalizes trims and lowercases email before save", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("email", "string"); this.adapter = adapter; }
+    }
+    User.normalizes("email", (v: unknown) =>
+      typeof v === "string" ? v.trim().toLowerCase() : v
+    );
+
+    const user = await User.create({ email: "  ALICE@TEST.COM  " });
+    expect(user.readAttribute("email")).toBe("alice@test.com");
+  });
 });

@@ -7855,4 +7855,20 @@ describe("ActiveRecord", () => {
       expect(results.length).toBe(1);
     });
   });
+
+  describe("normalizes on Base", () => {
+    it("normalizes attributes before persistence", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("email", "string");
+      User.normalizes("email", (v: unknown) =>
+        typeof v === "string" ? v.trim().toLowerCase() : v
+      );
+      User.adapter = adapter;
+
+      const user = await User.create({ email: "  ALICE@TEST.COM  " });
+      expect(user.readAttribute("email")).toBe("alice@test.com");
+    });
+  });
 });

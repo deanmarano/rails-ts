@@ -88,6 +88,31 @@ export class Model {
     });
   }
 
+  // -- Normalizations --
+  static _normalizations: Map<string, (value: unknown) => unknown> = new Map();
+
+  /**
+   * Register a normalization function for one or more attributes.
+   * The function is called before validation on every write.
+   *
+   * Mirrors: ActiveRecord::Base.normalizes (Rails 7.1+)
+   *
+   * Example:
+   *   User.normalizes("email", (v) => typeof v === "string" ? v.trim().toLowerCase() : v);
+   */
+  static normalizes(
+    ...args: [...string[], (value: unknown) => unknown]
+  ): void {
+    if (!Object.prototype.hasOwnProperty.call(this, "_normalizations")) {
+      this._normalizations = new Map(this._normalizations);
+    }
+    const fn = args[args.length - 1] as (value: unknown) => unknown;
+    const attributes = args.slice(0, -1) as string[];
+    for (const attr of attributes) {
+      this._normalizations.set(attr, fn);
+    }
+  }
+
   // -- Validations (Phase 1100) --
 
   static validates(
@@ -360,7 +385,13 @@ export class Model {
     for (const [name, def] of defs) {
       if (name in attrs) {
         this._attributesBeforeTypeCast.set(name, attrs[name]);
-        this._attributes.set(name, def.type.cast(attrs[name]));
+        let castValue = def.type.cast(attrs[name]);
+        // Apply normalization if defined
+        const normalizer = ctor._normalizations.get(name);
+        if (normalizer) {
+          castValue = normalizer(castValue);
+        }
+        this._attributes.set(name, castValue);
       } else {
         const defVal =
           typeof def.defaultValue === "function"
@@ -395,7 +426,12 @@ export class Model {
     const def = ctor._attributeDefinitions.get(name);
     const oldValue = this._attributes.get(name);
     this._attributesBeforeTypeCast.set(name, value);
-    const newValue = def ? def.type.cast(value) : value;
+    let newValue = def ? def.type.cast(value) : value;
+    // Apply normalization if defined
+    const normalizer = ctor._normalizations.get(name);
+    if (normalizer) {
+      newValue = normalizer(newValue);
+    }
     this._attributes.set(name, newValue);
     this._dirty.attributeWillChange(name, oldValue, newValue);
   }
