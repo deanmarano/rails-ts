@@ -142,6 +142,8 @@ export class NumericalityValidator implements Validator {
 
 export interface InclusionOptions extends ConditionalOptions {
   in: unknown[];
+  allowNil?: boolean;
+  allowBlank?: boolean;
   message?: string;
 }
 
@@ -150,6 +152,9 @@ export class InclusionValidator implements Validator {
 
   validate(record: any, attribute: string, value: unknown, errors: Errors): void {
     if (!shouldValidate(record, this.options)) return;
+    // Rails skips when value is nil by default (allow_nil: true)
+    if ((this.options.allowNil !== false) && (value === null || value === undefined)) return;
+    if (this.options.allowBlank && isBlank(value)) return;
     if (!this.options.in.includes(value)) {
       errors.add(attribute, "inclusion", { message: this.options.message });
     }
@@ -158,6 +163,8 @@ export class InclusionValidator implements Validator {
 
 export interface ExclusionOptions extends ConditionalOptions {
   in: unknown[];
+  allowNil?: boolean;
+  allowBlank?: boolean;
   message?: string;
 }
 
@@ -166,6 +173,8 @@ export class ExclusionValidator implements Validator {
 
   validate(record: any, attribute: string, value: unknown, errors: Errors): void {
     if (!shouldValidate(record, this.options)) return;
+    if ((this.options.allowNil !== false) && (value === null || value === undefined)) return;
+    if (this.options.allowBlank && isBlank(value)) return;
     if (this.options.in.includes(value)) {
       errors.add(attribute, "exclusion", { message: this.options.message });
     }
@@ -204,6 +213,8 @@ export class AcceptanceValidator implements Validator {
 
   validate(record: any, attribute: string, value: unknown, errors: Errors): void {
     if (!shouldValidate(record, this.options)) return;
+    // Rails skips acceptance validation when value is nil
+    if (value === null || value === undefined) return;
     const accepted = this.options.accept ?? [true, "true", "1", 1, "yes"];
     if (!accepted.includes(value)) {
       errors.add(attribute, "accepted", { message: this.options.message });

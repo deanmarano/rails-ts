@@ -30,6 +30,15 @@ export class CallbackChain {
   }
 
   /**
+   * Create a copy of this chain (used for subclass inheritance).
+   */
+  clone(): CallbackChain {
+    const copy = new CallbackChain();
+    copy.callbacks = [...this.callbacks];
+    return copy;
+  }
+
+  /**
    * Run callbacks for a given event around a block.
    * Returns false if a before callback returns false (halting the chain).
    */

@@ -234,7 +234,8 @@ export class Model {
 
   private static _ensureOwnCallbacks(): void {
     if (!Object.prototype.hasOwnProperty.call(this, "_callbackChain")) {
-      this._callbackChain = new CallbackChain();
+      // Clone parent's chain so subclass inherits existing callbacks
+      this._callbackChain = this._callbackChain.clone();
     }
   }
 

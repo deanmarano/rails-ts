@@ -234,7 +234,7 @@ export class Attribute extends Node {
   // -- Aggregate functions --
 
   count(distinct = false): NamedFunction {
-    return new NamedFunction("COUNT", [distinct ? new Grouping(this) : this]);
+    return new NamedFunction("COUNT", [this], undefined, distinct);
   }
 
   sum(): NamedFunction {
