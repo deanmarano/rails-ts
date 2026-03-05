@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { Base, Relation, MemoryAdapter, transaction, savepoint } from "./index.js";
+import { Base, Relation, Range, MemoryAdapter, transaction, savepoint } from "./index.js";
 import { Migration, TableDefinition, Schema } from "./migration.js";
 import {
   Associations,
@@ -1378,6 +1378,1720 @@ describe("ActiveRecord", () => {
         }
       }
       expect(() => NoAdapter.adapter).toThrow("No adapter configured");
+    });
+  });
+
+  // =========================================================================
+  // Timestamp auto-population
+  // =========================================================================
+  describe("Timestamps", () => {
+    it("auto-sets created_at and updated_at on insert", async () => {
+      const adapter = freshAdapter();
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("created_at", "datetime");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+
+      const before = new Date();
+      const post = await Post.create({ title: "Hello" });
+      const after = new Date();
+
+      const createdAt = post.readAttribute("created_at") as Date;
+      const updatedAt = post.readAttribute("updated_at") as Date;
+      expect(createdAt).toBeInstanceOf(Date);
+      expect(updatedAt).toBeInstanceOf(Date);
+      expect(createdAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
+      expect(createdAt.getTime()).toBeLessThanOrEqual(after.getTime());
+      expect(createdAt.getTime()).toBe(updatedAt.getTime());
+    });
+
+    it("does not overwrite explicitly set timestamps on insert", async () => {
+      const adapter = freshAdapter();
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("created_at", "datetime");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+
+      const explicit = new Date("2020-01-01T00:00:00Z");
+      const post = await Post.create({ title: "Old", created_at: explicit, updated_at: explicit });
+
+      expect((post.readAttribute("created_at") as Date).toISOString()).toBe(explicit.toISOString());
+      expect((post.readAttribute("updated_at") as Date).toISOString()).toBe(explicit.toISOString());
+    });
+
+    it("auto-sets updated_at on update but not created_at", async () => {
+      const adapter = freshAdapter();
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("created_at", "datetime");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+
+      const post = await Post.create({ title: "Hello" });
+      const originalCreatedAt = post.readAttribute("created_at") as Date;
+
+      post.writeAttribute("title", "Updated");
+      await post.save();
+
+      const updatedAt = post.readAttribute("updated_at") as Date;
+      expect(updatedAt).toBeInstanceOf(Date);
+      // created_at should remain unchanged
+      expect((post.readAttribute("created_at") as Date).getTime()).toBe(originalCreatedAt.getTime());
+    });
+
+    it("does not touch timestamps when model has no timestamp attributes", async () => {
+      const adapter = freshAdapter();
+      class Simple extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const s = await Simple.create({ name: "test" });
+      expect(s.readAttribute("created_at")).toBeNull();
+    });
+  });
+
+  // =========================================================================
+  // updateColumn / updateColumns
+  // =========================================================================
+  describe("updateColumn / updateColumns", () => {
+    it("updates a single column without callbacks", async () => {
+      const adapter = freshAdapter();
+      const log: string[] = [];
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+          this.beforeSave(() => { log.push("before_save"); });
+        }
+      }
+
+      const u = await User.create({ name: "Alice", age: 25 });
+      log.length = 0;
+
+      await u.updateColumn("age", 30);
+
+      expect(u.readAttribute("age")).toBe(30);
+      expect(log).toHaveLength(0); // No callbacks fired
+    });
+
+    it("updates multiple columns without validations", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.validates("name", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+
+      const u = await User.create({ name: "Alice", email: "alice@example.com" });
+
+      // This would fail validation since name becomes empty, but updateColumns skips it
+      await u.updateColumns({ name: "", email: "new@example.com" });
+
+      expect(u.readAttribute("name")).toBe("");
+      expect(u.readAttribute("email")).toBe("new@example.com");
+    });
+
+    it("persists to database", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const u = await User.create({ name: "Alice" });
+      await u.updateColumn("name", "Bob");
+
+      const reloaded = await User.find(u.id);
+      expect(reloaded.readAttribute("name")).toBe("Bob");
+    });
+
+    it("throws on new record", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const u = new User({ name: "Alice" });
+      await expect(u.updateColumn("name", "Bob")).rejects.toThrow(
+        "Cannot update columns on a new or destroyed record"
+      );
+    });
+
+    it("resets dirty tracking", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const u = await User.create({ name: "Alice" });
+      await u.updateColumn("name", "Bob");
+      expect(u.changed).toBe(false);
+    });
+  });
+
+  // =========================================================================
+  // or() on Relation
+  // =========================================================================
+  describe("Relation#or", () => {
+    it("combines two where clauses with OR", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice", age: 25 });
+      await User.create({ name: "Bob", age: 30 });
+      await User.create({ name: "Charlie", age: 35 });
+
+      const young = User.where({ age: 25 });
+      const old = User.where({ age: 35 });
+      const result = await young.or(old).toArray();
+
+      expect(result).toHaveLength(2);
+      const names = result.map((r: Base) => r.readAttribute("name"));
+      expect(names).toContain("Alice");
+      expect(names).toContain("Charlie");
+    });
+
+    it("generates correct SQL with OR", () => {
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+        }
+      }
+
+      const sql = User.where({ name: "Alice" }).or(User.where({ age: 30 })).toSql();
+      expect(sql).toContain("OR");
+      expect(sql).toContain('"name"');
+      expect(sql).toContain('"age"');
+    });
+  });
+
+  // =========================================================================
+  // findEach / findInBatches
+  // =========================================================================
+  describe("findEach / findInBatches", () => {
+    it("findInBatches yields batches of records", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      for (let i = 0; i < 5; i++) {
+        await User.create({ name: `User ${i}` });
+      }
+
+      const batches: any[][] = [];
+      for await (const batch of User.all().findInBatches({ batchSize: 2 })) {
+        batches.push(batch);
+      }
+
+      expect(batches).toHaveLength(3); // 2, 2, 1
+      expect(batches[0]).toHaveLength(2);
+      expect(batches[1]).toHaveLength(2);
+      expect(batches[2]).toHaveLength(1);
+    });
+
+    it("findEach yields individual records", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      for (let i = 0; i < 3; i++) {
+        await User.create({ name: `User ${i}` });
+      }
+
+      const records: any[] = [];
+      for await (const record of User.all().findEach({ batchSize: 2 })) {
+        records.push(record);
+      }
+
+      expect(records).toHaveLength(3);
+    });
+
+    it("findInBatches with where clause", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("active", "boolean");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Active1", active: true });
+      await User.create({ name: "Inactive", active: false });
+      await User.create({ name: "Active2", active: true });
+
+      const records: any[] = [];
+      for await (const record of User.where({ active: true }).findEach({ batchSize: 10 })) {
+        records.push(record);
+      }
+
+      expect(records).toHaveLength(2);
+    });
+  });
+
+  // =========================================================================
+  // Scope proxy
+  // =========================================================================
+  describe("Scope proxy", () => {
+    it("scope is accessible on Relation via proxy", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("active", "boolean");
+          this.adapter = adapter;
+          this.scope("active", (rel: any) => rel.where({ active: true }));
+        }
+      }
+
+      await User.create({ name: "Alice", active: true });
+      await User.create({ name: "Bob", active: false });
+
+      const result = await (User.all() as any).active().toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Alice");
+    });
+
+    it("scope is chainable with other query methods", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("active", "boolean");
+          this.adapter = adapter;
+          this.scope("active", (rel: any) => rel.where({ active: true }));
+        }
+      }
+
+      await User.create({ name: "Alice", active: true });
+      await User.create({ name: "Bob", active: true });
+      await User.create({ name: "Charlie", active: false });
+
+      const result = await (User.all() as any).active().where({ name: "Alice" }).toArray();
+      expect(result).toHaveLength(1);
+    });
+
+    it("scope is accessible as a static method on the class", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("active", "boolean");
+          this.adapter = adapter;
+          this.scope("active", (rel: any) => rel.where({ active: true }));
+        }
+      }
+
+      await User.create({ name: "Alice", active: true });
+      await User.create({ name: "Bob", active: false });
+
+      const result = await (User as any).active().toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Alice");
+    });
+
+    it("scopes chain together", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("active", "boolean");
+          this.attribute("role", "string");
+          this.adapter = adapter;
+          this.scope("active", (rel: any) => rel.where({ active: true }));
+          this.scope("admins", (rel: any) => rel.where({ role: "admin" }));
+        }
+      }
+
+      await User.create({ name: "Alice", active: true, role: "admin" });
+      await User.create({ name: "Bob", active: true, role: "user" });
+      await User.create({ name: "Charlie", active: false, role: "admin" });
+
+      const result = await (User as any).active().admins().toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Alice");
+    });
+
+    it("scope with arguments", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+          this.scope("olderThan", (rel: any, age: number) => rel.where({ age }));
+        }
+      }
+
+      await User.create({ name: "Alice", age: 25 });
+      await User.create({ name: "Bob", age: 30 });
+
+      const result = await (User as any).olderThan(30).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Bob");
+    });
+  });
+
+  // =========================================================================
+  // Aggregations
+  // =========================================================================
+  describe("Aggregations", () => {
+    it("sum returns the sum of a column", async () => {
+      const adapter = freshAdapter();
+
+      class Order extends Base {
+        static {
+          this.attribute("amount", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await Order.create({ amount: 10 });
+      await Order.create({ amount: 20 });
+      await Order.create({ amount: 30 });
+
+      expect(await Order.all().sum("amount")).toBe(60);
+    });
+
+    it("average returns the average of a column", async () => {
+      const adapter = freshAdapter();
+
+      class Order extends Base {
+        static {
+          this.attribute("amount", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await Order.create({ amount: 10 });
+      await Order.create({ amount: 20 });
+      await Order.create({ amount: 30 });
+
+      expect(await Order.all().average("amount")).toBe(20);
+    });
+
+    it("minimum returns the min value", async () => {
+      const adapter = freshAdapter();
+
+      class Order extends Base {
+        static {
+          this.attribute("amount", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await Order.create({ amount: 10 });
+      await Order.create({ amount: 5 });
+      await Order.create({ amount: 30 });
+
+      expect(await Order.all().minimum("amount")).toBe(5);
+    });
+
+    it("maximum returns the max value", async () => {
+      const adapter = freshAdapter();
+
+      class Order extends Base {
+        static {
+          this.attribute("amount", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await Order.create({ amount: 10 });
+      await Order.create({ amount: 5 });
+      await Order.create({ amount: 30 });
+
+      expect(await Order.all().maximum("amount")).toBe(30);
+    });
+
+    it("sum with where clause", async () => {
+      const adapter = freshAdapter();
+
+      class Order extends Base {
+        static {
+          this.attribute("amount", "integer");
+          this.attribute("status", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await Order.create({ amount: 10, status: "paid" });
+      await Order.create({ amount: 20, status: "pending" });
+      await Order.create({ amount: 30, status: "paid" });
+
+      expect(await Order.where({ status: "paid" }).sum("amount")).toBe(40);
+    });
+
+    it("sum on none relation returns 0", async () => {
+      const adapter = freshAdapter();
+
+      class Order extends Base {
+        static {
+          this.attribute("amount", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      expect(await Order.all().none().sum("amount")).toBe(0);
+    });
+
+    it("average on none relation returns null", async () => {
+      const adapter = freshAdapter();
+
+      class Order extends Base {
+        static {
+          this.attribute("amount", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      expect(await Order.all().none().average("amount")).toBeNull();
+    });
+
+    it("count with column name ignores nulls", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice", email: "a@b.com" });
+      await User.create({ name: "Bob" }); // email is null
+
+      expect(await User.all().count()).toBe(2);
+      expect(await User.all().count("email")).toBe(1);
+    });
+  });
+
+  // =========================================================================
+  // find_or_create_by / find_or_initialize_by
+  // =========================================================================
+  describe("find_or_create_by / find_or_initialize_by", () => {
+    it("findOrCreateBy returns existing record if found", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const original = await User.create({ name: "Alice", email: "old@example.com" });
+      const found = await User.findOrCreateBy({ name: "Alice" }, { email: "new@example.com" });
+
+      expect(found.id).toBe(original.id);
+      expect(found.readAttribute("email")).toBe("old@example.com");
+    });
+
+    it("findOrCreateBy creates record if not found", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const created = await User.findOrCreateBy({ name: "Alice" }, { email: "new@example.com" });
+
+      expect(created.isPersisted()).toBe(true);
+      expect(created.readAttribute("name")).toBe("Alice");
+      expect(created.readAttribute("email")).toBe("new@example.com");
+    });
+
+    it("findOrInitializeBy returns existing record if found", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const original = await User.create({ name: "Alice" });
+      const found = await User.findOrInitializeBy({ name: "Alice" });
+
+      expect(found.id).toBe(original.id);
+      expect(found.isPersisted()).toBe(true);
+    });
+
+    it("findOrInitializeBy returns unsaved record if not found", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const initialized = await User.findOrInitializeBy({ name: "Alice" }, { email: "a@b.com" });
+
+      expect(initialized.isNewRecord()).toBe(true);
+      expect(initialized.readAttribute("name")).toBe("Alice");
+      expect(initialized.readAttribute("email")).toBe("a@b.com");
+    });
+  });
+
+  // =========================================================================
+  // having
+  // =========================================================================
+  describe("Relation#having", () => {
+    it("generates SQL with HAVING clause", () => {
+      class Order extends Base {
+        static {
+          this.attribute("customer_id", "integer");
+          this.attribute("amount", "integer");
+        }
+      }
+
+      const sql = Order.all()
+        .select("customer_id")
+        .group("customer_id")
+        .having("COUNT(*) > 1")
+        .toSql();
+
+      expect(sql).toContain("GROUP BY");
+      expect(sql).toContain("HAVING");
+      expect(sql).toContain("COUNT(*) > 1");
+    });
+  });
+
+  // =========================================================================
+  // where with ranges
+  // =========================================================================
+  describe("where with Range", () => {
+    it("generates BETWEEN SQL", () => {
+      class User extends Base {
+        static {
+          this.attribute("age", "integer");
+        }
+      }
+
+      const sql = User.where({ age: new Range(18, 30) }).toSql();
+      expect(sql).toContain("BETWEEN");
+      expect(sql).toContain("18");
+      expect(sql).toContain("30");
+    });
+
+    it("filters records with BETWEEN", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Young", age: 15 });
+      await User.create({ name: "Adult", age: 25 });
+      await User.create({ name: "Senior", age: 65 });
+
+      const result = await User.where({ age: new Range(18, 30) }).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Adult");
+    });
+
+    it("BETWEEN is inclusive on both ends", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ age: 18 });
+      await User.create({ age: 25 });
+      await User.create({ age: 30 });
+
+      const result = await User.where({ age: new Range(18, 30) }).toArray();
+      expect(result).toHaveLength(3);
+    });
+  });
+
+  // =========================================================================
+  // touch
+  // =========================================================================
+  describe("touch", () => {
+    it("updates updated_at timestamp", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+
+      const post = await Post.create({ title: "Hello" });
+      const originalUpdatedAt = post.readAttribute("updated_at") as Date;
+
+      await post.touch();
+
+      const newUpdatedAt = post.readAttribute("updated_at") as Date;
+      expect(newUpdatedAt).toBeInstanceOf(Date);
+      expect(newUpdatedAt.getTime()).toBeGreaterThanOrEqual(originalUpdatedAt.getTime());
+    });
+
+    it("touch with named timestamp", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("updated_at", "datetime");
+          this.attribute("published_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+
+      const post = await Post.create({ title: "Hello" });
+      await post.touch("published_at");
+
+      expect(post.readAttribute("published_at")).toBeInstanceOf(Date);
+      expect(post.readAttribute("updated_at")).toBeInstanceOf(Date);
+    });
+
+    it("touch returns false on new record", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+
+      const post = new Post({ title: "New" });
+      expect(await post.touch()).toBe(false);
+    });
+
+    it("touch skips callbacks", async () => {
+      const adapter = freshAdapter();
+      const log: string[] = [];
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+          this.beforeSave(() => { log.push("before_save"); });
+        }
+      }
+
+      const post = await Post.create({ title: "Hello" });
+      log.length = 0;
+
+      await post.touch();
+      expect(log).toHaveLength(0);
+    });
+  });
+
+  // =========================================================================
+  // default_scope / unscoped
+  // =========================================================================
+  describe("default_scope / unscoped", () => {
+    it("default_scope is applied to all queries", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("published", "boolean", { default: false });
+          this.adapter = adapter;
+          this.defaultScope((rel: any) => rel.where({ published: true }));
+        }
+      }
+
+      await Post.create({ title: "Published", published: true });
+      await Post.create({ title: "Draft", published: false });
+
+      const result = await Post.all().toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("title")).toBe("Published");
+    });
+
+    it("unscoped bypasses default_scope", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("published", "boolean", { default: false });
+          this.adapter = adapter;
+          this.defaultScope((rel: any) => rel.where({ published: true }));
+        }
+      }
+
+      await Post.create({ title: "Published", published: true });
+      await Post.create({ title: "Draft", published: false });
+
+      const result = await Post.unscoped().toArray();
+      expect(result).toHaveLength(2);
+    });
+
+    it("where inherits default_scope", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("published", "boolean", { default: false });
+          this.attribute("category", "string");
+          this.adapter = adapter;
+          this.defaultScope((rel: any) => rel.where({ published: true }));
+        }
+      }
+
+      await Post.create({ title: "P1", published: true, category: "tech" });
+      await Post.create({ title: "P2", published: true, category: "news" });
+      await Post.create({ title: "D1", published: false, category: "tech" });
+
+      const result = await Post.where({ category: "tech" }).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("title")).toBe("P1");
+    });
+
+    it("default_scope applies to exists?", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("published", "boolean", { default: false });
+          this.adapter = adapter;
+          this.defaultScope((rel: any) => rel.where({ published: true }));
+        }
+      }
+
+      await Post.create({ title: "Draft", published: false });
+
+      expect(await Post.all().exists()).toBe(false);
+      expect(await Post.unscoped().exists()).toBe(true);
+    });
+
+    it("default_scope applies to pluck", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("published", "boolean", { default: false });
+          this.adapter = adapter;
+          this.defaultScope((rel: any) => rel.where({ published: true }));
+        }
+      }
+
+      await Post.create({ title: "Pub", published: true });
+      await Post.create({ title: "Draft", published: false });
+
+      const titles = await Post.all().pluck("title");
+      expect(titles).toEqual(["Pub"]);
+    });
+
+    it("default_scope applies to deleteAll", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("published", "boolean", { default: false });
+          this.adapter = adapter;
+          this.defaultScope((rel: any) => rel.where({ published: true }));
+        }
+      }
+
+      await Post.create({ title: "Pub", published: true });
+      await Post.create({ title: "Draft", published: false });
+
+      await Post.all().deleteAll();
+      // Only the published one should be deleted
+      expect(await Post.unscoped().count()).toBe(1);
+    });
+
+    it("unscoped then where applies user conditions only", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("published", "boolean", { default: false });
+          this.adapter = adapter;
+          this.defaultScope((rel: any) => rel.where({ published: true }));
+        }
+      }
+
+      await Post.create({ title: "Pub", published: true });
+      await Post.create({ title: "Draft", published: false });
+
+      const result = await Post.unscoped().where({ title: "Draft" }).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("title")).toBe("Draft");
+    });
+  });
+
+  // =========================================================================
+  // Edge cases — Relation query methods
+  // =========================================================================
+  describe("Relation edge cases", () => {
+    it("where with multiple keys including null", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice", email: "a@b.com" });
+      await User.create({ name: "Bob" }); // email null
+
+      const result = await User.where({ name: "Bob", email: null }).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Bob");
+    });
+
+    it("whereNot with array generates NOT IN", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      await User.create({ name: "Charlie" });
+
+      const result = await User.all().whereNot({ name: ["Alice", "Charlie"] }).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Bob");
+    });
+
+    it("chaining multiple whereNot calls", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice", age: 25 });
+      await User.create({ name: "Bob", age: 30 });
+      await User.create({ name: "Charlie", age: 35 });
+
+      const result = await User.all()
+        .whereNot({ name: "Alice" })
+        .whereNot({ name: "Charlie" })
+        .toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Bob");
+    });
+
+    it("limit overrides previous limit", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      for (let i = 0; i < 5; i++) await User.create({ name: `U${i}` });
+
+      const result = await User.all().limit(10).limit(2).toArray();
+      expect(result).toHaveLength(2);
+    });
+
+    it("offset without limit returns remaining records", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      for (let i = 0; i < 5; i++) await User.create({ name: `U${i}` });
+
+      const result = await User.all().offset(3).toArray();
+      expect(result).toHaveLength(2);
+    });
+
+    it("select restricts returned attributes", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice", email: "a@b.com" });
+
+      const result = await User.all().select("name").toArray();
+      expect(result[0].readAttribute("name")).toBe("Alice");
+      // email should not be in the selected columns
+      expect(result[0].readAttribute("email")).toBeNull();
+    });
+
+    it("pluck with multiple columns returns arrays", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice", age: 25 });
+      await User.create({ name: "Bob", age: 30 });
+
+      const result = await User.all().pluck("name", "age");
+      expect(result).toEqual([
+        ["Alice", 25],
+        ["Bob", 30],
+      ]);
+    });
+
+    it("ids returns primary key values", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      await User.create({ name: "Charlie" });
+
+      const ids = await User.all().ids();
+      expect(ids).toEqual([1, 2, 3]);
+    });
+
+    it("ids with where returns filtered IDs", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+
+      const ids = await User.where({ name: "Bob" }).ids();
+      expect(ids).toEqual([2]);
+    });
+
+    it("none chained with where still returns empty", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice" });
+      // once none() is applied, additional conditions are irrelevant
+      const result = await User.all().none().where({ name: "Alice" }).toArray();
+      expect(result).toEqual([]);
+    });
+
+    it("first on unordered relation returns first by PK", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Bob" });
+      await User.create({ name: "Alice" });
+
+      const first = await User.all().first();
+      expect(first!.readAttribute("name")).toBe("Bob"); // ID 1
+    });
+
+    it("last on unordered relation returns last by PK", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Bob" });
+      await User.create({ name: "Alice" });
+
+      const last = await User.all().last();
+      expect(last!.readAttribute("name")).toBe("Alice"); // ID 2
+    });
+
+    it("count on empty table returns 0", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      expect(await User.all().count()).toBe(0);
+    });
+
+    it("pluck on empty table returns empty array", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      expect(await User.all().pluck("name")).toEqual([]);
+    });
+
+    it("reverseOrder with multiple columns flips all", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice", age: 25 });
+      await User.create({ name: "Alice", age: 30 });
+      await User.create({ name: "Bob", age: 20 });
+
+      const sql = User.all()
+        .order({ name: "asc" }, { age: "asc" })
+        .reverseOrder()
+        .toSql();
+      expect(sql).toContain("DESC");
+      expect(sql).not.toContain("ASC");
+    });
+
+    it("reorder then additional order", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Bob", age: 30 });
+      await User.create({ name: "Alice", age: 25 });
+
+      const result = await User.all()
+        .order({ age: "desc" })
+        .reorder("name")
+        .toArray();
+      expect(result[0].readAttribute("name")).toBe("Alice");
+    });
+  });
+
+  // =========================================================================
+  // Edge cases — Bulk operations
+  // =========================================================================
+  describe("Bulk operations edge cases", () => {
+    it("updateAll does not run callbacks", async () => {
+      const adapter = freshAdapter();
+      const log: string[] = [];
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("active", "boolean");
+          this.adapter = adapter;
+          this.beforeSave(() => { log.push("before_save"); });
+          this.afterSave(() => { log.push("after_save"); });
+        }
+      }
+
+      await User.create({ name: "Alice", active: true });
+      log.length = 0;
+
+      await User.all().updateAll({ active: false });
+      expect(log).toHaveLength(0);
+    });
+
+    it("updateAll does not auto-update updated_at", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+
+      const post = await Post.create({ title: "Hello" });
+      const originalUpdatedAt = post.readAttribute("updated_at") as Date;
+
+      await Post.all().updateAll({ title: "Changed" });
+
+      const reloaded = await Post.find(post.id);
+      // updateAll should NOT auto-bump updated_at
+      expect((reloaded.readAttribute("updated_at") as Date).getTime())
+        .toBe(originalUpdatedAt.getTime());
+    });
+
+    it("deleteAll does not run callbacks", async () => {
+      const adapter = freshAdapter();
+      const log: string[] = [];
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.beforeDestroy(() => { log.push("before_destroy"); });
+        }
+      }
+
+      await User.create({ name: "Alice" });
+      log.length = 0;
+
+      await User.all().deleteAll();
+      expect(log).toHaveLength(0);
+    });
+
+    it("destroyAll runs callbacks on each record", async () => {
+      const adapter = freshAdapter();
+      const log: string[] = [];
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.afterDestroy((r: any) => { log.push(r.readAttribute("name")); });
+        }
+      }
+
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+
+      await User.all().destroyAll();
+      expect(log).toContain("Alice");
+      expect(log).toContain("Bob");
+    });
+
+    it("updateAll returns count of affected rows", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("active", "boolean");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice", active: true });
+      await User.create({ name: "Bob", active: false });
+
+      const count = await User.where({ active: true }).updateAll({ active: false });
+      expect(count).toBe(1);
+    });
+
+    it("deleteAll on empty table returns 0", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      expect(await User.all().deleteAll()).toBe(0);
+    });
+  });
+
+  // =========================================================================
+  // Edge cases — Persistence
+  // =========================================================================
+  describe("Persistence edge cases", () => {
+    it("save on unchanged record is a no-op", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const u = await User.create({ name: "Alice" });
+      // No changes -> save should succeed without issuing UPDATE
+      expect(await u.save()).toBe(true);
+      expect(u.isPersisted()).toBe(true);
+    });
+
+    it("reload clears dirty tracking", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const u = await User.create({ name: "Alice" });
+      u.writeAttribute("name", "Changed");
+      expect(u.changed).toBe(true);
+
+      await u.reload();
+      expect(u.changed).toBe(false);
+      expect(u.readAttribute("name")).toBe("Alice");
+    });
+
+    it("assignAttributes triggers dirty tracking", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const u = await User.create({ name: "Alice", email: "a@b.com" });
+      u.assignAttributes({ name: "Bob", email: "b@b.com" });
+
+      expect(u.changed).toBe(true);
+      expect(u.changedAttributes).toContain("name");
+      expect(u.changedAttributes).toContain("email");
+    });
+
+    it("created_at is never overwritten on subsequent saves", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("created_at", "datetime");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+
+      const post = await Post.create({ title: "Hello" });
+      const originalCreatedAt = (post.readAttribute("created_at") as Date).getTime();
+
+      post.writeAttribute("title", "Updated");
+      await post.save();
+
+      post.writeAttribute("title", "Updated again");
+      await post.save();
+
+      expect((post.readAttribute("created_at") as Date).getTime()).toBe(originalCreatedAt);
+    });
+
+    it("updateColumn does not auto-update updated_at", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+
+      const post = await Post.create({ title: "Hello" });
+      const originalUpdatedAt = (post.readAttribute("updated_at") as Date).getTime();
+
+      await post.updateColumn("title", "Changed");
+
+      // updateColumn should NOT auto-bump updated_at
+      expect((post.readAttribute("updated_at") as Date).getTime()).toBe(originalUpdatedAt);
+    });
+  });
+
+  // =========================================================================
+  // Edge cases — or()
+  // =========================================================================
+  describe("Relation#or edge cases", () => {
+    it("triple or chains", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      await User.create({ name: "Charlie" });
+      await User.create({ name: "Dave" });
+
+      // Note: .or().or() nests — the second or wraps the first
+      const result = await User.where({ name: "Alice" })
+        .or(User.where({ name: "Bob" }))
+        .or(User.where({ name: "Charlie" }))
+        .toArray();
+
+      expect(result).toHaveLength(3);
+    });
+
+    it("or with count", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice", age: 25 });
+      await User.create({ name: "Bob", age: 30 });
+      await User.create({ name: "Charlie", age: 35 });
+
+      const count = await User.where({ age: 25 })
+        .or(User.where({ age: 35 }))
+        .count();
+      expect(count).toBe(2);
+    });
+  });
+
+  // =========================================================================
+  // Edge cases — Aggregations
+  // =========================================================================
+  describe("Aggregation edge cases", () => {
+    it("minimum on empty table returns null", async () => {
+      const adapter = freshAdapter();
+
+      class Order extends Base {
+        static {
+          this.attribute("amount", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      expect(await Order.all().minimum("amount")).toBeNull();
+    });
+
+    it("maximum on empty table returns null", async () => {
+      const adapter = freshAdapter();
+
+      class Order extends Base {
+        static {
+          this.attribute("amount", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      expect(await Order.all().maximum("amount")).toBeNull();
+    });
+
+    it("minimum on none() returns null", async () => {
+      const adapter = freshAdapter();
+
+      class Order extends Base {
+        static {
+          this.attribute("amount", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await Order.create({ amount: 10 });
+      expect(await Order.all().none().minimum("amount")).toBeNull();
+    });
+
+    it("maximum on none() returns null", async () => {
+      const adapter = freshAdapter();
+
+      class Order extends Base {
+        static {
+          this.attribute("amount", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await Order.create({ amount: 10 });
+      expect(await Order.all().none().maximum("amount")).toBeNull();
+    });
+
+    it("sum with where condition", async () => {
+      const adapter = freshAdapter();
+
+      class Order extends Base {
+        static {
+          this.attribute("amount", "integer");
+          this.attribute("status", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await Order.create({ amount: 10, status: "paid" });
+      await Order.create({ amount: 20, status: "pending" });
+      await Order.create({ amount: 30, status: "paid" });
+
+      expect(await Order.where({ status: "paid" }).sum("amount")).toBe(40);
+      expect(await Order.where({ status: "pending" }).sum("amount")).toBe(20);
+    });
+  });
+
+  // =========================================================================
+  // Edge cases — touch
+  // =========================================================================
+  describe("touch edge cases", () => {
+    it("touch persists to database", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+
+      const post = await Post.create({ title: "Hello" });
+      await post.touch();
+
+      const reloaded = await Post.find(post.id);
+      expect(reloaded.readAttribute("updated_at")).not.toBeNull();
+    });
+
+    it("touch with multiple attribute names", async () => {
+      const adapter = freshAdapter();
+
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("updated_at", "datetime");
+          this.attribute("replied_at", "datetime");
+          this.attribute("viewed_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+
+      const post = await Post.create({ title: "Hello" });
+      await post.touch("replied_at", "viewed_at");
+
+      expect(post.readAttribute("replied_at")).toBeInstanceOf(Date);
+      expect(post.readAttribute("viewed_at")).toBeInstanceOf(Date);
+      expect(post.readAttribute("updated_at")).toBeInstanceOf(Date);
+    });
+
+    it("touch on model without updated_at returns false", async () => {
+      const adapter = freshAdapter();
+
+      class Simple extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const s = await Simple.create({ name: "test" });
+      expect(await s.touch()).toBe(false);
+    });
+  });
+
+  // =========================================================================
+  // Edge cases — findInBatches
+  // =========================================================================
+  describe("findInBatches edge cases", () => {
+    it("findInBatches with batchSize 1", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      await User.create({ name: "Charlie" });
+
+      const batches: any[][] = [];
+      for await (const batch of User.all().findInBatches({ batchSize: 1 })) {
+        batches.push(batch);
+      }
+
+      expect(batches).toHaveLength(3);
+      expect(batches[0]).toHaveLength(1);
+      expect(batches[1]).toHaveLength(1);
+      expect(batches[2]).toHaveLength(1);
+    });
+
+    it("findEach can be used with early break", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      for (let i = 0; i < 10; i++) await User.create({ name: `U${i}` });
+
+      const names: string[] = [];
+      for await (const record of User.all().findEach({ batchSize: 3 })) {
+        names.push(record.readAttribute("name") as string);
+        if (names.length >= 5) break;
+      }
+
+      expect(names).toHaveLength(5);
+    });
+  });
+
+  // =========================================================================
+  // Edge cases — Range with count
+  // =========================================================================
+  describe("Range edge cases", () => {
+    it("count with Range condition", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ age: 15 });
+      await User.create({ age: 25 });
+      await User.create({ age: 35 });
+
+      expect(await User.where({ age: new Range(20, 30) }).count()).toBe(1);
+    });
+
+    it("Range combined with IN array in same where", async () => {
+      const adapter = freshAdapter();
+
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.create({ name: "Alice", age: 25 });
+      await User.create({ name: "Bob", age: 30 });
+      await User.create({ name: "Charlie", age: 35 });
+
+      const result = await User.where({ age: new Range(20, 30) })
+        .where({ name: ["Alice", "Bob"] })
+        .toArray();
+      expect(result).toHaveLength(2);
     });
   });
 });

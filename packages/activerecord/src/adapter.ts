@@ -54,17 +54,36 @@ export class MemoryAdapter implements DatabaseAdapter {
   private autoIncrements = new Map<string, number>();
 
   async execute(sql: string): Promise<Record<string, unknown>[]> {
-    // COUNT queries (must be checked before general SELECT)
-    const countMatch = sql.match(
-      /SELECT\s+COUNT\(\*\)\s*(?:AS\s+\w+\s+)?FROM\s+"(\w+)"(?:\s+WHERE\s+(.+?))?$/i
+    // Aggregate queries: COUNT(*), COUNT(col), SUM, AVG, MIN, MAX
+    const aggMatch = sql.match(
+      /SELECT\s+(COUNT|SUM|AVG|MIN|MAX)\((\*|"?\w+"?(?:\."?\w+"?)?)\)\s*(?:AS\s+\w+\s+)?FROM\s+"(\w+)"(?:\s+WHERE\s+(.+?))?$/i
     );
-    if (countMatch) {
-      const [, tableName, where] = countMatch;
+    if (aggMatch) {
+      const [, fn, colExpr, tableName, where] = aggMatch;
       let rows = [...(this.tables.get(tableName) ?? [])];
       if (where) {
         rows = rows.filter((row) => this.evaluateWhere(row, where));
       }
-      return [{ count: rows.length }];
+      const upperFn = fn.toUpperCase();
+      if (upperFn === "COUNT") {
+        if (colExpr === "*") {
+          return [{ count: rows.length }];
+        }
+        const col = colExpr.replace(/"/g, "").split(".").pop()!;
+        const nonNull = rows.filter((r) => r[col] !== null && r[col] !== undefined);
+        return [{ count: nonNull.length }];
+      }
+      const col = colExpr.replace(/"/g, "").split(".").pop()!;
+      const nums = rows
+        .map((r) => r[col])
+        .filter((v) => v !== null && v !== undefined)
+        .map(Number);
+      if (nums.length === 0) return [{ val: null }];
+      if (upperFn === "SUM") return [{ val: nums.reduce((a, b) => a + b, 0) }];
+      if (upperFn === "AVG") return [{ val: nums.reduce((a, b) => a + b, 0) / nums.length }];
+      if (upperFn === "MIN") return [{ val: Math.min(...nums) }];
+      if (upperFn === "MAX") return [{ val: Math.max(...nums) }];
+      return [{ val: null }];
     }
 
     // Simple SQL parser for SELECT queries against in-memory store
@@ -195,9 +214,98 @@ export class MemoryAdapter implements DatabaseAdapter {
     row: Record<string, unknown>,
     where: string
   ): boolean {
-    // Handle AND conditions
-    const andParts = where.split(/\s+AND\s+/i);
+    // Strip outer parentheses if present (from Grouping nodes)
+    let cleaned = where.trim();
+    if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
+      // Check if these parens wrap the entire expression
+      let depth = 0;
+      let wrapsAll = true;
+      for (let i = 0; i < cleaned.length; i++) {
+        if (cleaned[i] === "(") depth++;
+        else if (cleaned[i] === ")") depth--;
+        if (depth === 0 && i < cleaned.length - 1) {
+          wrapsAll = false;
+          break;
+        }
+      }
+      if (wrapsAll) cleaned = cleaned.slice(1, -1).trim();
+    }
+
+    // Handle OR conditions (split at top-level OR, not inside parentheses)
+    const orParts = this.splitTopLevel(cleaned, /\s+OR\s+/i);
+    if (orParts.length > 1) {
+      return orParts.some((part) => this.evaluateWhere(row, part.trim()));
+    }
+
+    // Handle AND conditions (but not the AND inside BETWEEN x AND y)
+    const andParts = this.splitTopLevelAnd(cleaned);
     return andParts.every((part) => this.evaluateCondition(row, part.trim()));
+  }
+
+  private splitTopLevelAnd(expr: string): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let current = "";
+    let inBetween = false;
+
+    for (let i = 0; i < expr.length; i++) {
+      if (expr[i] === "(") depth++;
+      else if (expr[i] === ")") depth--;
+
+      if (depth === 0) {
+        // Check for BETWEEN keyword (start tracking)
+        const upperRemaining = expr.slice(i).toUpperCase();
+        if (upperRemaining.match(/^BETWEEN\s/)) {
+          inBetween = true;
+        }
+
+        // Check for AND at this position
+        const andMatch = expr.slice(i).match(/^\s+AND\s+/i);
+        if (andMatch) {
+          if (inBetween) {
+            // This AND is part of BETWEEN x AND y — include it
+            inBetween = false;
+            current += andMatch[0];
+            i += andMatch[0].length - 1;
+            continue;
+          }
+          // This is a top-level AND separator
+          parts.push(current);
+          i += andMatch[0].length - 1;
+          current = "";
+          continue;
+        }
+      }
+      current += expr[i];
+    }
+    if (current) parts.push(current);
+    return parts;
+  }
+
+  private splitTopLevel(expr: string, separator: RegExp): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let current = "";
+
+    for (let i = 0; i < expr.length; i++) {
+      if (expr[i] === "(") depth++;
+      else if (expr[i] === ")") depth--;
+
+      if (depth === 0) {
+        // Try matching separator at this position
+        const remaining = expr.slice(i);
+        const match = remaining.match(separator);
+        if (match && match.index === 0) {
+          parts.push(current);
+          i += match[0].length - 1;
+          current = "";
+          continue;
+        }
+      }
+      current += expr[i];
+    }
+    if (current) parts.push(current);
+    return parts;
   }
 
   private evaluateCondition(
@@ -209,6 +317,18 @@ export class MemoryAdapter implements DatabaseAdapter {
 
     // Always-true (empty NOT IN generates 1=1)
     if (condition.trim() === "1=1") return true;
+
+    // BETWEEN
+    const betweenMatch = condition.match(
+      /"?(\w+)"?\."?(\w+)"?\s+BETWEEN\s+(.+?)\s+AND\s+(.+)/i
+    );
+    if (betweenMatch) {
+      const [, , col, rawLow, rawHigh] = betweenMatch;
+      const val = Number(row[col]);
+      const low = Number(this.parseSingleValue(rawLow.trim()));
+      const high = Number(this.parseSingleValue(rawHigh.trim()));
+      return val >= low && val <= high;
+    }
 
     // IS NULL
     const isNullMatch = condition.match(/"?(\w+)"?\."?(\w+)"?\s+IS\s+NULL/i);

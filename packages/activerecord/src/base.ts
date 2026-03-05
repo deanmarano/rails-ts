@@ -28,10 +28,16 @@ function underscore(name: string): string {
 // Late-bound Relation constructor to break circular dependency.
 // Set by relation.ts when it loads.
 let _RelationCtor: (new (modelClass: typeof Base) => any) | null = null;
+let _wrapWithScopeProxy: ((rel: any) => any) | null = null;
 
 /** @internal Called by relation.ts to register itself. */
 export function _setRelationCtor(ctor: new (modelClass: typeof Base) => any): void {
   _RelationCtor = ctor;
+}
+
+/** @internal Called by relation.ts to register the scope proxy wrapper. */
+export function _setScopeProxyWrapper(wrapper: (rel: any) => any): void {
+  _wrapWithScopeProxy = wrapper;
 }
 
 /**
@@ -99,6 +105,29 @@ export class Base extends Model {
 
   // -- Scopes registry (used by Relation) --
   static _scopes: Map<string, (rel: any, ...args: any[]) => any> = new Map();
+  static _defaultScope: ((rel: any) => any) | null = null;
+
+  /**
+   * Define a default scope applied to all queries.
+   *
+   * Mirrors: ActiveRecord::Base.default_scope
+   */
+  static defaultScope(fn: (rel: any) => any): void {
+    this._defaultScope = fn;
+  }
+
+  /**
+   * Return a relation that bypasses the default scope.
+   *
+   * Mirrors: ActiveRecord::Base.unscoped
+   */
+  static unscoped(): any {
+    if (!_RelationCtor) {
+      throw new Error("Relation not loaded. Import relation.ts first.");
+    }
+    const rel = new _RelationCtor(this);
+    return _wrapWithScopeProxy ? _wrapWithScopeProxy(rel) : rel;
+  }
 
   /**
    * Define a named scope.
@@ -110,6 +139,15 @@ export class Base extends Model {
       this._scopes = new Map(this._scopes);
     }
     this._scopes.set(name, fn);
+
+    // Define a static method on the class that delegates to all().scopeName()
+    Object.defineProperty(this, name, {
+      value: function (...args: any[]) {
+        return (this as typeof Base).all()[name](...args);
+      },
+      writable: true,
+      configurable: true,
+    });
   }
 
   // -- Finders (class methods) --
@@ -197,7 +235,13 @@ export class Base extends Model {
     if (!_RelationCtor) {
       throw new Error("Relation not loaded. Import relation.ts first.");
     }
-    return new _RelationCtor(this);
+    let rel = new _RelationCtor(this);
+    rel = _wrapWithScopeProxy ? _wrapWithScopeProxy(rel) : rel;
+    // Apply default scope if defined
+    if (this._defaultScope) {
+      rel = this._defaultScope(rel);
+    }
+    return rel;
   }
 
   /**
@@ -207,6 +251,34 @@ export class Base extends Model {
    */
   static where(conditions: Record<string, unknown>): any {
     return this.all().where(conditions);
+  }
+
+  /**
+   * Find the first record matching conditions, or create one.
+   *
+   * Mirrors: ActiveRecord::Base.find_or_create_by
+   */
+  static async findOrCreateBy(
+    conditions: Record<string, unknown>,
+    extra?: Record<string, unknown>
+  ): Promise<Base> {
+    const record = await this.findBy(conditions);
+    if (record) return record;
+    return this.create({ ...conditions, ...extra });
+  }
+
+  /**
+   * Find the first record matching conditions, or instantiate one (unsaved).
+   *
+   * Mirrors: ActiveRecord::Base.find_or_initialize_by
+   */
+  static async findOrInitializeBy(
+    conditions: Record<string, unknown>,
+    extra?: Record<string, unknown>
+  ): Promise<Base> {
+    const record = await this.findBy(conditions);
+    if (record) return record;
+    return new this({ ...conditions, ...extra });
   }
 
   /**
@@ -365,6 +437,16 @@ export class Base extends Model {
   private _performInsert(): void {
     const ctor = this.constructor as typeof Base;
     const table = ctor.arelTable;
+
+    // Auto-populate timestamps
+    const now = new Date();
+    if (ctor._attributeDefinitions.has("created_at") && this.readAttribute("created_at") === null) {
+      this._attributes.set("created_at", now);
+    }
+    if (ctor._attributeDefinitions.has("updated_at") && this.readAttribute("updated_at") === null) {
+      this._attributes.set("updated_at", now);
+    }
+
     const attrs = this.attributes;
     const columns: string[] = [];
     const values: unknown[] = [];
@@ -399,6 +481,12 @@ export class Base extends Model {
   private _performUpdate(): void {
     const ctor = this.constructor as typeof Base;
     const table = ctor.arelTable;
+
+    // Auto-populate updated_at timestamp
+    if (ctor._attributeDefinitions.has("updated_at")) {
+      this.writeAttribute("updated_at", new Date());
+    }
+
     const changedAttrs = this.changes;
 
     if (Object.keys(changedAttrs).length === 0) return;
@@ -569,5 +657,88 @@ export class Base extends Model {
     for (const [key, value] of Object.entries(attrs)) {
       this.writeAttribute(key, value);
     }
+  }
+
+  /**
+   * Update the updated_at timestamp (and optionally other timestamp
+   * columns) without changing other attributes. Skips validations
+   * and callbacks.
+   *
+   * Mirrors: ActiveRecord::Base#touch
+   */
+  async touch(...names: string[]): Promise<boolean> {
+    if (!this.isPersisted()) return false;
+    const now = new Date();
+    const attrs: Record<string, unknown> = {};
+
+    // Always touch updated_at if defined
+    const ctor = this.constructor as typeof Base;
+    if (ctor._attributeDefinitions.has("updated_at")) {
+      attrs.updated_at = now;
+    }
+
+    // Touch any additional named timestamps
+    for (const name of names) {
+      attrs[name] = now;
+    }
+
+    if (Object.keys(attrs).length === 0) return false;
+
+    await this.updateColumns(attrs);
+    return true;
+  }
+
+  /**
+   * Update a single column directly in the database, skipping
+   * validations and callbacks.
+   *
+   * Mirrors: ActiveRecord::Base#update_column
+   */
+  async updateColumn(name: string, value: unknown): Promise<void> {
+    return this.updateColumns({ [name]: value });
+  }
+
+  /**
+   * Update multiple columns directly in the database, skipping
+   * validations and callbacks.
+   *
+   * Mirrors: ActiveRecord::Base#update_columns
+   */
+  async updateColumns(attrs: Record<string, unknown>): Promise<void> {
+    if (!this.isPersisted()) {
+      throw new Error("Cannot update columns on a new or destroyed record");
+    }
+
+    const ctor = this.constructor as typeof Base;
+    const table = ctor.arelTable;
+
+    // Set attributes directly (no dirty tracking through writeAttribute)
+    for (const [key, value] of Object.entries(attrs)) {
+      const def = ctor._attributeDefinitions.get(key);
+      this._attributes.set(key, def ? def.type.cast(value) : value);
+    }
+
+    const setClauses = Object.entries(attrs)
+      .map(([key, _]) => {
+        const val = this._attributes.get(key);
+        if (val === null) return `"${key}" = NULL`;
+        if (typeof val === "number") return `"${key}" = ${val}`;
+        if (typeof val === "boolean") return `"${key}" = ${val ? "TRUE" : "FALSE"}`;
+        if (val instanceof Date) return `"${key}" = '${val.toISOString()}'`;
+        return `"${key}" = '${String(val).replace(/'/g, "''")}'`;
+      })
+      .join(", ");
+
+    const pk = this.id;
+    const pkQuoted =
+      typeof pk === "number"
+        ? String(pk)
+        : `'${String(pk).replace(/'/g, "''")}'`;
+
+    const sql = `UPDATE "${table.name}" SET ${setClauses} WHERE "${ctor.primaryKey}" = ${pkQuoted}`;
+    await ctor.adapter.executeMutation(sql);
+
+    // Reset dirty tracking to reflect the new persisted state
+    this.changesApplied();
   }
 }

@@ -1,5 +1,5 @@
 export { Base } from "./base.js";
-export { Relation } from "./relation.js";
+export { Relation, Range } from "./relation.js";
 export { MemoryAdapter } from "./adapter.js";
 export type { DatabaseAdapter } from "./adapter.js";
 export {

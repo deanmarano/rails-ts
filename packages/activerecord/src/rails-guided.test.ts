@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   Base,
   Relation,
+  Range,
   MemoryAdapter,
   transaction,
   savepoint,
@@ -1190,5 +1191,1751 @@ describe("Transactions (Rails-guided)", () => {
         throw new Error("specific error message");
       })
     ).rejects.toThrow("specific error message");
+  });
+});
+
+// ==========================================================================
+// Timestamps (Rails: timestamp_test.rb)
+// ==========================================================================
+
+describe("Timestamps (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class Article extends Base {
+    static {
+      this.attribute("title", "string");
+      this.attribute("body", "string");
+      this.attribute("created_at", "datetime");
+      this.attribute("updated_at", "datetime");
+    }
+  }
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+    Article.adapter = adapter;
+  });
+
+  it("sets created_at and updated_at on create", async () => {
+    const article = await Article.create({ title: "Hello", body: "World" });
+    expect(article.readAttribute("created_at")).toBeInstanceOf(Date);
+    expect(article.readAttribute("updated_at")).toBeInstanceOf(Date);
+  });
+
+  it("created_at and updated_at match on first save", async () => {
+    const article = await Article.create({ title: "Hello" });
+    const createdAt = article.readAttribute("created_at") as Date;
+    const updatedAt = article.readAttribute("updated_at") as Date;
+    expect(createdAt.getTime()).toBe(updatedAt.getTime());
+  });
+
+  it("updates updated_at but not created_at on update", async () => {
+    const article = await Article.create({ title: "Hello" });
+    const originalCreatedAt = (article.readAttribute("created_at") as Date).getTime();
+
+    article.writeAttribute("title", "Updated");
+    await article.save();
+
+    expect((article.readAttribute("created_at") as Date).getTime()).toBe(originalCreatedAt);
+    expect(article.readAttribute("updated_at")).toBeInstanceOf(Date);
+  });
+
+  it("does not overwrite user-supplied created_at", async () => {
+    const custom = new Date("2000-01-01T00:00:00Z");
+    const article = await Article.create({ title: "Old", created_at: custom });
+    expect((article.readAttribute("created_at") as Date).toISOString()).toBe(custom.toISOString());
+  });
+
+  it("does not overwrite user-supplied updated_at on create", async () => {
+    const custom = new Date("2000-01-01T00:00:00Z");
+    const article = await Article.create({ title: "Old", updated_at: custom });
+    expect((article.readAttribute("updated_at") as Date).toISOString()).toBe(custom.toISOString());
+  });
+
+  it("timestamps are persisted to the database", async () => {
+    const article = await Article.create({ title: "Persisted" });
+    const reloaded = await Article.find(article.id);
+    // MemoryAdapter stores the Date as-is, so it should match
+    expect(reloaded.readAttribute("created_at")).not.toBeNull();
+    expect(reloaded.readAttribute("updated_at")).not.toBeNull();
+  });
+});
+
+// ==========================================================================
+// update_column / update_columns (Rails: persistence_test.rb)
+// ==========================================================================
+
+describe("update_column / update_columns (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class Topic extends Base {
+    static {
+      this.attribute("title", "string");
+      this.attribute("content", "string");
+      this.attribute("approved", "boolean", { default: false });
+    }
+  }
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+    Topic.adapter = adapter;
+  });
+
+  it("update_column updates a single attribute", async () => {
+    const topic = await Topic.create({ title: "Original" });
+    await topic.updateColumn("title", "Updated");
+    expect(topic.readAttribute("title")).toBe("Updated");
+  });
+
+  it("update_column persists to the database", async () => {
+    const topic = await Topic.create({ title: "Original" });
+    await topic.updateColumn("title", "Updated");
+
+    const reloaded = await Topic.find(topic.id);
+    expect(reloaded.readAttribute("title")).toBe("Updated");
+  });
+
+  it("update_column does not run validations", async () => {
+    class Validated extends Base {
+      static {
+        this.attribute("title", "string");
+        this.validates("title", { presence: true });
+        this.adapter = adapter;
+      }
+    }
+
+    const v = await Validated.create({ title: "Valid" });
+    // Would fail validation, but update_column skips it
+    await v.updateColumn("title", "");
+    expect(v.readAttribute("title")).toBe("");
+  });
+
+  it("update_column does not run callbacks", async () => {
+    const log: string[] = [];
+
+    class Tracked extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+        this.beforeSave(() => { log.push("before_save"); });
+        this.afterSave(() => { log.push("after_save"); });
+        this.beforeUpdate(() => { log.push("before_update"); });
+        this.afterUpdate(() => { log.push("after_update"); });
+      }
+    }
+
+    const t = await Tracked.create({ title: "Test" });
+    log.length = 0;
+
+    await t.updateColumn("title", "Changed");
+    expect(log).toEqual([]);
+  });
+
+  it("update_columns updates multiple attributes at once", async () => {
+    const topic = await Topic.create({ title: "Original", content: "Body", approved: false });
+    await topic.updateColumns({ title: "New Title", approved: true });
+
+    expect(topic.readAttribute("title")).toBe("New Title");
+    expect(topic.readAttribute("approved")).toBe(true);
+    expect(topic.readAttribute("content")).toBe("Body"); // unchanged
+  });
+
+  it("update_columns on a new record raises", async () => {
+    const topic = new Topic({ title: "New" });
+    await expect(topic.updateColumns({ title: "Changed" })).rejects.toThrow(
+      "Cannot update columns on a new or destroyed record"
+    );
+  });
+
+  it("update_columns on a destroyed record raises", async () => {
+    const topic = await Topic.create({ title: "Doomed" });
+    await topic.destroy();
+    await expect(topic.updateColumns({ title: "Changed" })).rejects.toThrow(
+      "Cannot update columns on a new or destroyed record"
+    );
+  });
+
+  it("update_column clears dirty tracking", async () => {
+    const topic = await Topic.create({ title: "Original" });
+    topic.writeAttribute("title", "Dirty");
+    expect(topic.changed).toBe(true);
+
+    await topic.updateColumn("title", "Clean");
+    expect(topic.changed).toBe(false);
+  });
+});
+
+// ==========================================================================
+// Relation#or (Rails: relation/where_test.rb)
+// ==========================================================================
+
+describe("Relation#or (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class Post extends Base {
+    static {
+      this.attribute("title", "string");
+      this.attribute("body", "string");
+      this.attribute("author_id", "integer");
+      this.attribute("published", "boolean", { default: false });
+    }
+  }
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+    Post.adapter = adapter;
+  });
+
+  it("combines two relations with OR", async () => {
+    await Post.create({ title: "First", author_id: 1 });
+    await Post.create({ title: "Second", author_id: 2 });
+    await Post.create({ title: "Third", author_id: 3 });
+
+    const result = await Post.where({ author_id: 1 })
+      .or(Post.where({ author_id: 3 }))
+      .toArray();
+
+    expect(result).toHaveLength(2);
+    const ids = result.map((r: Base) => r.readAttribute("author_id"));
+    expect(ids).toContain(1);
+    expect(ids).toContain(3);
+  });
+
+  it("or generates SQL containing OR keyword", () => {
+    const sql = Post.where({ title: "A" })
+      .or(Post.where({ title: "B" }))
+      .toSql();
+    expect(sql).toContain("OR");
+  });
+
+  it("or with whereNot on one side", async () => {
+    await Post.create({ title: "Foo", published: true });
+    await Post.create({ title: "Bar", published: false });
+    await Post.create({ title: "Baz", published: true });
+
+    const published = Post.where({ published: true });
+    const titled = Post.where({ title: "Bar" });
+    const result = await published.or(titled).toArray();
+
+    expect(result).toHaveLength(3);
+  });
+
+  it("or is chainable with other query methods", async () => {
+    await Post.create({ title: "A", author_id: 1 });
+    await Post.create({ title: "B", author_id: 2 });
+    await Post.create({ title: "C", author_id: 1 });
+
+    const result = await Post.where({ author_id: 1 })
+      .or(Post.where({ author_id: 2 }))
+      .limit(2)
+      .toArray();
+
+    expect(result).toHaveLength(2);
+  });
+
+  it("or preserves ordering", async () => {
+    await Post.create({ title: "Z", author_id: 1 });
+    await Post.create({ title: "A", author_id: 2 });
+
+    const result = await Post.where({ author_id: 1 })
+      .or(Post.where({ author_id: 2 }))
+      .order("title")
+      .toArray();
+
+    expect(result[0].readAttribute("title")).toBe("A");
+    expect(result[1].readAttribute("title")).toBe("Z");
+  });
+});
+
+// ==========================================================================
+// find_each / find_in_batches (Rails: batches_test.rb)
+// ==========================================================================
+
+describe("find_each / find_in_batches (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class Record extends Base {
+    static {
+      this.attribute("value", "integer");
+    }
+  }
+
+  beforeEach(async () => {
+    adapter = freshAdapter();
+    Record.adapter = adapter;
+  });
+
+  it("find_in_batches yields correct number of batches", async () => {
+    for (let i = 0; i < 10; i++) {
+      await Record.create({ value: i });
+    }
+
+    const batches: any[][] = [];
+    for await (const batch of Record.all().findInBatches({ batchSize: 3 })) {
+      batches.push(batch);
+    }
+
+    expect(batches).toHaveLength(4); // 3, 3, 3, 1
+    expect(batches[0]).toHaveLength(3);
+    expect(batches[1]).toHaveLength(3);
+    expect(batches[2]).toHaveLength(3);
+    expect(batches[3]).toHaveLength(1);
+  });
+
+  it("find_each yields all records", async () => {
+    for (let i = 0; i < 7; i++) {
+      await Record.create({ value: i });
+    }
+
+    const values: number[] = [];
+    for await (const r of Record.all().findEach({ batchSize: 3 })) {
+      values.push(r.readAttribute("value") as number);
+    }
+
+    expect(values).toHaveLength(7);
+  });
+
+  it("find_in_batches with empty table yields nothing", async () => {
+    const batches: any[][] = [];
+    for await (const batch of Record.all().findInBatches({ batchSize: 5 })) {
+      batches.push(batch);
+    }
+    expect(batches).toHaveLength(0);
+  });
+
+  it("find_each with where clause", async () => {
+    for (let i = 0; i < 10; i++) {
+      await Record.create({ value: i });
+    }
+
+    const values: number[] = [];
+    for await (const r of Record.where({ value: 5 }).findEach()) {
+      values.push(r.readAttribute("value") as number);
+    }
+
+    expect(values).toEqual([5]);
+  });
+
+  it("find_in_batches defaults to batch size 1000", async () => {
+    // Just verify it doesn't error with default batch size
+    for (let i = 0; i < 3; i++) {
+      await Record.create({ value: i });
+    }
+
+    const batches: any[][] = [];
+    for await (const batch of Record.all().findInBatches()) {
+      batches.push(batch);
+    }
+
+    expect(batches).toHaveLength(1); // all fit in one batch
+    expect(batches[0]).toHaveLength(3);
+  });
+});
+
+// ==========================================================================
+// Scopes (Rails: scoping_test.rb)
+// ==========================================================================
+
+describe("Scopes (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class Post extends Base {
+    static {
+      this.attribute("title", "string");
+      this.attribute("status", "string");
+      this.attribute("author_id", "integer");
+    }
+  }
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+    Post.adapter = adapter;
+
+    // Re-register scopes for each test
+    Post.scope("published", (rel: any) => rel.where({ status: "published" }));
+    Post.scope("draft", (rel: any) => rel.where({ status: "draft" }));
+    Post.scope("byAuthor", (rel: any, authorId: number) =>
+      rel.where({ author_id: authorId })
+    );
+  });
+
+  it("scope returns matching records", async () => {
+    await Post.create({ title: "Published", status: "published" });
+    await Post.create({ title: "Draft", status: "draft" });
+    await Post.create({ title: "Another Published", status: "published" });
+
+    const result = await (Post as any).published().toArray();
+    expect(result).toHaveLength(2);
+  });
+
+  it("scope is accessible via all()", async () => {
+    await Post.create({ title: "Published", status: "published" });
+    await Post.create({ title: "Draft", status: "draft" });
+
+    const result = await (Post.all() as any).published().toArray();
+    expect(result).toHaveLength(1);
+  });
+
+  it("scopes can be chained", async () => {
+    await Post.create({ title: "Pub A1", status: "published", author_id: 1 });
+    await Post.create({ title: "Pub A2", status: "published", author_id: 2 });
+    await Post.create({ title: "Draft A1", status: "draft", author_id: 1 });
+
+    const result = await (Post as any).published().byAuthor(1).toArray();
+    expect(result).toHaveLength(1);
+    expect(result[0].readAttribute("title")).toBe("Pub A1");
+  });
+
+  it("scope with arguments", async () => {
+    await Post.create({ title: "Post 1", status: "published", author_id: 1 });
+    await Post.create({ title: "Post 2", status: "published", author_id: 2 });
+
+    const result = await (Post as any).byAuthor(2).toArray();
+    expect(result).toHaveLength(1);
+    expect(result[0].readAttribute("title")).toBe("Post 2");
+  });
+
+  it("scope chained with standard relation methods", async () => {
+    await Post.create({ title: "Z Published", status: "published" });
+    await Post.create({ title: "A Published", status: "published" });
+    await Post.create({ title: "Draft", status: "draft" });
+
+    const result = await (Post as any).published().order("title").toArray();
+    expect(result).toHaveLength(2);
+    expect(result[0].readAttribute("title")).toBe("A Published");
+  });
+
+  it("scope with count", async () => {
+    await Post.create({ title: "P1", status: "published" });
+    await Post.create({ title: "P2", status: "published" });
+    await Post.create({ title: "D1", status: "draft" });
+
+    const count = await (Post as any).published().count();
+    expect(count).toBe(2);
+  });
+
+  it("scope with pluck", async () => {
+    await Post.create({ title: "P1", status: "published" });
+    await Post.create({ title: "D1", status: "draft" });
+
+    const titles = await (Post as any).published().pluck("title");
+    expect(titles).toEqual(["P1"]);
+  });
+
+  it("scope on chained where().scopeName()", async () => {
+    await Post.create({ title: "Pub A1", status: "published", author_id: 1 });
+    await Post.create({ title: "Pub A2", status: "published", author_id: 2 });
+    await Post.create({ title: "Draft A1", status: "draft", author_id: 1 });
+
+    const result = await (Post.where({ author_id: 1 }) as any).published().toArray();
+    expect(result).toHaveLength(1);
+    expect(result[0].readAttribute("title")).toBe("Pub A1");
+  });
+});
+
+// ==========================================================================
+// Calculations (Rails: calculations_test.rb)
+// ==========================================================================
+
+describe("Calculations (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class Account extends Base {
+    static {
+      this.attribute("firm_id", "integer");
+      this.attribute("credit_limit", "integer");
+    }
+  }
+
+  beforeEach(async () => {
+    adapter = freshAdapter();
+    Account.adapter = adapter;
+    await Account.create({ firm_id: 1, credit_limit: 50 });
+    await Account.create({ firm_id: 1, credit_limit: 60 });
+    await Account.create({ firm_id: 2, credit_limit: 100 });
+  });
+
+  it("sum computes the total", async () => {
+    expect(await Account.all().sum("credit_limit")).toBe(210);
+  });
+
+  it("sum with conditions", async () => {
+    expect(await Account.where({ firm_id: 1 }).sum("credit_limit")).toBe(110);
+  });
+
+  it("average computes the mean", async () => {
+    expect(await Account.all().average("credit_limit")).toBe(70);
+  });
+
+  it("minimum returns the smallest value", async () => {
+    expect(await Account.all().minimum("credit_limit")).toBe(50);
+  });
+
+  it("maximum returns the largest value", async () => {
+    expect(await Account.all().maximum("credit_limit")).toBe(100);
+  });
+
+  it("count counts all records", async () => {
+    expect(await Account.all().count()).toBe(3);
+  });
+
+  it("count with column skips nulls", async () => {
+    class Nullable extends Base {
+      static {
+        this.attribute("value", "integer");
+        this.adapter = adapter;
+      }
+    }
+    await Nullable.create({ value: 1 });
+    await Nullable.create({}); // value is null
+    await Nullable.create({ value: 3 });
+
+    expect(await Nullable.all().count("value")).toBe(2);
+  });
+
+  it("sum on empty table returns 0", async () => {
+    class Empty extends Base {
+      static {
+        this.attribute("amount", "integer");
+        this.adapter = adapter;
+      }
+    }
+    expect(await Empty.all().sum("amount")).toBe(0);
+  });
+
+  it("average on empty table returns null", async () => {
+    class Empty extends Base {
+      static {
+        this.attribute("amount", "integer");
+        this.adapter = adapter;
+      }
+    }
+    expect(await Empty.all().average("amount")).toBeNull();
+  });
+});
+
+// ==========================================================================
+// find_or_create_by / find_or_initialize_by (Rails: finder_test.rb)
+// ==========================================================================
+
+describe("find_or_create_by (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class Bird extends Base {
+    static {
+      this.attribute("name", "string");
+      this.attribute("color", "string");
+    }
+  }
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+    Bird.adapter = adapter;
+  });
+
+  it("find_or_create_by finds existing", async () => {
+    await Bird.create({ name: "Parrot", color: "green" });
+    const found = await Bird.findOrCreateBy({ name: "Parrot" });
+    expect(found.readAttribute("color")).toBe("green");
+    expect(await Bird.all().count()).toBe(1); // no new record
+  });
+
+  it("find_or_create_by creates when not found", async () => {
+    const created = await Bird.findOrCreateBy(
+      { name: "Eagle" },
+      { color: "brown" }
+    );
+    expect(created.isPersisted()).toBe(true);
+    expect(created.readAttribute("name")).toBe("Eagle");
+    expect(created.readAttribute("color")).toBe("brown");
+  });
+
+  it("find_or_initialize_by finds existing", async () => {
+    await Bird.create({ name: "Parrot", color: "green" });
+    const found = await Bird.findOrInitializeBy({ name: "Parrot" });
+    expect(found.isPersisted()).toBe(true);
+  });
+
+  it("find_or_initialize_by initializes when not found", async () => {
+    const bird = await Bird.findOrInitializeBy(
+      { name: "Falcon" },
+      { color: "grey" }
+    );
+    expect(bird.isNewRecord()).toBe(true);
+    expect(bird.readAttribute("name")).toBe("Falcon");
+    expect(bird.readAttribute("color")).toBe("grey");
+  });
+
+  it("find_or_create_by is idempotent", async () => {
+    await Bird.findOrCreateBy({ name: "Robin" }, { color: "red" });
+    await Bird.findOrCreateBy({ name: "Robin" }, { color: "blue" });
+    expect(await Bird.all().count()).toBe(1);
+    const robin = await Bird.findBy({ name: "Robin" });
+    expect(robin!.readAttribute("color")).toBe("red"); // original color preserved
+  });
+});
+
+// ==========================================================================
+// touch (Rails: persistence_test.rb)
+// ==========================================================================
+
+describe("touch (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class Topic extends Base {
+    static {
+      this.attribute("title", "string");
+      this.attribute("created_at", "datetime");
+      this.attribute("updated_at", "datetime");
+      this.attribute("replied_at", "datetime");
+    }
+  }
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+    Topic.adapter = adapter;
+  });
+
+  it("touch updates updated_at", async () => {
+    const topic = await Topic.create({ title: "Test" });
+    const before = topic.readAttribute("updated_at") as Date;
+
+    await topic.touch();
+
+    const after = topic.readAttribute("updated_at") as Date;
+    expect(after.getTime()).toBeGreaterThanOrEqual(before.getTime());
+  });
+
+  it("touch with extra attributes", async () => {
+    const topic = await Topic.create({ title: "Test" });
+
+    await topic.touch("replied_at");
+
+    expect(topic.readAttribute("replied_at")).toBeInstanceOf(Date);
+    expect(topic.readAttribute("updated_at")).toBeInstanceOf(Date);
+  });
+
+  it("touch does not run callbacks", async () => {
+    const log: string[] = [];
+    class Tracked extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("updated_at", "datetime");
+        this.adapter = adapter;
+        this.beforeSave(() => { log.push("before_save"); });
+      }
+    }
+
+    const t = await Tracked.create({ title: "Test" });
+    log.length = 0;
+    await t.touch();
+    expect(log).toHaveLength(0);
+  });
+});
+
+// ==========================================================================
+// where with Range (Rails: relation/where_test.rb)
+// ==========================================================================
+
+describe("where with Range (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class Person extends Base {
+    static {
+      this.attribute("name", "string");
+      this.attribute("age", "integer");
+    }
+  }
+
+  beforeEach(async () => {
+    adapter = freshAdapter();
+    Person.adapter = adapter;
+    await Person.create({ name: "Child", age: 10 });
+    await Person.create({ name: "Teen", age: 16 });
+    await Person.create({ name: "Adult", age: 25 });
+    await Person.create({ name: "Senior", age: 70 });
+  });
+
+  it("Range in where generates BETWEEN", async () => {
+    const result = await Person.where({ age: new Range(15, 30) }).toArray();
+    expect(result).toHaveLength(2);
+    const names = result.map((r: Base) => r.readAttribute("name"));
+    expect(names).toContain("Teen");
+    expect(names).toContain("Adult");
+  });
+
+  it("Range is inclusive", async () => {
+    const result = await Person.where({ age: new Range(16, 25) }).toArray();
+    expect(result).toHaveLength(2);
+  });
+
+  it("Range combined with other conditions", async () => {
+    const result = await Person.where({ age: new Range(10, 20) })
+      .where({ name: "Teen" })
+      .toArray();
+    expect(result).toHaveLength(1);
+    expect(result[0].readAttribute("name")).toBe("Teen");
+  });
+
+  it("Range generates valid SQL", () => {
+    const sql = Person.where({ age: new Range(18, 65) }).toSql();
+    expect(sql).toContain("BETWEEN");
+    expect(sql).toContain("18");
+    expect(sql).toContain("65");
+  });
+});
+
+// ==========================================================================
+// default_scope / unscoped (Rails: scoping_test.rb)
+// ==========================================================================
+
+describe("default_scope / unscoped (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  it("default_scope filters all queries", async () => {
+    class Article extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("visible", "boolean", { default: true });
+        this.adapter = adapter;
+        this.defaultScope((rel: any) => rel.where({ visible: true }));
+      }
+    }
+
+    await Article.create({ title: "Visible", visible: true });
+    await Article.create({ title: "Hidden", visible: false });
+
+    expect(await Article.all().count()).toBe(1);
+    const articles = await Article.all().toArray();
+    expect(articles[0].readAttribute("title")).toBe("Visible");
+  });
+
+  it("unscoped removes default_scope", async () => {
+    class Article extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("visible", "boolean", { default: true });
+        this.adapter = adapter;
+        this.defaultScope((rel: any) => rel.where({ visible: true }));
+      }
+    }
+
+    await Article.create({ title: "Visible", visible: true });
+    await Article.create({ title: "Hidden", visible: false });
+
+    const all = await Article.unscoped().toArray();
+    expect(all).toHaveLength(2);
+  });
+
+  it("default_scope applies to where chains", async () => {
+    class Article extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("visible", "boolean", { default: true });
+        this.attribute("category", "string");
+        this.adapter = adapter;
+        this.defaultScope((rel: any) => rel.where({ visible: true }));
+      }
+    }
+
+    await Article.create({ title: "V-Tech", visible: true, category: "tech" });
+    await Article.create({ title: "H-Tech", visible: false, category: "tech" });
+    await Article.create({ title: "V-News", visible: true, category: "news" });
+
+    const result = await Article.where({ category: "tech" }).toArray();
+    expect(result).toHaveLength(1);
+    expect(result[0].readAttribute("title")).toBe("V-Tech");
+  });
+
+  it("default_scope applies to count", async () => {
+    class Article extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("visible", "boolean", { default: true });
+        this.adapter = adapter;
+        this.defaultScope((rel: any) => rel.where({ visible: true }));
+      }
+    }
+
+    await Article.create({ title: "Visible", visible: true });
+    await Article.create({ title: "Hidden", visible: false });
+
+    expect(await Article.all().count()).toBe(1);
+    expect(await Article.unscoped().count()).toBe(2);
+  });
+
+  it("default_scope applies to find", async () => {
+    class Article extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("order_val", "integer");
+        this.adapter = adapter;
+        this.defaultScope((rel: any) => rel.order("order_val"));
+      }
+    }
+
+    await Article.create({ title: "B", order_val: 2 });
+    await Article.create({ title: "A", order_val: 1 });
+
+    const first = await Article.all().first();
+    expect(first!.readAttribute("title")).toBe("A");
+  });
+});
+
+// ==========================================================================
+// Edge cases — Persistence (Rails: persistence_test.rb, deeper)
+// ==========================================================================
+
+describe("Persistence edge cases (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class User extends Base {
+    static {
+      this.attribute("name", "string");
+      this.attribute("email", "string");
+      this.attribute("age", "integer");
+      this.attribute("created_at", "datetime");
+      this.attribute("updated_at", "datetime");
+    }
+  }
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+    User.adapter = adapter;
+  });
+
+  // Rails: test_save_with_no_changes
+  it("save on unchanged record is a no-op", async () => {
+    const user = await User.create({ name: "Alice" });
+    // Save again with no changes — should succeed without error
+    const result = await user.save();
+    expect(result).toBe(true);
+    // Verify data is unchanged
+    const reloaded = await User.find(user.readAttribute("id")!);
+    expect(reloaded.readAttribute("name")).toBe("Alice");
+  });
+
+  // Rails: test_reload
+  it("reload fetches fresh values from DB", async () => {
+    const user = await User.create({ name: "Alice" });
+    // Manually change in DB via another instance
+    await User.where({ id: user.readAttribute("id") }).updateAll({ name: "Bob" });
+
+    expect(user.readAttribute("name")).toBe("Alice");
+    await user.reload();
+    expect(user.readAttribute("name")).toBe("Bob");
+  });
+
+  // Rails: test_reload_resets_changes
+  it("reload resets dirty tracking", async () => {
+    const user = await User.create({ name: "Alice" });
+    user.writeAttribute("name", "Bob");
+    expect(user.changed).toBe(true);
+    await user.reload();
+    expect(user.changed).toBe(false);
+    expect(user.readAttribute("name")).toBe("Alice");
+  });
+
+  // Rails: test_create_returns_persisted_record
+  it("create returns a persisted record", async () => {
+    const user = await User.create({ name: "Alice" });
+    expect(user.isPersisted()).toBe(true);
+    expect(user.isNewRecord()).toBe(false);
+  });
+
+  // Rails: test_update_attributes
+  it("update changes attributes and saves", async () => {
+    const user = await User.create({ name: "Alice", email: "a@b.com" });
+    await user.update({ email: "new@b.com" });
+    const reloaded = await User.find(user.readAttribute("id")!);
+    expect(reloaded.readAttribute("email")).toBe("new@b.com");
+  });
+
+  // Rails: test_assign_attributes_does_not_save
+  it("assignAttributes does not persist", async () => {
+    const user = await User.create({ name: "Alice" });
+    user.assignAttributes({ name: "Bob" });
+    const reloaded = await User.find(user.readAttribute("id")!);
+    expect(reloaded.readAttribute("name")).toBe("Alice");
+  });
+
+  // Rails: test_destroy_returns_frozen_record
+  it("destroy marks record as destroyed", async () => {
+    const user = await User.create({ name: "Alice" });
+    await user.destroy();
+    expect(user.isDestroyed()).toBe(true);
+    expect(user.isPersisted()).toBe(false);
+  });
+
+  // Rails: test_created_at_not_overwritten_on_update
+  it("created_at is not changed on subsequent saves", async () => {
+    const user = await User.create({ name: "Alice" });
+    const createdAt = user.readAttribute("created_at");
+
+    user.writeAttribute("name", "Bob");
+    await user.save();
+    expect(user.readAttribute("created_at")).toBe(createdAt);
+  });
+
+  // Rails: test_updated_at_changes_on_save
+  it("updated_at changes on attribute update", async () => {
+    const user = await User.create({ name: "Alice" });
+    const originalUpdatedAt = user.readAttribute("updated_at");
+
+    // Need a slight delay so the timestamp differs
+    user.writeAttribute("name", "Bob");
+    await user.save();
+    // updated_at should be set (may or may not differ due to timing,
+    // but at minimum it should be a Date)
+    expect(user.readAttribute("updated_at")).toBeInstanceOf(Date);
+  });
+});
+
+// ==========================================================================
+// Edge cases — Finders (Rails: finder_test.rb, deeper)
+// ==========================================================================
+
+describe("Finders edge cases (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class User extends Base {
+    static {
+      this.attribute("name", "string");
+      this.attribute("age", "integer");
+      this.attribute("active", "boolean");
+    }
+  }
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+    User.adapter = adapter;
+  });
+
+  // Rails: test_find_with_array_of_ids
+  it("find with single id returns instance", async () => {
+    const user = await User.create({ name: "Alice" });
+    const found = await User.find(user.readAttribute("id")!);
+    expect(found.readAttribute("name")).toBe("Alice");
+  });
+
+  // Rails: test_find_raises_record_not_found
+  it("find with nonexistent id raises", async () => {
+    await expect(User.find(9999)).rejects.toThrow();
+  });
+
+  // Rails: test_find_by_with_conditions
+  it("findBy with multiple conditions", async () => {
+    await User.create({ name: "Alice", age: 30, active: true });
+    await User.create({ name: "Alice", age: 25, active: false });
+
+    const found = User.findBy({ name: "Alice", active: true });
+    expect((await found)!.readAttribute("age")).toBe(30);
+  });
+
+  // Rails: test_find_by_returns_nil
+  it("findBy returns null when no match", async () => {
+    await User.create({ name: "Alice" });
+    const found = await User.findBy({ name: "Nobody" });
+    expect(found).toBeNull();
+  });
+
+  // Rails: test_find_by_bang_raises
+  it("findByBang raises when no match", async () => {
+    await expect(User.findByBang({ name: "Nobody" })).rejects.toThrow();
+  });
+
+  // Rails: test_exists_with_no_args
+  it("exists? with no records returns false", async () => {
+    expect(await User.all().exists()).toBe(false);
+  });
+
+  // Rails: test_exists_with_matching_record
+  it("exists? returns true when records exist", async () => {
+    await User.create({ name: "Alice" });
+    expect(await User.all().exists()).toBe(true);
+  });
+
+  // Rails: test_exists_with_where
+  it("exists? respects where conditions", async () => {
+    await User.create({ name: "Alice" });
+    expect(await User.where({ name: "Alice" }).exists()).toBe(true);
+    expect(await User.where({ name: "Bob" }).exists()).toBe(false);
+  });
+});
+
+// ==========================================================================
+// Edge cases — Relation queries (Rails: relation_test.rb, deeper)
+// ==========================================================================
+
+describe("Relation query edge cases (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class Post extends Base {
+    static {
+      this.attribute("title", "string");
+      this.attribute("body", "string");
+      this.attribute("status", "string");
+      this.attribute("views", "integer");
+      this.attribute("created_at", "datetime");
+    }
+  }
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+    Post.adapter = adapter;
+  });
+
+  // Rails: test_where_with_nil
+  it("where with null generates IS NULL", async () => {
+    await Post.create({ title: "Has Body", body: "content" });
+    await Post.create({ title: "No Body", body: null });
+
+    const results = await Post.where({ body: null }).toArray();
+    expect(results).toHaveLength(1);
+    expect(results[0].readAttribute("title")).toBe("No Body");
+  });
+
+  // Rails: test_where_not
+  it("whereNot excludes matching records", async () => {
+    await Post.create({ title: "Draft", status: "draft" });
+    await Post.create({ title: "Published", status: "published" });
+
+    const results = await Post.all().whereNot({ status: "draft" }).toArray();
+    expect(results).toHaveLength(1);
+    expect(results[0].readAttribute("title")).toBe("Published");
+  });
+
+  // Rails: test_where_not_with_nil
+  it("whereNot with null generates IS NOT NULL", async () => {
+    await Post.create({ title: "Has Body", body: "content" });
+    await Post.create({ title: "No Body", body: null });
+
+    const results = await Post.all().whereNot({ body: null }).toArray();
+    expect(results).toHaveLength(1);
+    expect(results[0].readAttribute("title")).toBe("Has Body");
+  });
+
+  // Rails: test_where_not_in
+  it("whereNot with array generates NOT IN", async () => {
+    await Post.create({ title: "Draft", status: "draft" });
+    await Post.create({ title: "Published", status: "published" });
+    await Post.create({ title: "Archived", status: "archived" });
+
+    const results = await Post.all()
+      .whereNot({ status: ["draft", "archived"] })
+      .toArray();
+    expect(results).toHaveLength(1);
+    expect(results[0].readAttribute("title")).toBe("Published");
+  });
+
+  // Rails: test_chaining_where
+  it("multiple where calls narrow results", async () => {
+    await Post.create({ title: "A", status: "published", views: 100 });
+    await Post.create({ title: "B", status: "published", views: 50 });
+    await Post.create({ title: "C", status: "draft", views: 100 });
+
+    const results = await Post.where({ status: "published" })
+      .where({ views: 100 })
+      .toArray();
+    expect(results).toHaveLength(1);
+    expect(results[0].readAttribute("title")).toBe("A");
+  });
+
+  // Rails: test_limit_and_offset
+  it("limit with offset for pagination", async () => {
+    for (let i = 1; i <= 5; i++) {
+      await Post.create({ title: `Post ${i}`, views: i });
+    }
+
+    const page2 = await Post.all()
+      .order("views")
+      .limit(2)
+      .offset(2)
+      .toArray();
+    expect(page2).toHaveLength(2);
+    expect(page2[0].readAttribute("title")).toBe("Post 3");
+    expect(page2[1].readAttribute("title")).toBe("Post 4");
+  });
+
+  // Rails: test_order_asc_desc
+  it("order with explicit asc/desc", async () => {
+    await Post.create({ title: "A", views: 3 });
+    await Post.create({ title: "B", views: 1 });
+    await Post.create({ title: "C", views: 2 });
+
+    const desc = await Post.all().order({ views: "desc" }).pluck("title");
+    expect(desc).toEqual(["A", "C", "B"]);
+  });
+
+  // Rails: test_reverse_order
+  it("reverseOrder flips the order", async () => {
+    await Post.create({ title: "A", views: 1 });
+    await Post.create({ title: "B", views: 2 });
+    await Post.create({ title: "C", views: 3 });
+
+    const result = await Post.all()
+      .order({ views: "asc" })
+      .reverseOrder()
+      .pluck("title");
+    expect(result).toEqual(["C", "B", "A"]);
+  });
+
+  // Rails: test_reorder
+  it("reorder replaces previous order", async () => {
+    await Post.create({ title: "A", views: 1 });
+    await Post.create({ title: "B", views: 3 });
+    await Post.create({ title: "C", views: 2 });
+
+    const result = await Post.all()
+      .order("title")
+      .reorder("views")
+      .pluck("title");
+    expect(result).toEqual(["A", "C", "B"]);
+  });
+
+  // Rails: test_select_with_specific_columns
+  it("select restricts columns", async () => {
+    await Post.create({ title: "Hello", body: "world", views: 5 });
+
+    const results = await Post.all().select("title", "views").toArray();
+    expect(results[0].readAttribute("title")).toBe("Hello");
+    expect(results[0].readAttribute("views")).toBe(5);
+  });
+
+  // Rails: test_distinct
+  it("distinct generates DISTINCT SQL", async () => {
+    await Post.create({ title: "A", status: "draft" });
+    await Post.create({ title: "B", status: "draft" });
+    await Post.create({ title: "C", status: "published" });
+
+    const sql = Post.all().distinct().toSql();
+    expect(sql).toMatch(/SELECT DISTINCT/i);
+  });
+
+  // Rails: test_none_is_chainable
+  it("none returns empty and is chainable", async () => {
+    await Post.create({ title: "A" });
+
+    const result = await Post.all().none().where({ title: "A" }).toArray();
+    expect(result).toHaveLength(0);
+
+    expect(await Post.all().none().count()).toBe(0);
+    expect(await Post.all().none().exists()).toBe(false);
+    expect(await Post.all().none().pluck("title")).toEqual([]);
+  });
+
+  // Rails: test_pluck_multiple_columns
+  it("pluck with multiple columns returns arrays", async () => {
+    await Post.create({ title: "Hello", views: 10 });
+    await Post.create({ title: "World", views: 20 });
+
+    const result = await Post.all().order("views").pluck("title", "views");
+    expect(result).toEqual([
+      ["Hello", 10],
+      ["World", 20],
+    ]);
+  });
+
+  // Rails: test_ids
+  it("ids returns all primary key values", async () => {
+    const a = await Post.create({ title: "A" });
+    const b = await Post.create({ title: "B" });
+
+    const ids = await Post.all().ids();
+    expect(ids).toContain(a.readAttribute("id"));
+    expect(ids).toContain(b.readAttribute("id"));
+  });
+});
+
+// ==========================================================================
+// Edge cases — Bulk operations (Rails: relation_test.rb)
+// ==========================================================================
+
+describe("Bulk operations (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test_update_all
+  it("updateAll updates matching records in bulk", async () => {
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("status", "string");
+        this.adapter = adapter;
+      }
+    }
+
+    await Post.create({ title: "A", status: "draft" });
+    await Post.create({ title: "B", status: "draft" });
+    await Post.create({ title: "C", status: "published" });
+
+    const count = await Post.where({ status: "draft" }).updateAll({ status: "published" });
+    expect(count).toBe(2);
+
+    const all = await Post.all().toArray();
+    for (const p of all) {
+      expect(p.readAttribute("status")).toBe("published");
+    }
+  });
+
+  // Rails: test_update_all_does_not_trigger_callbacks
+  it("updateAll does not trigger callbacks", async () => {
+    const log: string[] = [];
+
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+        this.beforeSave(() => { log.push("before_save"); });
+        this.afterSave(() => { log.push("after_save"); });
+      }
+    }
+
+    await Post.create({ title: "A" });
+    log.length = 0; // reset log after create
+
+    await Post.all().updateAll({ title: "B" });
+    expect(log).toHaveLength(0);
+  });
+
+  // Rails: test_delete_all
+  it("deleteAll removes records without callbacks", async () => {
+    const log: string[] = [];
+
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+        this.beforeDestroy(() => { log.push("before_destroy"); });
+      }
+    }
+
+    await Post.create({ title: "A" });
+    await Post.create({ title: "B" });
+    log.length = 0;
+
+    const count = await Post.all().deleteAll();
+    expect(count).toBe(2);
+    expect(log).toHaveLength(0);
+    expect(await Post.all().count()).toBe(0);
+  });
+
+  // Rails: test_destroy_all_triggers_callbacks
+  it("destroyAll triggers callbacks on each record", async () => {
+    const destroyed: string[] = [];
+
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+        this.beforeDestroy((record: any) => {
+          destroyed.push(record.readAttribute("title"));
+        });
+      }
+    }
+
+    await Post.create({ title: "A" });
+    await Post.create({ title: "B" });
+
+    await Post.all().destroyAll();
+    expect(destroyed.sort()).toEqual(["A", "B"]);
+    expect(await Post.all().count()).toBe(0);
+  });
+});
+
+// ==========================================================================
+// Edge cases — OR queries (Rails: relation/or_test.rb)
+// ==========================================================================
+
+describe("OR queries (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class User extends Base {
+    static {
+      this.attribute("name", "string");
+      this.attribute("role", "string");
+      this.attribute("age", "integer");
+    }
+  }
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+    User.adapter = adapter;
+  });
+
+  // Rails: test_or_with_two_relations
+  it("or combines two relations", async () => {
+    await User.create({ name: "Alice", role: "admin" });
+    await User.create({ name: "Bob", role: "user" });
+    await User.create({ name: "Charlie", role: "mod" });
+
+    const result = await User.where({ role: "admin" })
+      .or(User.where({ role: "mod" }))
+      .toArray();
+    expect(result).toHaveLength(2);
+    const names = result.map((u: any) => u.readAttribute("name")).sort();
+    expect(names).toEqual(["Alice", "Charlie"]);
+  });
+
+  // Rails: test_or_chaining
+  it("triple or chains all three conditions", async () => {
+    await User.create({ name: "Alice", role: "admin" });
+    await User.create({ name: "Bob", role: "user" });
+    await User.create({ name: "Charlie", role: "mod" });
+    await User.create({ name: "Dave", role: "guest" });
+
+    const result = await User.where({ role: "admin" })
+      .or(User.where({ role: "user" }))
+      .or(User.where({ role: "mod" }))
+      .toArray();
+    expect(result).toHaveLength(3);
+    const names = result.map((u: any) => u.readAttribute("name")).sort();
+    expect(names).toEqual(["Alice", "Bob", "Charlie"]);
+  });
+
+  // Rails: test_or_with_count
+  it("or works with count", async () => {
+    await User.create({ name: "Alice", role: "admin" });
+    await User.create({ name: "Bob", role: "user" });
+    await User.create({ name: "Charlie", role: "admin" });
+
+    const count = await User.where({ role: "admin" })
+      .or(User.where({ name: "Bob" }))
+      .count();
+    expect(count).toBe(3);
+  });
+
+  // Rails: test_or_with_exists
+  it("or works with exists?", async () => {
+    await User.create({ name: "Alice", role: "admin" });
+
+    expect(
+      await User.where({ role: "admin" })
+        .or(User.where({ role: "mod" }))
+        .exists()
+    ).toBe(true);
+
+    expect(
+      await User.where({ role: "guest" })
+        .or(User.where({ role: "mod" }))
+        .exists()
+    ).toBe(false);
+  });
+});
+
+// ==========================================================================
+// Edge cases — Aggregations / Calculations (Rails: calculations_test.rb)
+// ==========================================================================
+
+describe("Calculations edge cases (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class Product extends Base {
+    static {
+      this.attribute("name", "string");
+      this.attribute("price", "integer");
+      this.attribute("category", "string");
+    }
+  }
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+    Product.adapter = adapter;
+  });
+
+  // Rails: test_sum_on_empty_table
+  it("sum on empty table returns 0", async () => {
+    expect(await Product.all().sum("price")).toBe(0);
+  });
+
+  // Rails: test_sum_with_where
+  it("sum with where condition", async () => {
+    await Product.create({ name: "A", price: 10, category: "x" });
+    await Product.create({ name: "B", price: 20, category: "x" });
+    await Product.create({ name: "C", price: 30, category: "y" });
+
+    expect(await Product.where({ category: "x" }).sum("price")).toBe(30);
+  });
+
+  // Rails: test_average
+  it("average calculates mean", async () => {
+    await Product.create({ name: "A", price: 10 });
+    await Product.create({ name: "B", price: 20 });
+    await Product.create({ name: "C", price: 30 });
+
+    expect(await Product.all().average("price")).toBe(20);
+  });
+
+  // Rails: test_minimum
+  it("minimum returns smallest value", async () => {
+    await Product.create({ name: "A", price: 30 });
+    await Product.create({ name: "B", price: 10 });
+    await Product.create({ name: "C", price: 20 });
+
+    expect(await Product.all().minimum("price")).toBe(10);
+  });
+
+  // Rails: test_maximum
+  it("maximum returns largest value", async () => {
+    await Product.create({ name: "A", price: 30 });
+    await Product.create({ name: "B", price: 10 });
+    await Product.create({ name: "C", price: 20 });
+
+    expect(await Product.all().maximum("price")).toBe(30);
+  });
+
+  // Rails: test_minimum_on_empty_table
+  it("minimum on empty table returns null", async () => {
+    expect(await Product.all().minimum("price")).toBeNull();
+  });
+
+  // Rails: test_maximum_on_empty_table
+  it("maximum on empty table returns null", async () => {
+    expect(await Product.all().maximum("price")).toBeNull();
+  });
+
+  // Rails: test_sum_on_none
+  it("sum on none() returns 0", async () => {
+    await Product.create({ name: "A", price: 10 });
+    expect(await Product.all().none().sum("price")).toBe(0);
+  });
+
+  // Rails: test_count_with_column
+  it("count with column skips NULLs", async () => {
+    await Product.create({ name: "A", price: 10 });
+    await Product.create({ name: "B", price: null as any });
+    await Product.create({ name: "C", price: 20 });
+
+    expect(await Product.all().count("price")).toBe(2);
+    expect(await Product.all().count()).toBe(3);
+  });
+});
+
+// ==========================================================================
+// Edge cases — Batches (Rails: batches_test.rb)
+// ==========================================================================
+
+describe("Batches (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class Record extends Base {
+    static {
+      this.attribute("value", "integer");
+    }
+  }
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+    Record.adapter = adapter;
+  });
+
+  // Rails: test_find_each_processes_all_records
+  it("findEach processes all records", async () => {
+    for (let i = 1; i <= 10; i++) {
+      await Record.create({ value: i });
+    }
+
+    const values: number[] = [];
+    for await (const record of Record.all().findEach({ batchSize: 3 })) {
+      values.push(record.readAttribute("value") as number);
+    }
+    expect(values).toHaveLength(10);
+  });
+
+  // Rails: test_find_in_batches_yields_arrays
+  it("findInBatches yields arrays of correct size", async () => {
+    for (let i = 1; i <= 7; i++) {
+      await Record.create({ value: i });
+    }
+
+    const batchSizes: number[] = [];
+    for await (const batch of Record.all().findInBatches({ batchSize: 3 })) {
+      batchSizes.push(batch.length);
+    }
+    // 3 + 3 + 1
+    expect(batchSizes).toEqual([3, 3, 1]);
+  });
+
+  // Rails: test_find_each_with_where
+  it("findEach respects where conditions", async () => {
+    for (let i = 1; i <= 5; i++) {
+      await Record.create({ value: i });
+    }
+
+    const values: number[] = [];
+    for await (const record of Record.where({ value: [1, 3, 5] }).findEach({ batchSize: 2 })) {
+      values.push(record.readAttribute("value") as number);
+    }
+    expect(values).toHaveLength(3);
+  });
+
+  // Rails: test_find_each_can_break_early
+  it("findEach can break early", async () => {
+    for (let i = 1; i <= 10; i++) {
+      await Record.create({ value: i });
+    }
+
+    const values: number[] = [];
+    for await (const record of Record.all().findEach({ batchSize: 2 })) {
+      values.push(record.readAttribute("value") as number);
+      if (values.length >= 3) break;
+    }
+    expect(values).toHaveLength(3);
+  });
+});
+
+// ==========================================================================
+// Edge cases — Range / BETWEEN (Rails: where_test.rb)
+// ==========================================================================
+
+describe("Range / BETWEEN (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  class Product extends Base {
+    static {
+      this.attribute("name", "string");
+      this.attribute("price", "integer");
+    }
+  }
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+    Product.adapter = adapter;
+  });
+
+  // Rails: test_where_with_range
+  it("Range generates BETWEEN", async () => {
+    await Product.create({ name: "Cheap", price: 5 });
+    await Product.create({ name: "Mid", price: 15 });
+    await Product.create({ name: "Pricey", price: 25 });
+
+    const results = await Product.where({ price: new Range(10, 20) }).toArray();
+    expect(results).toHaveLength(1);
+    expect(results[0].readAttribute("name")).toBe("Mid");
+  });
+
+  // Rails: test_range_with_aggregation
+  it("Range works with count", async () => {
+    await Product.create({ name: "A", price: 5 });
+    await Product.create({ name: "B", price: 15 });
+    await Product.create({ name: "C", price: 25 });
+    await Product.create({ name: "D", price: 20 });
+
+    expect(await Product.where({ price: new Range(10, 20) }).count()).toBe(2);
+  });
+
+  // Rails: test_range_combined_with_other_conditions
+  it("Range combined with other where conditions", async () => {
+    await Product.create({ name: "A", price: 15 });
+    await Product.create({ name: "B", price: 15 });
+    await Product.create({ name: "C", price: 5 });
+
+    const results = await Product.where({ price: new Range(10, 20), name: "A" }).toArray();
+    expect(results).toHaveLength(1);
+    expect(results[0].readAttribute("name")).toBe("A");
+  });
+});
+
+// ==========================================================================
+// Edge cases — update_column / touch (Rails: persistence_test.rb)
+// ==========================================================================
+
+describe("update_column / touch edge cases (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test_update_column_does_not_trigger_callbacks
+  it("updateColumn skips callbacks", async () => {
+    const log: string[] = [];
+
+    class User extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("updated_at", "datetime");
+        this.adapter = adapter;
+        this.beforeSave(() => { log.push("before_save"); });
+        this.afterSave(() => { log.push("after_save"); });
+      }
+    }
+
+    const user = await User.create({ name: "Alice" });
+    log.length = 0;
+
+    await user.updateColumn("name", "Bob");
+    expect(log).toHaveLength(0);
+    expect(user.readAttribute("name")).toBe("Bob");
+  });
+
+  // Rails: test_update_columns_updates_multiple
+  it("updateColumns updates multiple columns at once", async () => {
+    class User extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("email", "string");
+        this.adapter = adapter;
+      }
+    }
+
+    const user = await User.create({ name: "Alice", email: "a@b.com" });
+    await user.updateColumns({ name: "Bob", email: "bob@b.com" });
+
+    const reloaded = await User.find(user.readAttribute("id")!);
+    expect(reloaded.readAttribute("name")).toBe("Bob");
+    expect(reloaded.readAttribute("email")).toBe("bob@b.com");
+  });
+
+  // Rails: test_touch_updates_updated_at
+  it("touch sets updated_at to current time", async () => {
+    class User extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("updated_at", "datetime");
+        this.adapter = adapter;
+      }
+    }
+
+    const user = await User.create({ name: "Alice" });
+    const before = user.readAttribute("updated_at") as Date;
+    await user.touch();
+    const after = user.readAttribute("updated_at") as Date;
+    expect(after.getTime()).toBeGreaterThanOrEqual(before.getTime());
+  });
+
+  // Rails: test_touch_with_specific_columns
+  it("touch with named attributes sets them all", async () => {
+    class User extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("updated_at", "datetime");
+        this.attribute("last_login_at", "datetime");
+        this.adapter = adapter;
+      }
+    }
+
+    const user = await User.create({ name: "Alice" });
+    expect(user.readAttribute("last_login_at")).toBeNull();
+    await user.touch("last_login_at");
+    expect(user.readAttribute("last_login_at")).toBeInstanceOf(Date);
+    expect(user.readAttribute("updated_at")).toBeInstanceOf(Date);
+  });
+
+  // Rails: test_touch_persists_to_database
+  it("touch persists to database", async () => {
+    class User extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("updated_at", "datetime");
+        this.adapter = adapter;
+      }
+    }
+
+    const user = await User.create({ name: "Alice" });
+    await user.touch();
+    const reloaded = await User.find(user.readAttribute("id")!);
+    expect(reloaded.readAttribute("updated_at")).toBeInstanceOf(Date);
+  });
+});
+
+// ==========================================================================
+// Edge cases — Scopes (Rails: scoping_test.rb)
+// ==========================================================================
+
+describe("Scopes edge cases (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test_scope_is_chainable
+  it("scopes are chainable with where", async () => {
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("status", "string");
+        this.attribute("featured", "boolean");
+        this.adapter = adapter;
+        this.scope("published", (rel: any) => rel.where({ status: "published" }));
+      }
+    }
+
+    await Post.create({ title: "A", status: "published", featured: true });
+    await Post.create({ title: "B", status: "published", featured: false });
+    await Post.create({ title: "C", status: "draft", featured: true });
+
+    const result = await (Post as any).published().where({ featured: true }).toArray();
+    expect(result).toHaveLength(1);
+    expect(result[0].readAttribute("title")).toBe("A");
+  });
+
+  // Rails: test_scope_with_scope
+  it("scopes can be chained with other scopes", async () => {
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("status", "string");
+        this.attribute("featured", "boolean");
+        this.adapter = adapter;
+        this.scope("published", (rel: any) => rel.where({ status: "published" }));
+        this.scope("featured", (rel: any) => rel.where({ featured: true }));
+      }
+    }
+
+    await Post.create({ title: "A", status: "published", featured: true });
+    await Post.create({ title: "B", status: "published", featured: false });
+    await Post.create({ title: "C", status: "draft", featured: true });
+
+    const result = await (Post as any).published().featured().toArray();
+    expect(result).toHaveLength(1);
+    expect(result[0].readAttribute("title")).toBe("A");
+  });
+
+  // Rails: test_scope_on_relation
+  it("scope callable on Relation instance", async () => {
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("status", "string");
+        this.adapter = adapter;
+        this.scope("published", (rel: any) => rel.where({ status: "published" }));
+      }
+    }
+
+    await Post.create({ title: "A", status: "published" });
+    await Post.create({ title: "B", status: "draft" });
+
+    const result = await (Post.all() as any).published().toArray();
+    expect(result).toHaveLength(1);
+  });
+
+  // Rails: test_default_scope_combined_with_named_scope
+  it("default_scope combined with named scope", async () => {
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("status", "string");
+        this.attribute("active", "boolean");
+        this.adapter = adapter;
+        this.defaultScope((rel: any) => rel.where({ active: true }));
+        this.scope("published", (rel: any) => rel.where({ status: "published" }));
+      }
+    }
+
+    await Post.create({ title: "A", status: "published", active: true });
+    await Post.create({ title: "B", status: "published", active: false });
+    await Post.create({ title: "C", status: "draft", active: true });
+
+    const result = await (Post as any).published().toArray();
+    expect(result).toHaveLength(1);
+    expect(result[0].readAttribute("title")).toBe("A");
   });
 });

@@ -1,6 +1,22 @@
-import { Table, SelectManager, Visitors } from "@rails-js/arel";
+import { Table, SelectManager, Visitors, Nodes } from "@rails-js/arel";
 import type { Base } from "./base.js";
-import { _setRelationCtor } from "./base.js";
+import { _setRelationCtor, _setScopeProxyWrapper } from "./base.js";
+
+/**
+ * Range — represents a BETWEEN range for where clauses.
+ *
+ * Usage: User.where({ age: new Range(18, 30) })
+ * Generates: WHERE age BETWEEN 18 AND 30
+ */
+export class Range {
+  readonly begin: unknown;
+  readonly end: unknown;
+
+  constructor(begin: unknown, end: unknown) {
+    this.begin = begin;
+    this.end = end;
+  }
+}
 
 /**
  * Relation — the lazy, chainable query interface.
@@ -17,6 +33,8 @@ export class Relation<T extends Base> {
   private _selectColumns: string[] | null = null;
   private _isDistinct = false;
   private _groupColumns: string[] = [];
+  private _orRelations: Relation<T>[] = [];
+  private _havingClauses: string[] = [];
   private _isNone = false;
   private _loaded = false;
   private _records: T[] = [];
@@ -44,6 +62,17 @@ export class Relation<T extends Base> {
   whereNot(conditions: Record<string, unknown>): Relation<T> {
     const rel = this._clone();
     rel._whereNotClauses.push(conditions);
+    return rel;
+  }
+
+  /**
+   * Combine this relation with another using OR.
+   *
+   * Mirrors: ActiveRecord::Relation#or
+   */
+  or(other: Relation<T>): Relation<T> {
+    const rel = this._clone();
+    rel._orRelations = [...rel._orRelations, other];
     return rel;
   }
 
@@ -120,6 +149,17 @@ export class Relation<T extends Base> {
   group(...columns: string[]): Relation<T> {
     const rel = this._clone();
     rel._groupColumns.push(...columns);
+    return rel;
+  }
+
+  /**
+   * Add HAVING clause (raw SQL string).
+   *
+   * Mirrors: ActiveRecord::Relation#having
+   */
+  having(condition: string): Relation<T> {
+    const rel = this._clone();
+    rel._havingClauses.push(condition);
     return rel;
   }
 
@@ -256,20 +296,77 @@ export class Relation<T extends Base> {
   }
 
   /**
-   * Count records.
+   * Count records. Optionally count a specific column (ignores NULLs).
    *
    * Mirrors: ActiveRecord::Relation#count
    */
-  async count(): Promise<number> {
+  async count(column?: string): Promise<number> {
     if (this._isNone) return 0;
 
     const table = this._modelClass.arelTable;
-    const manager = table.project("COUNT(*) AS count");
+    const countExpr = column
+      ? `COUNT("${table.name}"."${column}") AS count`
+      : "COUNT(*) AS count";
+    const manager = table.project(countExpr);
     this._applyWheresToManager(manager, table);
 
     const sql = manager.toSql();
     const rows = await this._modelClass.adapter.execute(sql);
     return (rows[0]?.count as number) ?? 0;
+  }
+
+  /**
+   * Sum a column.
+   *
+   * Mirrors: ActiveRecord::Relation#sum
+   */
+  async sum(column: string): Promise<number> {
+    if (this._isNone) return 0;
+    const result = await this._aggregate("SUM", column);
+    return result ?? 0;
+  }
+
+  /**
+   * Average a column.
+   *
+   * Mirrors: ActiveRecord::Relation#average
+   */
+  async average(column: string): Promise<number | null> {
+    if (this._isNone) return null;
+    return this._aggregate("AVG", column);
+  }
+
+  /**
+   * Minimum value of a column.
+   *
+   * Mirrors: ActiveRecord::Relation#minimum
+   */
+  async minimum(column: string): Promise<unknown> {
+    if (this._isNone) return null;
+    return this._aggregate("MIN", column);
+  }
+
+  /**
+   * Maximum value of a column.
+   *
+   * Mirrors: ActiveRecord::Relation#maximum
+   */
+  async maximum(column: string): Promise<unknown> {
+    if (this._isNone) return null;
+    return this._aggregate("MAX", column);
+  }
+
+  private async _aggregate(fn: string, column: string): Promise<number | null> {
+    const table = this._modelClass.arelTable;
+    const manager = table.project(
+      `${fn}("${table.name}"."${column}") AS val`
+    );
+    this._applyWheresToManager(manager, table);
+
+    const sql = manager.toSql();
+    const rows = await this._modelClass.adapter.execute(sql);
+    const val = rows[0]?.val;
+    return val === undefined || val === null ? null : Number(val);
   }
 
   /**
@@ -377,6 +474,50 @@ export class Relation<T extends Base> {
     return this._modelClass.adapter.executeMutation(sql);
   }
 
+  // -- Batches --
+
+  /**
+   * Yields arrays of records in batches.
+   *
+   * Mirrors: ActiveRecord::Relation#find_in_batches
+   */
+  async *findInBatches({ batchSize = 1000 }: { batchSize?: number } = {}): AsyncGenerator<T[]> {
+    let currentOffset = this._offsetValue ?? 0;
+
+    while (true) {
+      const rel = this._clone();
+      rel._limitValue = batchSize;
+      rel._offsetValue = currentOffset;
+      rel._loaded = false;
+
+      // Ensure deterministic ordering
+      if (rel._orderClauses.length === 0) {
+        rel._orderClauses.push(this._modelClass.primaryKey);
+      }
+
+      const batch = await rel.toArray();
+      if (batch.length === 0) break;
+
+      yield batch;
+
+      if (batch.length < batchSize) break;
+      currentOffset += batchSize;
+    }
+  }
+
+  /**
+   * Yields individual records in batches for memory efficiency.
+   *
+   * Mirrors: ActiveRecord::Relation#find_each
+   */
+  async *findEach({ batchSize = 1000 }: { batchSize?: number } = {}): AsyncGenerator<T> {
+    for await (const batch of this.findInBatches({ batchSize })) {
+      for (const record of batch) {
+        yield record;
+      }
+    }
+  }
+
   // -- SQL generation --
 
   /**
@@ -403,17 +544,80 @@ export class Relation<T extends Base> {
       manager.group(col);
     }
 
+    for (const clause of this._havingClauses) {
+      manager.having(new Nodes.SqlLiteral(clause));
+    }
+
     return manager.toSql();
+  }
+
+  private _buildWhereNodes(
+    table: Table,
+    whereClauses: Array<Record<string, unknown>>,
+    whereNotClauses: Array<Record<string, unknown>>
+  ): Nodes.Node[] {
+    const nodes: Nodes.Node[] = [];
+    for (const clause of whereClauses) {
+      for (const [key, value] of Object.entries(clause)) {
+        if (value === null) {
+          nodes.push(table.get(key).isNull());
+        } else if (value instanceof Range) {
+          nodes.push(table.get(key).between(value.begin, value.end));
+        } else if (Array.isArray(value)) {
+          nodes.push(table.get(key).in(value));
+        } else {
+          nodes.push(table.get(key).eq(value));
+        }
+      }
+    }
+    for (const clause of whereNotClauses) {
+      for (const [key, value] of Object.entries(clause)) {
+        if (value === null) {
+          nodes.push(table.get(key).isNotNull());
+        } else if (Array.isArray(value)) {
+          nodes.push(table.get(key).notIn(value));
+        } else {
+          nodes.push(table.get(key).notEq(value));
+        }
+      }
+    }
+    return nodes;
+  }
+
+  private _combineNodes(nodes: Nodes.Node[]): Nodes.Node | null {
+    if (nodes.length === 0) return null;
+    if (nodes.length === 1) return nodes[0];
+    return new Nodes.And(nodes);
   }
 
   private _applyWheresToManager(
     manager: SelectManager,
     table: Table
   ): void {
+    if (this._orRelations.length > 0) {
+      // Collect all branches: this relation's wheres + each OR relation's wheres
+      const allBranches: (Nodes.Node | null)[] = [
+        this._combineNodes(this._buildWhereNodes(table, this._whereClauses, this._whereNotClauses)),
+      ];
+      for (const orRel of this._orRelations) {
+        allBranches.push(
+          this._combineNodes(this._buildWhereNodes(table, orRel._whereClauses, orRel._whereNotClauses))
+        );
+      }
+      const nonNull = allBranches.filter((n): n is Nodes.Node => n !== null);
+      if (nonNull.length > 0) {
+        const combined = nonNull.reduce((left, right) => new Nodes.Or(left, right));
+        manager.where(new Nodes.Grouping(combined));
+      }
+      return;
+    }
+
     for (const clause of this._whereClauses) {
       for (const [key, value] of Object.entries(clause)) {
         if (value === null) {
           manager.where(table.get(key).isNull());
+        } else if (value instanceof Range) {
+          manager.where(table.get(key).between(value.begin, value.end));
         } else if (Array.isArray(value)) {
           manager.where(table.get(key).in(value));
         } else {
@@ -456,6 +660,10 @@ export class Relation<T extends Base> {
       for (const [key, value] of Object.entries(clause)) {
         if (value === null) {
           conditions.push(`"${table.name}"."${key}" IS NULL`);
+        } else if (value instanceof Range) {
+          const begin = typeof value.begin === "number" ? String(value.begin) : `'${String(value.begin).replace(/'/g, "''")}'`;
+          const end = typeof value.end === "number" ? String(value.end) : `'${String(value.end).replace(/'/g, "''")}'`;
+          conditions.push(`"${table.name}"."${key}" BETWEEN ${begin} AND ${end}`);
         } else if (typeof value === "boolean") {
           conditions.push(
             `"${table.name}"."${key}" = ${value ? "TRUE" : "FALSE"}`
@@ -507,7 +715,8 @@ export class Relation<T extends Base> {
     return conditions;
   }
 
-  private _clone(): Relation<T> {
+  /** @internal */
+  _clone(): Relation<T> {
     const rel = new Relation<T>(this._modelClass);
     rel._whereClauses = [...this._whereClauses];
     rel._whereNotClauses = [...this._whereNotClauses];
@@ -519,10 +728,38 @@ export class Relation<T extends Base> {
       : null;
     rel._isDistinct = this._isDistinct;
     rel._groupColumns = [...this._groupColumns];
+    rel._havingClauses = [...this._havingClauses];
+    rel._orRelations = [...this._orRelations];
     rel._isNone = this._isNone;
-    return rel;
+    return wrapWithScopeProxy(rel);
   }
+}
+
+/**
+ * Wrap a Relation in a Proxy that delegates scope names
+ * to the model's registered scopes.
+ */
+function wrapWithScopeProxy<T extends Base>(rel: Relation<T>): Relation<T> {
+  return new Proxy(rel, {
+    get(target: any, prop: string | symbol, receiver: any) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof prop === "symbol") return value;
+      if (value !== undefined) return value;
+      if (prop in target) return value;
+
+      // Check if this is a scope on the model class
+      const modelClass = target._modelClass as typeof Base;
+      if (modelClass._scopes.has(prop as string)) {
+        return (...args: any[]) => {
+          const scopeFn = modelClass._scopes.get(prop as string)!;
+          return scopeFn(target, ...args);
+        };
+      }
+      return value;
+    },
+  });
 }
 
 // Register Relation with Base to break the circular dependency.
 _setRelationCtor(Relation as any);
+_setScopeProxyWrapper(wrapWithScopeProxy);
