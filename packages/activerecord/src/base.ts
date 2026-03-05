@@ -192,6 +192,22 @@ export class Base extends Model {
     return this._attributeDefinitions.has(name);
   }
 
+  // -- Logger --
+  static _logger: { debug?: Function; info?: Function; warn?: Function; error?: Function } | null = null;
+
+  /**
+   * Set or get the logger for SQL and lifecycle events.
+   *
+   * Mirrors: ActiveRecord::Base.logger
+   */
+  static get logger(): { debug?: Function; info?: Function; warn?: Function; error?: Function } | null {
+    return this._logger;
+  }
+
+  static set logger(log: { debug?: Function; info?: Function; warn?: Function; error?: Function } | null) {
+    this._logger = log;
+  }
+
   // -- Timestamp control --
   static _recordTimestamps = true;
   private static _noTouching = false;
@@ -1988,6 +2004,19 @@ export class Base extends Model {
    */
   static attributeNames(): string[] {
     return [...this._attributeDefinitions.keys()];
+  }
+
+  /**
+   * Return a hash of attribute name to type object.
+   *
+   * Mirrors: ActiveRecord::Base.attribute_types
+   */
+  static get attributeTypes(): Record<string, import("@rails-js/activemodel").Type> {
+    const result: Record<string, any> = {};
+    for (const [name, def] of this._attributeDefinitions) {
+      result[name] = def.type;
+    }
+    return result;
   }
 
   /**

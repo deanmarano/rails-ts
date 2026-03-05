@@ -824,6 +824,25 @@ export class Model {
   }
 
   /**
+   * Deserialize a JSON string into this model's attributes.
+   *
+   * Mirrors: ActiveModel::Serializers::JSON#from_json
+   */
+  fromJson(json: string, includeRoot = false): this {
+    let attrs = JSON.parse(json);
+    if (includeRoot && typeof attrs === "object") {
+      const keys = Object.keys(attrs);
+      if (keys.length === 1) {
+        attrs = attrs[keys[0]];
+      }
+    }
+    for (const [key, value] of Object.entries(attrs)) {
+      this.writeAttribute(key, value);
+    }
+    return this;
+  }
+
+  /**
    * Serialize this model to XML.
    *
    * Mirrors: ActiveModel::Serializers::Xml#to_xml
@@ -871,6 +890,16 @@ export class Model {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  }
+
+  /**
+   * Whether this model instance has been persisted.
+   * ActiveModel returns false; ActiveRecord overrides.
+   *
+   * Mirrors: ActiveModel::API#persisted?
+   */
+  isPersisted(): boolean {
+    return false;
   }
 
   // -- Naming / Conversion --

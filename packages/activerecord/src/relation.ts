@@ -809,6 +809,45 @@ export class Relation<T extends Base> {
   }
 
   /**
+   * Create a fresh copy of this relation.
+   *
+   * Mirrors: ActiveRecord::Relation#spawn
+   */
+  spawn(): Relation<T> {
+    return this._clone();
+  }
+
+  /**
+   * Build a new record with the relation's scoped conditions.
+   *
+   * Mirrors: ActiveRecord::Relation#build
+   */
+  build(attrs: Record<string, unknown> = {}): T {
+    const scopeAttrs = this._scopeAttributes();
+    return new this._modelClass({ ...scopeAttrs, ...attrs }) as T;
+  }
+
+  /**
+   * Create and persist a new record with the relation's scoped conditions.
+   *
+   * Mirrors: ActiveRecord::Relation#create
+   */
+  async create(attrs: Record<string, unknown> = {}): Promise<T> {
+    const scopeAttrs = this._scopeAttributes();
+    return this._modelClass.create({ ...scopeAttrs, ...attrs }) as Promise<T>;
+  }
+
+  /**
+   * Create and persist a new record, raising on validation failure.
+   *
+   * Mirrors: ActiveRecord::Relation#create!
+   */
+  async createBang(attrs: Record<string, unknown> = {}): Promise<T> {
+    const scopeAttrs = this._scopeAttributes();
+    return this._modelClass.createBang({ ...scopeAttrs, ...attrs }) as Promise<T>;
+  }
+
+  /**
    * Returns count if not loaded, length of loaded records if loaded.
    *
    * Mirrors: ActiveRecord::Relation#size

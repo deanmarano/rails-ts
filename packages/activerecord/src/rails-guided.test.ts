@@ -7621,4 +7621,96 @@ describe("Grouped Calculations (Rails-guided)", () => {
     expect(xml).toContain("<age");
     expect(xml).toContain("</user>");
   });
+
+  // Rails guide: from_json — JSON deserialization
+  it("fromJson() sets attributes from JSON", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    const u = new User({});
+    u.fromJson('{"name":"Alice"}');
+    expect(u.readAttribute("name")).toBe("Alice");
+  });
+
+  // Rails guide: from_json with root
+  it("fromJson() supports include_root", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    const u = new User({});
+    u.fromJson('{"user":{"name":"Bob"}}', true);
+    expect(u.readAttribute("name")).toBe("Bob");
+  });
+
+  // Rails guide: persisted? — checks if record is saved
+  it("isPersisted() returns false for new records, true after save", async () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    const u = new User({ name: "Alice" });
+    expect(u.isPersisted()).toBe(false);
+    await u.save();
+    expect(u.isPersisted()).toBe(true);
+  });
+
+  // Rails guide: attribute_types — returns map of column types
+  it("attributeTypes returns type objects per column", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    const types = User.attributeTypes;
+    expect(types).toHaveProperty("id");
+    expect(types).toHaveProperty("name");
+  });
+
+  // Rails guide: logger — set/get logger
+  it("logger defaults to null and can be set", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.adapter = adapter; }
+    }
+    expect(User.logger).toBe(null);
+    const log = { info: () => {} };
+    User.logger = log;
+    expect(User.logger).toBe(log);
+    User.logger = null;
+  });
+
+  // Rails guide: Relation#build — creates unsaved record with scope
+  it("Relation#build creates unsaved record with scoped attributes", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("role", "string"); this.adapter = adapter; }
+    }
+    const u = User.where({ role: "admin" }).build({ name: "Alice" });
+    expect(u.readAttribute("role")).toBe("admin");
+    expect(u.readAttribute("name")).toBe("Alice");
+    expect(u.isPersisted()).toBe(false);
+  });
+
+  // Rails guide: Relation#create — persists record with scope
+  it("Relation#create persists record with scoped attributes", async () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("role", "string"); this.adapter = adapter; }
+    }
+    const u = await User.where({ role: "admin" }).create({ name: "Bob" });
+    expect(u.isPersisted()).toBe(true);
+    expect(u.readAttribute("role")).toBe("admin");
+  });
+
+  // Rails guide: Relation#spawn — independent copy
+  it("Relation#spawn returns an independent copy", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    const rel = User.where({ name: "Alice" });
+    const spawned = rel.spawn();
+    expect(spawned).not.toBe(rel);
+  });
 });

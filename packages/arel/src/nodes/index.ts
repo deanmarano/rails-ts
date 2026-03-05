@@ -83,6 +83,7 @@ export { InfixOperation } from "./infix-operation.js";
 export { BindParam } from "./bind-param.js";
 export { Concat } from "./concat.js";
 export { True, False } from "./true-false.js";
+export { Regexp, NotRegexp } from "./regexp.js";
 
 import { SqlLiteral } from "./sql-literal.js";
 

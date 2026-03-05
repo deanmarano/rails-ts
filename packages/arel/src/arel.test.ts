@@ -1427,6 +1427,33 @@ describe("Arel", () => {
     });
   });
 
+  describe("Regexp and NotRegexp nodes", () => {
+    it("generates regex match: col ~ pattern", () => {
+      const node = users.attr("name").matchesRegexp("^A.*");
+      const visitor = new Visitors.ToSql();
+      const sql = visitor.compile(node);
+      expect(sql).toBe("\"users\".\"name\" ~ '^A.*'");
+    });
+
+    it("generates negated regex match: col !~ pattern", () => {
+      const node = users.attr("name").doesNotMatchRegexp("^A.*");
+      const visitor = new Visitors.ToSql();
+      const sql = visitor.compile(node);
+      expect(sql).toBe("\"users\".\"name\" !~ '^A.*'");
+    });
+
+    it("can be used directly as Regexp/NotRegexp nodes", () => {
+      const left = users.attr("email");
+      const right = new Nodes.Quoted(".*@example\\.com$");
+      const node = new Nodes.Regexp(left, right);
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe("\"users\".\"email\" ~ '.*@example\\.com$'");
+
+      const notNode = new Nodes.NotRegexp(left, right);
+      expect(visitor.compile(notNode)).toBe("\"users\".\"email\" !~ '.*@example\\.com$'");
+    });
+  });
+
   describe("True and False nodes", () => {
     it("generates TRUE", () => {
       const node = new Nodes.True();

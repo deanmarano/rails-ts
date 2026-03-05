@@ -57,6 +57,8 @@ export class ToSql implements NodeVisitor<SQLString> {
     if (node instanceof Nodes.In) return this.visitIn(node);
     if (node instanceof Nodes.NotIn) return this.visitNotIn(node);
     if (node instanceof Nodes.Between) return this.visitBetween(node);
+    if (node instanceof Nodes.Regexp) return this.visitBinaryOp(node, "~");
+    if (node instanceof Nodes.NotRegexp) return this.visitBinaryOp(node, "!~");
     if (node instanceof Nodes.Assignment) return this.visitAssignment(node);
     if (node instanceof Nodes.As) return this.visitAs(node);
 

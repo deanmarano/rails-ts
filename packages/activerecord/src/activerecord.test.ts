@@ -8332,4 +8332,150 @@ describe("ActiveRecord", () => {
       expect(xml).toContain("</user>");
     });
   });
+
+  // ===========================================================================
+  // logger
+  // ===========================================================================
+  describe("Base.logger", () => {
+    it("defaults to null", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.adapter = adapter; }
+      }
+      expect(User.logger).toBe(null);
+    });
+
+    it("can set and get a logger", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.adapter = adapter; }
+      }
+      const myLogger = { debug: () => {}, info: () => {} };
+      User.logger = myLogger;
+      expect(User.logger).toBe(myLogger);
+      User.logger = null; // cleanup
+    });
+  });
+
+  // ===========================================================================
+  // attributeTypes
+  // ===========================================================================
+  describe("Base.attributeTypes", () => {
+    it("returns a map of attribute name to type object", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("age", "integer"); this.adapter = adapter; }
+      }
+      const types = User.attributeTypes;
+      expect(types).toHaveProperty("id");
+      expect(types).toHaveProperty("name");
+      expect(types).toHaveProperty("age");
+      expect(types.name.cast("42")).toBe("42");
+      expect(types.age.cast("42")).toBe(42);
+    });
+  });
+
+  // ===========================================================================
+  // fromJson on Base
+  // ===========================================================================
+  describe("fromJson on Base", () => {
+    it("sets attributes from JSON", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = new User({});
+      u.fromJson('{"name":"Alice"}');
+      expect(u.readAttribute("name")).toBe("Alice");
+    });
+
+    it("supports includeRoot", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = new User({});
+      u.fromJson('{"user":{"name":"Bob"}}', true);
+      expect(u.readAttribute("name")).toBe("Bob");
+    });
+  });
+
+  // ===========================================================================
+  // isPersisted on Base
+  // ===========================================================================
+  describe("isPersisted on Base", () => {
+    it("returns false for new records", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = new User({ name: "Alice" });
+      expect(u.isPersisted()).toBe(false);
+    });
+
+    it("returns true for saved records", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice" });
+      expect(u.isPersisted()).toBe(true);
+    });
+  });
+
+  // ===========================================================================
+  // Relation#spawn, build, create, createBang
+  // ===========================================================================
+  describe("Relation spawn/build/create", () => {
+    it("spawn returns an independent copy of the relation", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("role", "string"); this.adapter = adapter; }
+      }
+      const rel = User.where({ role: "admin" });
+      const spawned = rel.spawn();
+      expect(spawned).not.toBe(rel);
+      expect(spawned.toSql()).toBe(rel.toSql());
+    });
+
+    it("build creates an unsaved record with scoped attributes", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("role", "string"); this.adapter = adapter; }
+      }
+      const rel = User.where({ role: "admin" });
+      const u = rel.build({ name: "Alice" });
+      expect(u).toBeInstanceOf(User);
+      expect(u.readAttribute("role")).toBe("admin");
+      expect(u.readAttribute("name")).toBe("Alice");
+      expect(u.isPersisted()).toBe(false);
+    });
+
+    it("create persists a record with scoped attributes", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("role", "string"); this.adapter = adapter; }
+      }
+      const rel = User.where({ role: "admin" });
+      const u = await rel.create({ name: "Bob" });
+      expect(u.isPersisted()).toBe(true);
+      expect(u.readAttribute("role")).toBe("admin");
+      expect(u.readAttribute("name")).toBe("Bob");
+    });
+
+    it("createBang raises on validation failure", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.attribute("role", "string");
+          this.adapter = adapter;
+          this.validates("name", { presence: true });
+        }
+      }
+      const rel = User.where({ role: "admin" });
+      await expect(rel.createBang({})).rejects.toThrow();
+    });
+  });
 });

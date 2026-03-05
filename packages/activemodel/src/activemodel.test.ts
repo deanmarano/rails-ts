@@ -2271,4 +2271,61 @@ describe("ActiveModel", () => {
       expect(xml).toContain("</person>");
     });
   });
+
+  // ===========================================================================
+  // fromJson
+  // ===========================================================================
+  describe("fromJson", () => {
+    it("sets attributes from a JSON string", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); this.attribute("age", "integer"); }
+      }
+      const u = new User({});
+      u.fromJson('{"name":"Alice","age":30}');
+      expect(u.readAttribute("name")).toBe("Alice");
+      expect(u.readAttribute("age")).toBe(30);
+    });
+
+    it("returns this for chaining", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({});
+      const result = u.fromJson('{"name":"Bob"}');
+      expect(result).toBe(u);
+    });
+
+    it("supports includeRoot option", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({});
+      u.fromJson('{"user":{"name":"Charlie"}}', true);
+      expect(u.readAttribute("name")).toBe("Charlie");
+    });
+
+    it("marks attributes as changed via dirty tracking", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Original" });
+      u.changesApplied();
+      u.fromJson('{"name":"Updated"}');
+      expect(u.changed).toBe(true);
+      expect(u.changedAttributes).toContain("name");
+    });
+  });
+
+  // ===========================================================================
+  // isPersisted
+  // ===========================================================================
+  describe("isPersisted", () => {
+    it("returns false for ActiveModel instances", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Alice" });
+      expect(u.isPersisted()).toBe(false);
+    });
+  });
 });
