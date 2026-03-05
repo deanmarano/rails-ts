@@ -5529,4 +5529,267 @@ describe("Grouped Calculations (Rails-guided)", () => {
     const loaded = await loadBelongsTo(books[0], "sl3Author", { className: "Sl3Author" });
     expect(loaded).not.toBeNull();
   });
+
+  // =====================================================================
+  // find_sole_by — activerecord/test/cases/finder_test.rb
+  // =====================================================================
+
+  // Rails: test "find_sole_by"
+  it("findSoleBy() returns the sole matching record", async () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+
+    await Topic.create({ title: "Sole Topic" });
+    const topic = await Topic.findSoleBy({ title: "Sole Topic" });
+    expect(topic.readAttribute("title")).toBe("Sole Topic");
+  });
+
+  // Rails: test "find_sole_by raises when not found"
+  it("findSoleBy() raises RecordNotFound when none found", async () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+
+    await expect(Topic.findSoleBy({ title: "Nothing" })).rejects.toThrow(RecordNotFound);
+  });
+
+  // Rails: test "find_sole_by raises when multiple found"
+  it("findSoleBy() raises SoleRecordExceeded when multiple found", async () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+
+    await Topic.create({ title: "Dup" });
+    await Topic.create({ title: "Dup" });
+    await expect(Topic.findSoleBy({ title: "Dup" })).rejects.toThrow(SoleRecordExceeded);
+  });
+
+  // =====================================================================
+  // create_with — activerecord/test/cases/relation_test.rb
+  // =====================================================================
+
+  // Rails: test "create_with"
+  it("createWith() applies default attrs when creating via findOrCreateBy", async () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("status", "string"); this.adapter = adapter; }
+    }
+
+    const topic = await Topic.all()
+      .createWith({ status: "published" })
+      .findOrCreateBy({ title: "New Topic" });
+    expect(topic.readAttribute("status")).toBe("published");
+    expect(topic.readAttribute("title")).toBe("New Topic");
+  });
+
+  // Rails: test "create_with does not affect existing record lookup"
+  it("createWith() does not affect existing record lookup", async () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("status", "string"); this.adapter = adapter; }
+    }
+
+    await Topic.create({ title: "Existing", status: "draft" });
+    const topic = await Topic.all()
+      .createWith({ status: "published" })
+      .findOrCreateBy({ title: "Existing" });
+    expect(topic.readAttribute("status")).toBe("draft"); // kept original
+  });
+
+  // =====================================================================
+  // unscope — activerecord/test/cases/relation/where_test.rb
+  // =====================================================================
+
+  // Rails: test "unscope where"
+  it("unscope(:where) removes all where conditions", async () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+
+    await Topic.create({ title: "A" });
+    await Topic.create({ title: "B" });
+
+    const topics = await Topic.all().where({ title: "A" }).unscope("where").toArray();
+    expect(topics).toHaveLength(2);
+  });
+
+  // Rails: test "unscope order"
+  it("unscope(:order) removes ordering", () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+
+    const sql = Topic.all().order({ title: "asc" }).unscope("order").toSql();
+    expect(sql).not.toContain("ORDER");
+  });
+
+  // Rails: test "unscope multiple"
+  it("unscope() can remove multiple parts at once", () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.adapter = adapter; }
+    }
+
+    const sql = Topic.all().limit(5).offset(10).order("id").unscope("limit", "offset", "order").toSql();
+    expect(sql).not.toContain("LIMIT");
+    expect(sql).not.toContain("OFFSET");
+    expect(sql).not.toContain("ORDER");
+  });
+
+  // =====================================================================
+  // dup — activerecord/test/cases/dup_test.rb
+  // =====================================================================
+
+  // Rails: test "dup"
+  it("dup() creates an unsaved copy with no primary key", async () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+
+    const topic = await Topic.create({ title: "Original" });
+    const copy = topic.dup();
+    expect(copy.isNewRecord()).toBe(true);
+    expect(copy.id).toBeNull();
+    expect(copy.readAttribute("title")).toBe("Original");
+  });
+
+  // Rails: test "dup can be saved"
+  it("dup() copy can be saved as a new record", async () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+
+    const original = await Topic.create({ title: "Original" });
+    const copy = original.dup();
+    await copy.save();
+    expect(copy.isPersisted()).toBe(true);
+    expect(copy.id).not.toBe(original.id);
+  });
+
+  // =====================================================================
+  // becomes — activerecord/test/cases/base_test.rb
+  // =====================================================================
+
+  // Rails: test "becomes"
+  it("becomes() transforms record to another class", async () => {
+    class Vehicle extends Base {
+      static { this._tableName = "vehicles"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("type", "string"); this.adapter = adapter; }
+    }
+    class Car extends Base {
+      static { this._tableName = "vehicles"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("type", "string"); this.adapter = adapter; }
+    }
+
+    const vehicle = await Vehicle.create({ name: "Tesla", type: "Car" });
+    const car = vehicle.becomes(Car);
+    expect(car).toBeInstanceOf(Car);
+    expect(car.readAttribute("name")).toBe("Tesla");
+    expect(car.id).toBe(vehicle.id);
+    expect(car.isPersisted()).toBe(true);
+  });
+
+  // =====================================================================
+  // has_attribute? — activerecord/test/cases/attribute_methods_test.rb
+  // =====================================================================
+
+  // Rails: test "has_attribute?"
+  it("hasAttribute() returns true for defined attributes", () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+
+    const topic = new Topic({ title: "Test" });
+    expect(topic.hasAttribute("title")).toBe(true);
+    expect(topic.hasAttribute("id")).toBe(true);
+    expect(topic.hasAttribute("unknown")).toBe(false);
+  });
+
+  // Rails: test "attribute_names"
+  it("attributeNames() returns all attribute names", () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("body", "string"); this.adapter = adapter; }
+    }
+
+    expect(Topic.attributeNames()).toEqual(["id", "title", "body"]);
+  });
+
+  // =====================================================================
+  // exists? with conditions — activerecord/test/cases/finder_test.rb
+  // =====================================================================
+
+  // Rails: test "exists? with conditions hash"
+  it("exists(conditions) checks with hash conditions", async () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+
+    await Topic.create({ title: "Found" });
+    expect(await Topic.all().exists({ title: "Found" })).toBe(true);
+    expect(await Topic.all().exists({ title: "Missing" })).toBe(false);
+  });
+
+  // Rails: test "exists? with primary key"
+  it("exists(id) checks by primary key", async () => {
+    class Topic extends Base {
+      static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+
+    const topic = await Topic.create({ title: "Found" });
+    expect(await Topic.all().exists(topic.id)).toBe(true);
+    expect(await Topic.all().exists(999)).toBe(false);
+  });
+
+  // =====================================================================
+  // calculate — activerecord/test/cases/calculations_test.rb
+  // =====================================================================
+
+  // Rails: test "calculate"
+  it("calculate() dispatches to the correct aggregate method", async () => {
+    class Order extends Base {
+      static { this._tableName = "orders"; this.attribute("id", "integer"); this.attribute("total", "integer"); this.adapter = adapter; }
+    }
+
+    await Order.create({ total: 100 });
+    await Order.create({ total: 200 });
+
+    expect(await Order.all().calculate("count")).toBe(2);
+    expect(await Order.all().calculate("sum", "total")).toBe(300);
+    expect(await Order.all().calculate("average", "total")).toBe(150);
+    expect(await Order.all().calculate("minimum", "total")).toBe(100);
+    expect(await Order.all().calculate("maximum", "total")).toBe(200);
+  });
+
+  // =====================================================================
+  // extending — activerecord/test/cases/relation_test.rb
+  // =====================================================================
+
+  // Rails: test "extending"
+  it("extending() adds custom methods to a relation", async () => {
+    class Post extends Base {
+      static { this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("published", "boolean"); this.adapter = adapter; }
+    }
+
+    await Post.create({ title: "Draft", published: false });
+    await Post.create({ title: "Live", published: true });
+
+    const myScope = {
+      publishedOnly() { return (this as any).where({ published: true }); }
+    };
+
+    const posts = await Post.all().extending(myScope).publishedOnly().toArray();
+    expect(posts).toHaveLength(1);
+    expect(posts[0].readAttribute("title")).toBe("Live");
+  });
+
+  // Rails: test "extending with multiple modules"
+  it("extending() can add multiple method sets", async () => {
+    class Post extends Base {
+      static { this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+
+    await Post.create({ title: "Hello" });
+    await Post.create({ title: "World" });
+
+    const mod1 = { titled(t: string) { return (this as any).where({ title: t }); } };
+
+    const posts = await Post.all().extending(mod1).titled("Hello").toArray();
+    expect(posts).toHaveLength(1);
+  });
 });

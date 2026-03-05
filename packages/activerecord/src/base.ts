@@ -242,6 +242,18 @@ export class Base extends Model {
   }
 
   /**
+   * Find the sole record matching conditions.
+   * Raises RecordNotFound if none, SoleRecordExceeded if more than one.
+   *
+   * Mirrors: ActiveRecord::Base.find_sole_by
+   */
+  static async findSoleBy(
+    conditions: Record<string, unknown>
+  ): Promise<Base> {
+    return this.all().where(conditions).sole();
+  }
+
+  /**
    * Return all records as a Relation.
    *
    * Mirrors: ActiveRecord::Base.all
@@ -1030,5 +1042,51 @@ export class Base extends Model {
 
     // Reset dirty tracking to reflect the new persisted state
     this.changesApplied();
+  }
+
+  /**
+   * Create an unsaved duplicate of this record (new_record = true, no id).
+   *
+   * Mirrors: ActiveRecord::Base#dup
+   */
+  dup(): Base {
+    const ctor = this.constructor as typeof Base;
+    const attrs = { ...this.attributes };
+    delete attrs[ctor.primaryKey]; // Remove PK so it's a new record
+    const copy = new ctor(attrs);
+    return copy;
+  }
+
+  /**
+   * Returns an instance of the specified class with the attributes of this record.
+   *
+   * Mirrors: ActiveRecord::Base#becomes
+   */
+  becomes(klass: typeof Base): Base {
+    const instance = new klass(this.attributes);
+    instance._newRecord = this._newRecord;
+    if (!this._newRecord) {
+      instance._dirty.snapshot(instance._attributes);
+      instance.changesApplied();
+    }
+    return instance;
+  }
+
+  /**
+   * Check whether an attribute exists on this model.
+   *
+   * Mirrors: ActiveRecord::Base#has_attribute?
+   */
+  hasAttribute(name: string): boolean {
+    return this._attributes.has(name);
+  }
+
+  /**
+   * Returns the list of attribute names.
+   *
+   * Mirrors: ActiveRecord::Base.attribute_names
+   */
+  static attributeNames(): string[] {
+    return [...this._attributeDefinitions.keys()];
   }
 }

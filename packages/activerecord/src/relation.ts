@@ -49,6 +49,8 @@ export class Relation<T extends Base> {
   private _isStrictLoading = false;
   private _annotations: string[] = [];
   private _fromClause: string | null = null;
+  private _createWithAttrs: Record<string, unknown> = {};
+  private _extending: Array<Record<string, Function>> = [];
   private _loaded = false;
   private _records: T[] = [];
 
@@ -378,6 +380,81 @@ export class Relation<T extends Base> {
   from(source: string): Relation<T> {
     const rel = this._clone();
     rel._fromClause = source;
+    return rel;
+  }
+
+  /**
+   * Set default attributes for create operations on this relation.
+   *
+   * Mirrors: ActiveRecord::Relation#create_with
+   */
+  createWith(attrs: Record<string, unknown>): Relation<T> {
+    const rel = this._clone();
+    rel._createWithAttrs = { ...rel._createWithAttrs, ...attrs };
+    return rel;
+  }
+
+  /**
+   * Remove specific query parts.
+   *
+   * Mirrors: ActiveRecord::Relation#unscope
+   */
+  unscope(...types: Array<"where" | "order" | "limit" | "offset" | "group" | "having" | "select" | "distinct" | "lock" | "readonly" | "from">): Relation<T> {
+    const rel = this._clone();
+    for (const type of types) {
+      switch (type) {
+        case "where":
+          rel._whereClauses = [];
+          rel._whereNotClauses = [];
+          rel._whereRawClauses = [];
+          break;
+        case "order":
+          rel._orderClauses = [];
+          break;
+        case "limit":
+          rel._limitValue = null;
+          break;
+        case "offset":
+          rel._offsetValue = null;
+          break;
+        case "group":
+          rel._groupColumns = [];
+          break;
+        case "having":
+          rel._havingClauses = [];
+          break;
+        case "select":
+          rel._selectColumns = null;
+          break;
+        case "distinct":
+          rel._isDistinct = false;
+          break;
+        case "lock":
+          rel._lockValue = null;
+          break;
+        case "readonly":
+          rel._isReadonly = false;
+          break;
+        case "from":
+          rel._fromClause = null;
+          break;
+      }
+    }
+    return rel;
+  }
+
+  /**
+   * Add custom methods to this relation instance.
+   *
+   * Mirrors: ActiveRecord::Relation#extending
+   */
+  extending(mod: Record<string, Function>): Relation<T> {
+    const rel = this._clone();
+    rel._extending.push(mod);
+    // Apply the methods directly to the proxy target
+    for (const [name, fn] of Object.entries(mod)) {
+      (rel as any)[name] = fn.bind(rel);
+    }
     return rel;
   }
 
@@ -787,14 +864,45 @@ export class Relation<T extends Base> {
   }
 
   /**
-   * Check if any records exist.
+   * Check if any records exist, optionally with conditions.
    *
    * Mirrors: ActiveRecord::Relation#exists?
    */
-  async exists(): Promise<boolean> {
+  async exists(conditions?: Record<string, unknown> | unknown): Promise<boolean> {
     if (this._isNone) return false;
-    const c = await this.count();
-    return c > 0;
+    let rel: Relation<T> = this;
+    if (conditions !== undefined) {
+      if (typeof conditions === "object" && conditions !== null && !Array.isArray(conditions)) {
+        rel = this.where(conditions as Record<string, unknown>);
+      } else {
+        // Primary key lookup
+        rel = this.where({ [this._modelClass.primaryKey]: conditions });
+      }
+    }
+    const c = await rel.count();
+    return (c as number) > 0;
+  }
+
+  /**
+   * Generic calculation method.
+   *
+   * Mirrors: ActiveRecord::Relation#calculate
+   */
+  async calculate(operation: "count" | "sum" | "average" | "minimum" | "maximum", column?: string): Promise<number | null | Record<string, number>> {
+    switch (operation) {
+      case "count":
+        return this.count(column);
+      case "sum":
+        return this.sum(column!);
+      case "average":
+        return this.average(column!);
+      case "minimum":
+        return this.minimum(column!) as Promise<number | null | Record<string, number>>;
+      case "maximum":
+        return this.maximum(column!) as Promise<number | null | Record<string, number>>;
+      default:
+        throw new Error(`Unknown calculation: ${operation}`);
+    }
   }
 
   /**
@@ -902,7 +1010,7 @@ export class Relation<T extends Base> {
   ): Promise<T> {
     const records = await this.where(conditions).limit(1).toArray();
     if (records.length > 0) return records[0];
-    return this._modelClass.create({ ...this._scopeAttributes(), ...conditions, ...extra }) as Promise<T>;
+    return this._modelClass.create({ ...this._createWithAttrs, ...this._scopeAttributes(), ...conditions, ...extra }) as Promise<T>;
   }
 
   /**
@@ -1471,6 +1579,8 @@ export class Relation<T extends Base> {
     rel._isStrictLoading = this._isStrictLoading;
     rel._annotations = [...this._annotations];
     rel._fromClause = this._fromClause;
+    rel._createWithAttrs = { ...this._createWithAttrs };
+    rel._extending = [...this._extending];
     return wrapWithScopeProxy(rel);
   }
 }

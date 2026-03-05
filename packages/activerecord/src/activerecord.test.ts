@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { Base, Relation, Range, MemoryAdapter, transaction, savepoint, CollectionProxy, association, MigrationRunner, defineEnum, readEnumValue, enableSti, hasSecurePassword, store, loadHabtm, delegate, RecordNotFound, RecordInvalid, StaleObjectError, ReadOnlyRecord, SoleRecordExceeded, StrictLoadingViolationError, columns, columnNames, reflectOnAssociation, reflectOnAllAssociations, acceptsNestedAttributesFor, assignNestedAttributes, hasSecureToken, composedOf, serialize } from "./index.js";
+import { Base, Relation, Range, MemoryAdapter, transaction, savepoint, CollectionProxy, association, MigrationRunner, defineEnum, readEnumValue, enableSti, hasSecurePassword, store, loadHabtm, delegate, RecordNotFound, RecordInvalid, StaleObjectError, ReadOnlyRecord, SoleRecordExceeded, StrictLoadingViolationError, columns, columnNames, reflectOnAssociation, reflectOnAllAssociations, acceptsNestedAttributesFor, assignNestedAttributes, hasSecureToken, composedOf, serialize, registerModel } from "./index.js";
 import { Migration, TableDefinition, Schema } from "./migration.js";
 import {
   Associations,
@@ -5705,6 +5705,238 @@ describe("ActiveRecord", () => {
       post.strictLoadingBang();
       expect(post.isStrictLoading()).toBe(true);
       await expect(loadBelongsTo(post, "author2", { className: "Author2" })).rejects.toThrow(StrictLoadingViolationError);
+    });
+  });
+
+  // -- findSoleBy --
+  describe("findSoleBy()", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("returns the sole matching record", async () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.attribute("name", "string");
+      Item.adapter = adapter;
+
+      await Item.create({ name: "Unique" });
+      const item = await Item.findSoleBy({ name: "Unique" });
+      expect(item.readAttribute("name")).toBe("Unique");
+    });
+
+    it("raises SoleRecordExceeded when multiple match", async () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.attribute("name", "string");
+      Item.adapter = adapter;
+
+      await Item.create({ name: "Dup" });
+      await Item.create({ name: "Dup" });
+      await expect(Item.findSoleBy({ name: "Dup" })).rejects.toThrow(SoleRecordExceeded);
+    });
+  });
+
+  // -- createWith --
+  describe("createWith()", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("applies default attrs when creating via findOrCreateBy", async () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.attribute("name", "string");
+      Item.attribute("status", "string");
+      Item.adapter = adapter;
+
+      const item = await Item.all().createWith({ status: "active" }).findOrCreateBy({ name: "Widget" });
+      expect(item.readAttribute("status")).toBe("active");
+    });
+  });
+
+  // -- unscope --
+  describe("unscope()", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("removes where conditions", async () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.attribute("name", "string");
+      Item.adapter = adapter;
+
+      await Item.create({ name: "A" });
+      await Item.create({ name: "B" });
+
+      const items = await Item.all().where({ name: "A" }).unscope("where").toArray();
+      expect(items).toHaveLength(2);
+    });
+
+    it("removes order", async () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.attribute("name", "string");
+      Item.adapter = adapter;
+
+      await Item.create({ name: "B" });
+      await Item.create({ name: "A" });
+
+      const sql = Item.all().order({ name: "asc" }).unscope("order").toSql();
+      expect(sql).not.toContain("ORDER BY");
+    });
+
+    it("removes limit and offset", () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.adapter = adapter;
+
+      const sql = Item.all().limit(5).offset(10).unscope("limit", "offset").toSql();
+      expect(sql).not.toContain("LIMIT");
+      expect(sql).not.toContain("OFFSET");
+    });
+  });
+
+  // -- dup --
+  describe("dup()", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("creates an unsaved copy without primary key", async () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.attribute("name", "string");
+      Item.adapter = adapter;
+
+      const original = await Item.create({ name: "Original" });
+      const copy = original.dup();
+      expect(copy.isNewRecord()).toBe(true);
+      expect(copy.id).toBeNull();
+      expect(copy.readAttribute("name")).toBe("Original");
+    });
+  });
+
+  // -- becomes --
+  describe("becomes()", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("transforms a record to another class", async () => {
+      class Animal extends Base { static _tableName = "animals"; }
+      Animal.attribute("id", "integer");
+      Animal.attribute("name", "string");
+      Animal.adapter = adapter;
+
+      class Dog extends Base { static _tableName = "animals"; }
+      Dog.attribute("id", "integer");
+      Dog.attribute("name", "string");
+      Dog.adapter = adapter;
+
+      const animal = await Animal.create({ name: "Rex" });
+      const dog = animal.becomes(Dog);
+      expect(dog).toBeInstanceOf(Dog);
+      expect(dog.readAttribute("name")).toBe("Rex");
+      expect(dog.isPersisted()).toBe(true);
+    });
+  });
+
+  // -- hasAttribute --
+  describe("hasAttribute()", () => {
+    it("returns true for defined attributes", () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.attribute("name", "string");
+      Item.adapter = freshAdapter();
+
+      const item = new Item({ name: "Test" });
+      expect(item.hasAttribute("name")).toBe(true);
+      expect(item.hasAttribute("nonexistent")).toBe(false);
+    });
+  });
+
+  // -- attributeNames --
+  describe("attributeNames()", () => {
+    it("returns list of defined attribute names", () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.attribute("name", "string");
+      Item.attribute("status", "string");
+      Item.adapter = freshAdapter();
+
+      expect(Item.attributeNames()).toEqual(["id", "name", "status"]);
+    });
+  });
+
+  // -- exists?(conditions) --
+  describe("exists?(conditions)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("accepts conditions hash", async () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.attribute("name", "string");
+      Item.adapter = adapter;
+
+      await Item.create({ name: "Found" });
+      expect(await Item.all().exists({ name: "Found" })).toBe(true);
+      expect(await Item.all().exists({ name: "Missing" })).toBe(false);
+    });
+
+    it("accepts primary key value", async () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.attribute("name", "string");
+      Item.adapter = adapter;
+
+      const item = await Item.create({ name: "Found" });
+      expect(await Item.all().exists(item.id)).toBe(true);
+      expect(await Item.all().exists(999)).toBe(false);
+    });
+  });
+
+  // -- calculate --
+  describe("calculate()", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("delegates to the appropriate aggregate method", async () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.attribute("price", "integer");
+      Item.adapter = adapter;
+
+      await Item.create({ price: 10 });
+      await Item.create({ price: 20 });
+      await Item.create({ price: 30 });
+
+      expect(await Item.all().calculate("count")).toBe(3);
+      expect(await Item.all().calculate("sum", "price")).toBe(60);
+      expect(await Item.all().calculate("average", "price")).toBe(20);
+      expect(await Item.all().calculate("minimum", "price")).toBe(10);
+      expect(await Item.all().calculate("maximum", "price")).toBe(30);
+    });
+  });
+
+  // -- extending --
+  describe("extending()", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("adds custom methods to a relation", async () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.attribute("name", "string");
+      Item.adapter = adapter;
+
+      await Item.create({ name: "Widget" });
+      await Item.create({ name: "Gadget" });
+
+      const mod = {
+        onlyWidgets() { return (this as any).where({ name: "Widget" }); }
+      };
+
+      const items = await Item.all().extending(mod).onlyWidgets().toArray();
+      expect(items).toHaveLength(1);
+      expect(items[0].readAttribute("name")).toBe("Widget");
     });
   });
 });
