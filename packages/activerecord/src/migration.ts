@@ -304,6 +304,14 @@ export abstract class Migration {
           op.args[1] as string
         );
         break;
+      case "renameTable":
+        await this.renameTable(
+          op.args[1] as string,
+          op.args[0] as string
+        );
+        break;
+      case "changeColumn":
+        throw new Error("Cannot reverse changeColumn without previous type info");
       default:
         throw new Error(`Cannot reverse operation: ${op.method}`);
     }
@@ -474,6 +482,69 @@ export abstract class Migration {
     }
 
     await this.adapter.executeMutation(`DROP INDEX IF EXISTS "${indexName}"`);
+  }
+
+  /**
+   * Change a column's type or options.
+   *
+   * Mirrors: ActiveRecord::Migration#change_column
+   */
+  async changeColumn(
+    tableName: string,
+    columnName: string,
+    type: ColumnType,
+    options: ColumnOptions = {}
+  ): Promise<void> {
+    if (this._recording) {
+      this._recordedOps.push({ method: "changeColumn", args: [tableName, columnName, type, options] });
+      return;
+    }
+    const sqlType = this._sqlType(type, options);
+    const nullable = options.null === false ? " NOT NULL" : "";
+    const defaultClause = this._defaultClause(options.default);
+
+    await this.adapter.executeMutation(
+      `ALTER TABLE "${tableName}" ALTER COLUMN "${columnName}" TYPE ${sqlType}${nullable}${defaultClause}`
+    );
+  }
+
+  /**
+   * Rename a table.
+   *
+   * Mirrors: ActiveRecord::Migration#rename_table
+   */
+  async renameTable(oldName: string, newName: string): Promise<void> {
+    if (this._recording) {
+      this._recordedOps.push({ method: "renameTable", args: [oldName, newName] });
+      return;
+    }
+    await this.adapter.executeMutation(
+      `ALTER TABLE "${oldName}" RENAME TO "${newName}"`
+    );
+  }
+
+  /**
+   * Check if a table exists.
+   *
+   * Mirrors: ActiveRecord::Migration#table_exists?
+   */
+  async tableExists(tableName: string): Promise<boolean> {
+    const rows = await this.adapter.execute(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='${tableName}'`
+    );
+    return rows.length > 0;
+  }
+
+  /**
+   * Check if a column exists on a table.
+   *
+   * Mirrors: ActiveRecord::Migration#column_exists?
+   */
+  async columnExists(tableName: string, columnName: string): Promise<boolean> {
+    const rows = await this.adapter.execute(
+      `PRAGMA table_info("${tableName}")`
+    );
+    return rows.some((row: any) => row.name === columnName);
   }
 
   /**

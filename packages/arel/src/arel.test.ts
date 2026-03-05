@@ -1681,4 +1681,28 @@ describe("Arel", () => {
       expect(alias.name).toBe("u");
     });
   });
+
+  describe("SelectManager joinSources", () => {
+    it("returns empty array when no joins", () => {
+      const manager = users.project("*");
+      expect(manager.joinSources).toEqual([]);
+    });
+
+    it("returns join nodes after join()", () => {
+      const manager = users.project("*")
+        .join(posts, users.attr("id").eq(posts.attr("user_id")));
+      expect(manager.joinSources.length).toBe(1);
+      expect(manager.joinSources[0]).toBeInstanceOf(Nodes.InnerJoin);
+    });
+
+    it("returns multiple join nodes", () => {
+      const comments = new Table("comments");
+      const manager = users.project("*")
+        .join(posts, users.attr("id").eq(posts.attr("user_id")))
+        .outerJoin(comments, posts.attr("id").eq(comments.attr("post_id")));
+      expect(manager.joinSources.length).toBe(2);
+      expect(manager.joinSources[0]).toBeInstanceOf(Nodes.InnerJoin);
+      expect(manager.joinSources[1]).toBeInstanceOf(Nodes.OuterJoin);
+    });
+  });
 });

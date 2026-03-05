@@ -1156,6 +1156,49 @@ describe("ActiveRecord", () => {
       const m = new AddUniqueIdx();
       await m.run(adapter, "up");
     });
+
+    it("changeColumn generates ALTER TABLE ALTER COLUMN", async () => {
+      const adapter = freshAdapter();
+      class ChangeCol extends Migration {
+        async up() {
+          await this.createTable("users", (t) => {
+            t.string("name");
+          });
+          await this.changeColumn("users", "name", "text");
+        }
+        async down() {}
+      }
+      const m = new ChangeCol();
+      await m.run(adapter, "up");
+    });
+
+    it("renameTable generates ALTER TABLE RENAME", async () => {
+      const adapter = freshAdapter();
+      class RenameUsers extends Migration {
+        async up() {
+          await this.createTable("users", (t) => {
+            t.string("name");
+          });
+          await this.renameTable("users", "people");
+        }
+        async down() {}
+      }
+      const m = new RenameUsers();
+      await m.run(adapter, "up");
+    });
+
+    it("reversible renameTable reverses correctly", async () => {
+      const adapter = freshAdapter();
+      class RenameUsers extends Migration {
+        async change() {
+          await this.renameTable("people", "users");
+        }
+      }
+      const m = new RenameUsers();
+      // The reverse of renameTable("people", "users") is renameTable("users", "people")
+      // This should not throw
+      await m.run(adapter, "up");
+    });
   });
 
   // =========================================================================

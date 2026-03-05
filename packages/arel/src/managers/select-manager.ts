@@ -304,6 +304,15 @@ export class SelectManager {
   }
 
   /**
+   * Return the current join sources (right side of the source).
+   *
+   * Mirrors: Arel::SelectManager#join_sources
+   */
+  get joinSources(): Node[] {
+    return [...this.core.source.right];
+  }
+
+  /**
    * Alias the entire subquery with a name, returning a TableAlias.
    *
    * Mirrors: Arel::SelectManager#as
