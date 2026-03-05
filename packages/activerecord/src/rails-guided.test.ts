@@ -7291,4 +7291,33 @@ describe("Grouped Calculations (Rails-guided)", () => {
     const updated = await User.updateBang(user.id, { name: "Bob" });
     expect(updated.readAttribute("name")).toBe("Bob");
   });
+
+  // Rails: test "one?"
+  it("isOne returns true when exactly one record matches", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    await User.create({ name: "Alice" });
+    expect(await User.all().isOne()).toBe(true);
+    await User.create({ name: "Bob" });
+    expect(await User.all().isOne()).toBe(false);
+  });
+
+  // Rails: test "reload"
+  it("relation reload() clears cache and re-queries", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    await User.create({ name: "Alice" });
+    const rel = User.all();
+    await rel.toArray();
+    expect(rel.isLoaded).toBe(true);
+
+    await User.create({ name: "Bob" });
+    await rel.reload();
+    const records = await rel.records();
+    expect(records.length).toBe(2);
+  });
 });

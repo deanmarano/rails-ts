@@ -7933,4 +7933,41 @@ describe("ActiveRecord", () => {
       await expect(User.updateBang(user.id, { name: "" })).rejects.toThrow();
     });
   });
+
+  describe("isOne()", () => {
+    it("returns true when exactly one record matches", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      await User.create({ name: "Alice" });
+      expect(await User.all().isOne()).toBe(true);
+      await User.create({ name: "Bob" });
+      expect(await User.all().isOne()).toBe(false);
+    });
+  });
+
+  describe("Relation reload and records", () => {
+    it("reload() re-queries the database", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      await User.create({ name: "Alice" });
+      const rel = User.all();
+      const first = await rel.toArray();
+      expect(first.length).toBe(1);
+
+      // Add another record
+      await User.create({ name: "Bob" });
+      // Without reload, the cached result is stale
+      await rel.reload();
+      const second = await rel.records();
+      expect(second.length).toBe(2);
+    });
+  });
 });

@@ -759,6 +759,26 @@ export class Relation<T extends Base> {
   }
 
   /**
+   * Reset and reload the relation.
+   *
+   * Mirrors: ActiveRecord::Relation#reload
+   */
+  async reload(): Promise<this> {
+    this.reset();
+    await this.toArray();
+    return this;
+  }
+
+  /**
+   * Return the loaded records. Triggers loading if not yet loaded.
+   *
+   * Mirrors: ActiveRecord::Relation#records
+   */
+  async records(): Promise<T[]> {
+    return this.toArray();
+  }
+
+  /**
    * Returns count if not loaded, length of loaded records if loaded.
    *
    * Mirrors: ActiveRecord::Relation#size
@@ -797,6 +817,17 @@ export class Relation<T extends Base> {
     if (this._loaded) return this._records.length > 1;
     const c = await this.count();
     return (c as number) > 1;
+  }
+
+  /**
+   * Check if there is exactly one matching record.
+   *
+   * Mirrors: ActiveRecord::Relation#one?
+   */
+  async isOne(): Promise<boolean> {
+    if (this._loaded) return this._records.length === 1;
+    const c = await this.count();
+    return (c as number) === 1;
   }
 
   /**
