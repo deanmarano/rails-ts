@@ -242,28 +242,82 @@ export class MemoryAdapter implements DatabaseAdapter {
   }
 
   async executeMutation(sql: string): Promise<number> {
-    // INSERT
+    // INSERT (supports multi-row VALUES and ON CONFLICT)
     const insertMatch = sql.match(
-      /INSERT\s+INTO\s+"(\w+)"\s+\((.+?)\)\s+VALUES\s+\((.+?)\)/i
+      /INSERT\s+INTO\s+"(\w+)"\s+\((.+?)\)\s+VALUES\s+(.+?)(?:\s+ON\s+CONFLICT\s*\((.+?)\)\s+(DO\s+NOTHING|DO\s+UPDATE\s+SET\s+.+))?$/is
     );
     if (insertMatch) {
-      const [, tableName, colStr, valStr] = insertMatch;
+      const [, tableName, colStr, valuesSection, conflictCols, conflictAction] = insertMatch;
       const columns = colStr.split(",").map((c) => c.trim().replace(/"/g, ""));
-      const values = this.parseValues(valStr);
 
       if (!this.tables.has(tableName)) {
         this.tables.set(tableName, []);
       }
 
-      const id = (this.autoIncrements.get(tableName) ?? 0) + 1;
-      this.autoIncrements.set(tableName, id);
-
-      const row: Record<string, unknown> = { id };
-      for (let i = 0; i < columns.length; i++) {
-        row[columns[i]] = values[i];
+      // Parse multiple value tuples: (v1, v2), (v3, v4), ...
+      const valueTuples: string[] = [];
+      let depth = 0;
+      let current = "";
+      for (const ch of valuesSection) {
+        if (ch === "(") {
+          if (depth === 0) { current = ""; depth++; continue; }
+          depth++;
+        } else if (ch === ")") {
+          depth--;
+          if (depth === 0) { valueTuples.push(current); continue; }
+        }
+        if (depth > 0) current += ch;
       }
-      this.tables.get(tableName)!.push(row);
-      return id;
+
+      const uniqueKeys = conflictCols
+        ? conflictCols.split(",").map((c) => c.trim().replace(/"/g, ""))
+        : null;
+      const doNothing = conflictAction && /DO\s+NOTHING/i.test(conflictAction);
+      const doUpdate = conflictAction && /DO\s+UPDATE/i.test(conflictAction);
+
+      let lastId = 0;
+      let affected = 0;
+
+      for (const valStr of valueTuples) {
+        const values = this.parseValues(valStr);
+        const newRow: Record<string, unknown> = {};
+        for (let i = 0; i < columns.length; i++) {
+          newRow[columns[i]] = values[i];
+        }
+
+        // Check for conflict
+        let conflicting: Record<string, unknown> | null = null;
+        if (uniqueKeys) {
+          const tableRows = this.tables.get(tableName)!;
+          conflicting = tableRows.find((existing) =>
+            uniqueKeys.every((k) => existing[k] === newRow[k])
+          ) ?? null;
+        }
+
+        if (conflicting) {
+          if (doNothing) {
+            continue; // Skip this row
+          } else if (doUpdate) {
+            // Update the conflicting row with non-unique columns
+            for (const col of columns) {
+              if (!uniqueKeys || !uniqueKeys.includes(col)) {
+                conflicting[col] = newRow[col];
+              }
+            }
+            affected++;
+          }
+        } else {
+          // Insert new row
+          const id = newRow.id ?? ((this.autoIncrements.get(tableName) ?? 0) + 1);
+          this.autoIncrements.set(tableName, Number(id));
+          newRow.id = id;
+          this.tables.get(tableName)!.push(newRow);
+          lastId = Number(id);
+          affected++;
+        }
+      }
+
+      return valueTuples.length === 1 ? lastId : affected;
     }
 
     // UPDATE

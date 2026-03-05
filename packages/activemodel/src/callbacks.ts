@@ -7,10 +7,16 @@ export type AroundCallbackFn = (record: any, proceed: () => void) => void;
 export type CallbackTiming = "before" | "after" | "around";
 export type CallbackEvent = string;
 
+export interface CallbackConditions {
+  if?: (record: any) => boolean;
+  unless?: (record: any) => boolean;
+}
+
 interface CallbackEntry {
   timing: CallbackTiming;
   event: CallbackEvent;
   fn: CallbackFn | AroundCallbackFn;
+  conditions?: CallbackConditions;
 }
 
 /**
@@ -24,9 +30,19 @@ export class CallbackChain {
   register(
     timing: CallbackTiming,
     event: CallbackEvent,
-    fn: CallbackFn | AroundCallbackFn
+    fn: CallbackFn | AroundCallbackFn,
+    conditions?: CallbackConditions
   ): void {
-    this.callbacks.push({ timing, event, fn });
+    this.callbacks.push({ timing, event, fn, conditions });
+  }
+
+  /**
+   * Check if a callback's conditions are met.
+   */
+  private _shouldRun(entry: CallbackEntry, record: any): boolean {
+    if (entry.conditions?.if && !entry.conditions.if(record)) return false;
+    if (entry.conditions?.unless && entry.conditions.unless(record)) return false;
+    return true;
   }
 
   /**
@@ -47,7 +63,7 @@ export class CallbackChain {
 
     // Around callbacks wrap the block
     const arounds = this.callbacks.filter(
-      (c) => c.timing === "around" && c.event === event
+      (c) => c.timing === "around" && c.event === event && this._shouldRun(c, record)
     );
 
     let chain = block;
@@ -71,6 +87,7 @@ export class CallbackChain {
       (c) => c.timing === "before" && c.event === event
     );
     for (const cb of befores) {
+      if (!this._shouldRun(cb, record)) continue;
       const result = (cb.fn as CallbackFn)(record);
       if (result === false) return false;
     }
@@ -85,6 +102,7 @@ export class CallbackChain {
       (c) => c.timing === "after" && c.event === event
     );
     for (const cb of afters) {
+      if (!this._shouldRun(cb, record)) continue;
       (cb.fn as CallbackFn)(record);
     }
   }

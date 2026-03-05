@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { Base, Relation, Range, MemoryAdapter, transaction, savepoint, CollectionProxy, association, MigrationRunner, defineEnum, readEnumValue, enableSti, hasSecurePassword, store, loadHabtm, delegate } from "./index.js";
+import { Base, Relation, Range, MemoryAdapter, transaction, savepoint, CollectionProxy, association, MigrationRunner, defineEnum, readEnumValue, enableSti, hasSecurePassword, store, loadHabtm, delegate, RecordNotFound, RecordInvalid, StaleObjectError, ReadOnlyRecord, columns, columnNames, reflectOnAssociation, reflectOnAllAssociations, acceptsNestedAttributesFor, assignNestedAttributes } from "./index.js";
 import { Migration, TableDefinition, Schema } from "./migration.js";
 import {
   Associations,
@@ -4865,6 +4865,325 @@ describe("ActiveRecord", () => {
       const book = await Book.create({ title: "The Hobbit", author_id: author.id });
 
       expect(await (book as any).authorName()).toBe("Tolkien");
+    });
+  });
+
+  // -- Error Classes --
+  describe("error classes", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("find throws RecordNotFound with metadata", async () => {
+      class Item extends Base { static _tableName = "items"; }
+      Item.attribute("id", "integer");
+      Item.adapter = adapter;
+
+      try {
+        await Item.find(999);
+        expect.unreachable("should throw");
+      } catch (e: any) {
+        expect(e).toBeInstanceOf(RecordNotFound);
+        expect(e.model).toBe("Item");
+        expect(e.primaryKey).toBe("id");
+        expect(e.id).toBe(999);
+      }
+    });
+
+    it("saveBang throws RecordInvalid with record reference", async () => {
+      class Widget extends Base { static _tableName = "widgets"; }
+      Widget.attribute("id", "integer");
+      Widget.attribute("name", "string");
+      Widget.validates("name", { presence: true });
+      Widget.adapter = adapter;
+
+      const w = new Widget({});
+      try {
+        await w.saveBang();
+        expect.unreachable("should throw");
+      } catch (e: any) {
+        expect(e).toBeInstanceOf(RecordInvalid);
+        expect(e.record).toBe(w);
+        expect(e.message).toMatch(/Validation failed/);
+      }
+    });
+
+    it("readonly record throws ReadOnlyRecord", async () => {
+      class Thing extends Base { static _tableName = "things"; }
+      Thing.attribute("id", "integer");
+      Thing.attribute("name", "string");
+      Thing.adapter = adapter;
+
+      const t = await Thing.create({ name: "test" });
+      t.readonlyBang();
+      try {
+        await t.save();
+        expect.unreachable("should throw");
+      } catch (e: any) {
+        expect(e).toBeInstanceOf(ReadOnlyRecord);
+      }
+    });
+
+    it("firstBang throws RecordNotFound", async () => {
+      class Empty extends Base { static _tableName = "empties"; }
+      Empty.attribute("id", "integer");
+      Empty.adapter = adapter;
+
+      try {
+        await Empty.all().firstBang();
+        expect.unreachable("should throw");
+      } catch (e: any) {
+        expect(e).toBeInstanceOf(RecordNotFound);
+      }
+    });
+  });
+
+  // -- insertAll / upsertAll --
+  describe("insertAll / upsertAll", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("inserts multiple records in bulk", async () => {
+      class Product extends Base { static _tableName = "products"; }
+      Product.attribute("id", "integer");
+      Product.attribute("name", "string");
+      Product.attribute("price", "integer");
+      Product.adapter = adapter;
+
+      await Product.insertAll([
+        { id: 1, name: "Apple", price: 100 },
+        { id: 2, name: "Banana", price: 50 },
+        { id: 3, name: "Cherry", price: 75 },
+      ]);
+
+      const all = await Product.all().toArray();
+      expect(all.length).toBe(3);
+    });
+
+    it("returns 0 for empty array", async () => {
+      class Product extends Base { static _tableName = "products"; }
+      Product.attribute("id", "integer");
+      Product.adapter = adapter;
+
+      const result = await Product.insertAll([]);
+      expect(result).toBe(0);
+    });
+  });
+
+  // -- after_initialize / after_find --
+  describe("after_initialize / after_find callbacks", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("fires after_initialize on new records", () => {
+      class Thing extends Base { static _tableName = "things"; }
+      Thing.attribute("id", "integer");
+      Thing.attribute("name", "string");
+      Thing.attribute("status", "string");
+      Thing.adapter = adapter;
+      Thing.afterInitialize((r: any) => {
+        if (!r.readAttribute("status")) {
+          r._attributes.set("status", "draft");
+        }
+      });
+
+      const t = new Thing({});
+      expect(t.readAttribute("status")).toBe("draft");
+    });
+
+    it("fires after_find when loading from database", async () => {
+      const log: string[] = [];
+      class Record extends Base { static _tableName = "records"; }
+      Record.attribute("id", "integer");
+      Record.attribute("name", "string");
+      Record.adapter = adapter;
+      Record.afterFind((r: any) => {
+        log.push(`found:${r.readAttribute("name")}`);
+      });
+
+      await Record.create({ name: "Alice" });
+      await Record.create({ name: "Bob" });
+      const records = await Record.all().toArray();
+      expect(log).toEqual(["found:Alice", "found:Bob"]);
+    });
+  });
+
+  // -- Conditional callbacks --
+  describe("conditional callbacks", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("supports if: condition on callbacks", async () => {
+      const log: string[] = [];
+      class Task extends Base { static _tableName = "tasks"; }
+      Task.attribute("id", "integer");
+      Task.attribute("name", "string");
+      Task.attribute("important", "boolean");
+      Task.adapter = adapter;
+      Task.beforeSave(
+        (r: any) => { log.push("important-save"); },
+        { if: (r: any) => r.readAttribute("important") === true }
+      );
+
+      await Task.create({ name: "normal", important: false });
+      expect(log).toEqual([]);
+
+      await Task.create({ name: "critical", important: true });
+      expect(log).toEqual(["important-save"]);
+    });
+
+    it("supports unless: condition on callbacks", async () => {
+      const log: string[] = [];
+      class Task extends Base { static _tableName = "tasks"; }
+      Task.attribute("id", "integer");
+      Task.attribute("name", "string");
+      Task.attribute("skip", "boolean");
+      Task.adapter = adapter;
+      Task.afterSave(
+        (r: any) => { log.push("saved"); },
+        { unless: (r: any) => r.readAttribute("skip") === true }
+      );
+
+      await Task.create({ name: "regular" });
+      expect(log).toEqual(["saved"]);
+
+      await Task.create({ name: "skipped", skip: true });
+      expect(log).toEqual(["saved"]); // not called again
+    });
+  });
+
+  // -- Reflection API --
+  describe("reflection", () => {
+    it("returns columns for a model", () => {
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.attribute("email", "string");
+
+      const cols = columns(User);
+      expect(cols.length).toBe(3);
+      expect(cols.map(c => c.name)).toEqual(["id", "name", "email"]);
+    });
+
+    it("returns column names for a model", () => {
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+
+      expect(columnNames(User)).toEqual(["id", "name"]);
+    });
+
+    it("reflects on a specific association", () => {
+      class Author extends Base { static _tableName = "authors"; }
+      Author.attribute("id", "integer");
+
+      class Book extends Base { static _tableName = "books"; }
+      Book.attribute("id", "integer");
+      Book.attribute("author_id", "integer");
+      Associations.belongsTo.call(Book, "author");
+
+      const ref = reflectOnAssociation(Book, "author");
+      expect(ref).not.toBeNull();
+      expect(ref!.macro).toBe("belongsTo");
+      expect(ref!.foreignKey).toBe("author_id");
+      expect(ref!.className).toBe("Author");
+    });
+
+    it("reflects on all associations", () => {
+      const adapter = freshAdapter();
+      class Post extends Base { static _tableName = "posts"; }
+      Post.attribute("id", "integer");
+      Post.attribute("user_id", "integer");
+      Post.adapter = adapter;
+      Associations.belongsTo.call(Post, "user");
+      Associations.hasMany.call(Post, "comments");
+
+      const all = reflectOnAllAssociations(Post);
+      expect(all.length).toBe(2);
+
+      const belongsTos = reflectOnAllAssociations(Post, "belongsTo");
+      expect(belongsTos.length).toBe(1);
+      expect(belongsTos[0].name).toBe("user");
+    });
+  });
+
+  // -- Nested Attributes --
+  describe("acceptsNestedAttributesFor", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("creates child records through parent", async () => {
+      class Comment extends Base { static _tableName = "comments"; }
+      Comment.attribute("id", "integer");
+      Comment.attribute("body", "string");
+      Comment.attribute("post_id", "integer");
+      Comment.adapter = adapter;
+      registerModel(Comment);
+
+      class Post extends Base { static _tableName = "posts"; }
+      Post.attribute("id", "integer");
+      Post.attribute("title", "string");
+      Post.adapter = adapter;
+      Associations.hasMany.call(Post, "comments");
+      acceptsNestedAttributesFor(Post, "comments");
+      registerModel(Post);
+
+      const post = new Post({ title: "Hello" });
+      assignNestedAttributes(post, "comments", [
+        { body: "First comment" },
+        { body: "Second comment" },
+      ]);
+      await post.save();
+
+      const comments = await Comment.all().toArray();
+      expect(comments.length).toBe(2);
+      expect(comments[0].readAttribute("post_id")).toBe(post.id);
+    });
+
+    it("destroys child records with _destroy flag", async () => {
+      class Tag extends Base { static _tableName = "tags"; }
+      Tag.attribute("id", "integer");
+      Tag.attribute("name", "string");
+      Tag.attribute("article_id", "integer");
+      Tag.adapter = adapter;
+      registerModel(Tag);
+
+      class Article extends Base { static _tableName = "articles"; }
+      Article.attribute("id", "integer");
+      Article.attribute("title", "string");
+      Article.adapter = adapter;
+      Associations.hasMany.call(Article, "tags");
+      acceptsNestedAttributesFor(Article, "tags", { allowDestroy: true });
+      registerModel(Article);
+
+      const article = await Article.create({ title: "Test" });
+      const tag = await Tag.create({ name: "ruby", article_id: article.id });
+
+      assignNestedAttributes(article, "tags", [
+        { id: tag.id, _destroy: true },
+      ]);
+      await article.save();
+
+      const remaining = await Tag.all().toArray();
+      expect(remaining.length).toBe(0);
+    });
+  });
+
+  // -- Halt callback chain --
+  describe("halt callback chain", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("halts save when before_save returns false", async () => {
+      class Blocked extends Base { static _tableName = "blocked"; }
+      Blocked.attribute("id", "integer");
+      Blocked.attribute("name", "string");
+      Blocked.adapter = adapter;
+      Blocked.beforeSave(() => false);
+
+      const b = new Blocked({ name: "test" });
+      const result = await b.save();
+      expect(result).toBe(false);
+      expect(b.isNewRecord()).toBe(true);
     });
   });
 });

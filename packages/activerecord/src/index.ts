@@ -32,3 +32,20 @@ export { store, storeAccessor } from "./store.js";
 export { SqliteAdapter } from "./adapters/sqlite-adapter.js";
 export { PostgresAdapter } from "./adapters/postgres-adapter.js";
 export { MysqlAdapter } from "./adapters/mysql-adapter.js";
+export {
+  RecordNotFound,
+  RecordInvalid,
+  RecordNotSaved,
+  RecordNotDestroyed,
+  StaleObjectError,
+  ReadOnlyRecord,
+} from "./errors.js";
+export {
+  AssociationReflection,
+  ColumnReflection,
+  columns,
+  columnNames,
+  reflectOnAssociation,
+  reflectOnAllAssociations,
+} from "./reflection.js";
+export { acceptsNestedAttributesFor, assignNestedAttributes } from "./nested-attributes.js";

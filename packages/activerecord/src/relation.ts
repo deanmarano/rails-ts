@@ -1,6 +1,7 @@
 import { Table, SelectManager, Visitors, Nodes } from "@rails-js/arel";
 import type { Base } from "./base.js";
 import { _setRelationCtor, _setScopeProxyWrapper } from "./base.js";
+import { RecordNotFound } from "./errors.js";
 
 /**
  * Range — represents a BETWEEN range for where clauses.
@@ -394,7 +395,7 @@ export class Relation<T extends Base> {
   async firstBang(): Promise<T> {
     const record = await this.first();
     if (!record) {
-      throw new Error(`${this._modelClass.name} not found`);
+      throw new RecordNotFound(`${this._modelClass.name} not found`, this._modelClass.name);
     }
     return record as T;
   }
@@ -432,7 +433,7 @@ export class Relation<T extends Base> {
   async lastBang(): Promise<T> {
     const record = await this.last();
     if (!record) {
-      throw new Error(`${this._modelClass.name} not found`);
+      throw new RecordNotFound(`${this._modelClass.name} not found`, this._modelClass.name);
     }
     return record as T;
   }
@@ -638,6 +639,129 @@ export class Relation<T extends Base> {
     }
 
     return this._modelClass.adapter.executeMutation(sql);
+  }
+
+  /**
+   * Find the first record matching conditions within this relation, or create one.
+   *
+   * Mirrors: ActiveRecord::Relation#find_or_create_by
+   */
+  async findOrCreateBy(
+    conditions: Record<string, unknown>,
+    extra?: Record<string, unknown>
+  ): Promise<T> {
+    const records = await this.where(conditions).limit(1).toArray();
+    if (records.length > 0) return records[0];
+    return this._modelClass.create({ ...this._scopeAttributes(), ...conditions, ...extra }) as Promise<T>;
+  }
+
+  /**
+   * Find the first record matching conditions within this relation, or instantiate one (unsaved).
+   *
+   * Mirrors: ActiveRecord::Relation#find_or_initialize_by
+   */
+  async findOrInitializeBy(
+    conditions: Record<string, unknown>,
+    extra?: Record<string, unknown>
+  ): Promise<T> {
+    const records = await this.where(conditions).limit(1).toArray();
+    if (records.length > 0) return records[0];
+    return new (this._modelClass as any)({ ...this._scopeAttributes(), ...conditions, ...extra }) as T;
+  }
+
+  /**
+   * Insert multiple records in a single INSERT statement (skip callbacks/validations).
+   *
+   * Mirrors: ActiveRecord::Base.insert_all
+   */
+  async insertAll(
+    records: Record<string, unknown>[],
+    options?: { uniqueBy?: string | string[] }
+  ): Promise<number> {
+    if (records.length === 0) return 0;
+
+    const table = this._modelClass.arelTable;
+    const columns = Object.keys(records[0]);
+    const colList = columns.map((c) => `"${c}"`).join(", ");
+
+    const valueRows = records.map((row) => {
+      const vals = columns.map((c) => {
+        const v = row[c];
+        if (v === null || v === undefined) return "NULL";
+        if (typeof v === "number") return String(v);
+        if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
+        if (v instanceof Date) return `'${v.toISOString()}'`;
+        if (typeof v === "object") return `'${JSON.stringify(v).replace(/'/g, "''")}'`;
+        return `'${String(v).replace(/'/g, "''")}'`;
+      });
+      return `(${vals.join(", ")})`;
+    });
+
+    let sql = `INSERT INTO "${table.name}" (${colList}) VALUES ${valueRows.join(", ")}`;
+
+    if (options?.uniqueBy) {
+      const uniqueCols = Array.isArray(options.uniqueBy) ? options.uniqueBy : [options.uniqueBy];
+      sql += ` ON CONFLICT (${uniqueCols.map(c => `"${c}"`).join(", ")}) DO NOTHING`;
+    }
+
+    return this._modelClass.adapter.executeMutation(sql);
+  }
+
+  /**
+   * Upsert multiple records in a single statement (skip callbacks/validations).
+   *
+   * Mirrors: ActiveRecord::Base.upsert_all
+   */
+  async upsertAll(
+    records: Record<string, unknown>[],
+    options?: { uniqueBy?: string | string[] }
+  ): Promise<number> {
+    if (records.length === 0) return 0;
+
+    const table = this._modelClass.arelTable;
+    const columns = Object.keys(records[0]);
+    const colList = columns.map((c) => `"${c}"`).join(", ");
+
+    const valueRows = records.map((row) => {
+      const vals = columns.map((c) => {
+        const v = row[c];
+        if (v === null || v === undefined) return "NULL";
+        if (typeof v === "number") return String(v);
+        if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
+        if (v instanceof Date) return `'${v.toISOString()}'`;
+        if (typeof v === "object") return `'${JSON.stringify(v).replace(/'/g, "''")}'`;
+        return `'${String(v).replace(/'/g, "''")}'`;
+      });
+      return `(${vals.join(", ")})`;
+    });
+
+    const uniqueCols = options?.uniqueBy
+      ? (Array.isArray(options.uniqueBy) ? options.uniqueBy : [options.uniqueBy])
+      : [this._modelClass.primaryKey];
+
+    const updateCols = columns.filter((c) => !uniqueCols.includes(c));
+    const updateClause = updateCols.length > 0
+      ? updateCols.map((c) => `"${c}" = EXCLUDED."${c}"`).join(", ")
+      : `"${columns[0]}" = EXCLUDED."${columns[0]}"`;
+
+    const sql = `INSERT INTO "${table.name}" (${colList}) VALUES ${valueRows.join(", ")} ON CONFLICT (${uniqueCols.map(c => `"${c}"`).join(", ")}) DO UPDATE SET ${updateClause}`;
+
+    return this._modelClass.adapter.executeMutation(sql);
+  }
+
+  /**
+   * Extract scope attributes from the where clauses (for find_or_create_by).
+   */
+  private _scopeAttributes(): Record<string, unknown> {
+    const attrs: Record<string, unknown> = {};
+    for (const clause of this._whereClauses) {
+      for (const [key, value] of Object.entries(clause)) {
+        if (value !== null && !Array.isArray(value) && !(value instanceof Range)) {
+          attrs[key] = value;
+        }
+      }
+    }
+    return attrs;
   }
 
   // -- Batches --

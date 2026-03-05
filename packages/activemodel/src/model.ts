@@ -3,7 +3,7 @@ import { typeRegistry } from "./types/registry.js";
 import { Type } from "./types/type.js";
 import { ModelName } from "./naming.js";
 import { DirtyTracker } from "./dirty.js";
-import { CallbackChain, CallbackFn, AroundCallbackFn } from "./callbacks.js";
+import { CallbackChain, CallbackFn, AroundCallbackFn, CallbackConditions } from "./callbacks.js";
 import { serializableHash, SerializeOptions } from "./serialization.js";
 import type { Validator, ConditionalOptions } from "./validations/validator.js";
 import { shouldValidate } from "./validations/validator.js";
@@ -183,84 +183,94 @@ export class Model {
 
   // -- Callbacks (Phase 1200) --
 
-  static beforeValidation(fn: CallbackFn): void {
+  static beforeValidation(fn: CallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("before", "validation", fn);
+    this._callbackChain.register("before", "validation", fn, conditions);
   }
 
-  static afterValidation(fn: CallbackFn): void {
+  static afterValidation(fn: CallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("after", "validation", fn);
+    this._callbackChain.register("after", "validation", fn, conditions);
   }
 
-  static beforeSave(fn: CallbackFn): void {
+  static beforeSave(fn: CallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("before", "save", fn);
+    this._callbackChain.register("before", "save", fn, conditions);
   }
 
-  static afterSave(fn: CallbackFn): void {
+  static afterSave(fn: CallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("after", "save", fn);
+    this._callbackChain.register("after", "save", fn, conditions);
   }
 
-  static beforeCreate(fn: CallbackFn): void {
+  static beforeCreate(fn: CallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("before", "create", fn);
+    this._callbackChain.register("before", "create", fn, conditions);
   }
 
-  static afterCreate(fn: CallbackFn): void {
+  static afterCreate(fn: CallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("after", "create", fn);
+    this._callbackChain.register("after", "create", fn, conditions);
   }
 
-  static beforeUpdate(fn: CallbackFn): void {
+  static beforeUpdate(fn: CallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("before", "update", fn);
+    this._callbackChain.register("before", "update", fn, conditions);
   }
 
-  static afterUpdate(fn: CallbackFn): void {
+  static afterUpdate(fn: CallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("after", "update", fn);
+    this._callbackChain.register("after", "update", fn, conditions);
   }
 
-  static beforeDestroy(fn: CallbackFn): void {
+  static beforeDestroy(fn: CallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("before", "destroy", fn);
+    this._callbackChain.register("before", "destroy", fn, conditions);
   }
 
-  static afterDestroy(fn: CallbackFn): void {
+  static afterDestroy(fn: CallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("after", "destroy", fn);
+    this._callbackChain.register("after", "destroy", fn, conditions);
   }
 
-  static aroundSave(fn: AroundCallbackFn): void {
+  static aroundSave(fn: AroundCallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("around", "save", fn);
+    this._callbackChain.register("around", "save", fn, conditions);
   }
 
-  static aroundCreate(fn: AroundCallbackFn): void {
+  static aroundCreate(fn: AroundCallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("around", "create", fn);
+    this._callbackChain.register("around", "create", fn, conditions);
   }
 
-  static aroundUpdate(fn: AroundCallbackFn): void {
+  static aroundUpdate(fn: AroundCallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("around", "update", fn);
+    this._callbackChain.register("around", "update", fn, conditions);
   }
 
-  static aroundDestroy(fn: AroundCallbackFn): void {
+  static aroundDestroy(fn: AroundCallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("around", "destroy", fn);
+    this._callbackChain.register("around", "destroy", fn, conditions);
   }
 
-  static afterCommit(fn: CallbackFn): void {
+  static afterCommit(fn: CallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("after", "commit", fn);
+    this._callbackChain.register("after", "commit", fn, conditions);
   }
 
-  static afterRollback(fn: CallbackFn): void {
+  static afterRollback(fn: CallbackFn, conditions?: CallbackConditions): void {
     this._ensureOwnCallbacks();
-    this._callbackChain.register("after", "rollback", fn);
+    this._callbackChain.register("after", "rollback", fn, conditions);
+  }
+
+  static afterInitialize(fn: CallbackFn, conditions?: CallbackConditions): void {
+    this._ensureOwnCallbacks();
+    this._callbackChain.register("after", "initialize", fn, conditions);
+  }
+
+  static afterFind(fn: CallbackFn, conditions?: CallbackConditions): void {
+    this._ensureOwnCallbacks();
+    this._callbackChain.register("after", "find", fn, conditions);
   }
 
   private static _ensureOwnCallbacks(): void {
@@ -309,6 +319,10 @@ export class Model {
     }
 
     this._dirty.snapshot(this._attributes);
+
+    // Fire after_initialize callbacks
+    const ctor2 = this.constructor as typeof Model;
+    ctor2._callbackChain.runAfter("initialize", this);
   }
 
   // -- Attribute access --

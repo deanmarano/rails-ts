@@ -34,6 +34,16 @@ import {
   store,
   storeAccessor,
   delegate,
+  RecordNotFound,
+  RecordInvalid,
+  ReadOnlyRecord,
+  StaleObjectError,
+  columns,
+  columnNames,
+  reflectOnAssociation,
+  reflectOnAllAssociations,
+  acceptsNestedAttributesFor,
+  assignNestedAttributes,
 } from "./index.js";
 import { Migration } from "./migration.js";
 import { Associations } from "./associations.js";
@@ -4171,5 +4181,565 @@ describe("Touch on belongs_to (Rails-guided)", () => {
 
     await post.reload();
     expect(post.readAttribute("updated_at")).not.toEqual(before);
+  });
+});
+
+// ==========================================================================
+// Error Classes (Rails: active_record_error_test.rb)
+// ==========================================================================
+
+describe("Error Classes (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test "RecordNotFound"
+  it("find raises RecordNotFound with model, primary_key, and id", async () => {
+    class Person extends Base {
+      static { this._tableName = "people"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    try {
+      await Person.find(42);
+      expect.unreachable("should throw");
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(RecordNotFound);
+      expect(e.model).toBe("Person");
+      expect(e.primaryKey).toBe("id");
+      expect(e.id).toBe(42);
+      expect(e.message).toContain("42");
+    }
+  });
+
+  // Rails: test "RecordNotFound with multiple IDs"
+  it("find with multiple IDs raises RecordNotFound listing missing IDs", async () => {
+    class Person extends Base {
+      static { this._tableName = "people"; this.attribute("id", "integer"); this.adapter = adapter; }
+    }
+    await Person.create({ id: 1 });
+
+    try {
+      await Person.find([1, 2, 3]);
+      expect.unreachable("should throw");
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(RecordNotFound);
+      expect(e.message).toContain("2");
+      expect(e.message).toContain("3");
+    }
+  });
+
+  // Rails: test "RecordInvalid"
+  it("save! raises RecordInvalid with error messages", async () => {
+    class Person extends Base {
+      static { this._tableName = "people"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      static { this.validates("name", { presence: true }); }
+    }
+
+    const p = new Person({});
+    try {
+      await p.saveBang();
+      expect.unreachable("should throw");
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(RecordInvalid);
+      expect(e.record).toBe(p);
+      expect(e.message).toContain("Validation failed");
+    }
+  });
+
+  // Rails: test "create! raises RecordInvalid"
+  it("create! raises RecordInvalid on validation failure", async () => {
+    class Person extends Base {
+      static { this._tableName = "people"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      static { this.validates("name", { presence: true }); }
+    }
+
+    await expect(Person.createBang({})).rejects.toThrow(RecordInvalid);
+  });
+
+  // Rails: test "find_by! raises RecordNotFound"
+  it("findByBang raises RecordNotFound when no record matches", async () => {
+    class Person extends Base {
+      static { this._tableName = "people"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    await expect(Person.findByBang({ name: "Nobody" })).rejects.toThrow(RecordNotFound);
+  });
+
+  // Rails: test "ReadOnlyRecord"
+  it("save on readonly record raises ReadOnlyRecord", async () => {
+    class Person extends Base {
+      static { this._tableName = "people"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    const p = await Person.create({ name: "Alice" });
+    p.readonlyBang();
+
+    await expect(p.save()).rejects.toThrow(ReadOnlyRecord);
+    await expect(p.destroy()).rejects.toThrow(ReadOnlyRecord);
+  });
+});
+
+// ==========================================================================
+// insertAll / upsertAll (Rails: insert_all_test.rb)
+// ==========================================================================
+
+describe("insertAll / upsertAll (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test "insert_all inserts multiple records"
+  it("insert_all inserts multiple records without callbacks", async () => {
+    const log: string[] = [];
+    class Book extends Base {
+      static { this._tableName = "books"; this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("author", "string"); this.adapter = adapter; }
+      static { this.beforeSave(() => { log.push("before_save"); }); }
+    }
+
+    await Book.insertAll([
+      { id: 1, title: "Book 1", author: "Author A" },
+      { id: 2, title: "Book 2", author: "Author B" },
+      { id: 3, title: "Book 3", author: "Author C" },
+    ]);
+
+    const books = await Book.all().toArray();
+    expect(books.length).toBe(3);
+    expect(log).toEqual([]); // Callbacks NOT fired
+  });
+
+  // Rails: test "insert_all returns count"
+  it("insert_all with empty array returns 0", async () => {
+    class Book extends Base {
+      static { this._tableName = "books"; this.attribute("id", "integer"); this.adapter = adapter; }
+    }
+    expect(await Book.insertAll([])).toBe(0);
+  });
+
+  // Rails: test "upsert_all inserts and updates"
+  it("upsert_all inserts new records", async () => {
+    class Book extends Base {
+      static { this._tableName = "books"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+
+    await Book.upsertAll([
+      { id: 1, title: "First" },
+      { id: 2, title: "Second" },
+    ]);
+
+    const books = await Book.all().toArray();
+    expect(books.length).toBe(2);
+  });
+});
+
+// ==========================================================================
+// after_initialize / after_find (Rails: callbacks_test.rb)
+// ==========================================================================
+
+describe("after_initialize / after_find (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test "after_initialize is called on new"
+  it("after_initialize fires on Model.new", () => {
+    class Developer extends Base {
+      static {
+        this._tableName = "developers";
+        this.attribute("id", "integer");
+        this.attribute("name", "string");
+        this.attribute("salary", "integer");
+        this.adapter = adapter;
+        this.afterInitialize((r: any) => {
+          if (r.readAttribute("salary") === null) {
+            r._attributes.set("salary", 50000);
+          }
+        });
+      }
+    }
+
+    const dev = new Developer({ name: "Alice" });
+    expect(dev.readAttribute("salary")).toBe(50000);
+  });
+
+  // Rails: test "after_initialize is called on find"
+  it("after_initialize fires on records loaded from DB", async () => {
+    const initialized: string[] = [];
+    class Developer extends Base {
+      static {
+        this._tableName = "developers";
+        this.attribute("id", "integer");
+        this.attribute("name", "string");
+        this.adapter = adapter;
+        this.afterInitialize((r: any) => {
+          initialized.push(r.readAttribute("name") ?? "new");
+        });
+      }
+    }
+
+    await Developer.create({ name: "Alice" });
+    initialized.length = 0; // Clear create initialization
+
+    await Developer.find(1);
+    expect(initialized.length).toBeGreaterThan(0);
+  });
+
+  // Rails: test "after_find is called on find"
+  it("after_find fires only on records loaded from DB, not on new", async () => {
+    const found: number[] = [];
+    class Developer extends Base {
+      static {
+        this._tableName = "developers";
+        this.attribute("id", "integer");
+        this.attribute("name", "string");
+        this.adapter = adapter;
+        this.afterFind((r: any) => {
+          found.push(r.readAttribute("id"));
+        });
+      }
+    }
+
+    // New does NOT trigger after_find
+    new Developer({ name: "Bob" });
+    expect(found).toEqual([]);
+
+    // Create triggers after_find (through _instantiate on reload)
+    await Developer.create({ name: "Alice" });
+    found.length = 0;
+
+    // Find triggers after_find
+    await Developer.find(1);
+    expect(found).toEqual([1]);
+  });
+
+  // Rails: test "after_find is called on each record in all"
+  it("after_find fires for each record in toArray", async () => {
+    const found: string[] = [];
+    class Developer extends Base {
+      static {
+        this._tableName = "developers";
+        this.attribute("id", "integer");
+        this.attribute("name", "string");
+        this.adapter = adapter;
+        this.afterFind((r: any) => {
+          found.push(r.readAttribute("name"));
+        });
+      }
+    }
+
+    await Developer.create({ name: "Alice" });
+    await Developer.create({ name: "Bob" });
+    found.length = 0;
+
+    await Developer.all().toArray();
+    expect(found).toEqual(["Alice", "Bob"]);
+  });
+});
+
+// ==========================================================================
+// Conditional Callbacks (Rails: callbacks_test.rb)
+// ==========================================================================
+
+describe("Conditional Callbacks (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test "before_save callback with if condition"
+  it("before_save with if: only runs when condition is true", async () => {
+    const log: string[] = [];
+    class Order extends Base {
+      static {
+        this._tableName = "orders";
+        this.attribute("id", "integer");
+        this.attribute("total", "integer");
+        this.attribute("discount_code", "string");
+        this.adapter = adapter;
+        this.beforeSave(
+          () => { log.push("apply_discount"); },
+          { if: (r: any) => r.readAttribute("discount_code") !== null }
+        );
+      }
+    }
+
+    await Order.create({ total: 100 }); // No discount code
+    expect(log).toEqual([]);
+
+    await Order.create({ total: 100, discount_code: "SAVE10" });
+    expect(log).toEqual(["apply_discount"]);
+  });
+
+  // Rails: test "after_save callback with unless condition"
+  it("after_save with unless: skips when condition is true", async () => {
+    const notifications: string[] = [];
+    class Order extends Base {
+      static {
+        this._tableName = "orders";
+        this.attribute("id", "integer");
+        this.attribute("total", "integer");
+        this.attribute("silent", "boolean");
+        this.adapter = adapter;
+        this.afterSave(
+          (r: any) => { notifications.push(`order:${r.readAttribute("total")}`); },
+          { unless: (r: any) => r.readAttribute("silent") === true }
+        );
+      }
+    }
+
+    await Order.create({ total: 100 });
+    expect(notifications).toEqual(["order:100"]);
+
+    await Order.create({ total: 200, silent: true });
+    expect(notifications).toEqual(["order:100"]); // Not called for silent
+  });
+
+  // Rails: test "halt callback chain with false"
+  it("returning false from before_save halts the chain", async () => {
+    class Immutable extends Base {
+      static {
+        this._tableName = "immutables";
+        this.attribute("id", "integer");
+        this.attribute("locked", "boolean");
+        this.adapter = adapter;
+        this.beforeSave(
+          () => false,
+          { if: (r: any) => r.readAttribute("locked") === true }
+        );
+      }
+    }
+
+    // Can save when not locked
+    const record = await Immutable.create({ locked: false });
+    expect(record.isPersisted()).toBe(true);
+
+    // Cannot save when locked
+    record.writeAttribute("locked", true);
+    const result = await record.save();
+    expect(result).toBe(false);
+  });
+});
+
+// ==========================================================================
+// Reflection (Rails: reflection_test.rb)
+// ==========================================================================
+
+describe("Reflection (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test "columns"
+  it("columns returns metadata about all attributes", () => {
+    class Person extends Base {
+      static {
+        this._tableName = "people";
+        this.attribute("id", "integer");
+        this.attribute("name", "string");
+        this.attribute("age", "integer");
+        this.attribute("active", "boolean");
+        this.adapter = adapter;
+      }
+    }
+
+    const cols = columns(Person);
+    expect(cols.length).toBe(4);
+    expect(cols.map(c => c.name)).toEqual(["id", "name", "age", "active"]);
+  });
+
+  // Rails: test "column_names"
+  it("columnNames returns array of attribute name strings", () => {
+    class Person extends Base {
+      static {
+        this._tableName = "people";
+        this.attribute("id", "integer");
+        this.attribute("name", "string");
+        this.adapter = adapter;
+      }
+    }
+
+    expect(columnNames(Person)).toEqual(["id", "name"]);
+  });
+
+  // Rails: test "reflect_on_association"
+  it("reflectOnAssociation returns metadata about a specific association", () => {
+    class Author extends Base {
+      static { this._tableName = "authors"; this.attribute("id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Author);
+
+    class Post extends Base {
+      static { this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+    }
+    Associations.belongsTo.call(Post, "author");
+    Associations.hasMany.call(Post, "comments");
+
+    const ref = reflectOnAssociation(Post, "author");
+    expect(ref).not.toBeNull();
+    expect(ref!.macro).toBe("belongsTo");
+    expect(ref!.foreignKey).toBe("author_id");
+    expect(ref!.className).toBe("Author");
+    expect(ref!.isBelongsTo()).toBe(true);
+
+    const commRef = reflectOnAssociation(Post, "comments");
+    expect(commRef).not.toBeNull();
+    expect(commRef!.macro).toBe("hasMany");
+    expect(commRef!.isCollection()).toBe(true);
+  });
+
+  // Rails: test "reflect_on_all_associations"
+  it("reflectOnAllAssociations returns all or filtered by macro", () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.adapter = adapter; }
+    }
+    Associations.hasMany.call(User, "posts");
+    Associations.hasMany.call(User, "comments");
+    Associations.hasOne.call(User, "profile");
+
+    const all = reflectOnAllAssociations(User);
+    expect(all.length).toBe(3);
+
+    const hasManys = reflectOnAllAssociations(User, "hasMany");
+    expect(hasManys.length).toBe(2);
+
+    const hasOnes = reflectOnAllAssociations(User, "hasOne");
+    expect(hasOnes.length).toBe(1);
+    expect(hasOnes[0].name).toBe("profile");
+  });
+
+  // Rails: test "reflect_on_association returns nil for unknown"
+  it("reflectOnAssociation returns null for non-existent association", () => {
+    class Person extends Base {
+      static { this._tableName = "people"; this.attribute("id", "integer"); this.adapter = adapter; }
+    }
+    expect(reflectOnAssociation(Person, "nonexistent")).toBeNull();
+  });
+});
+
+// ==========================================================================
+// Nested Attributes (Rails: nested_attributes_test.rb)
+// ==========================================================================
+
+describe("Nested Attributes (Rails-guided)", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test "create with nested attributes"
+  it("creates associated records through nested attributes", async () => {
+    class Comment extends Base {
+      static { this._tableName = "comments"; this.attribute("id", "integer"); this.attribute("body", "string"); this.attribute("post_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Comment);
+
+    class Post extends Base {
+      static { this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+    Associations.hasMany.call(Post, "comments");
+    acceptsNestedAttributesFor(Post, "comments");
+
+    const post = new Post({ title: "Hello World" });
+    assignNestedAttributes(post, "comments", [
+      { body: "Great post!" },
+      { body: "Thanks for sharing" },
+    ]);
+    await post.save();
+
+    const comments = await Comment.all().toArray();
+    expect(comments.length).toBe(2);
+    expect(comments[0].readAttribute("post_id")).toBe(post.id);
+    expect(comments[1].readAttribute("post_id")).toBe(post.id);
+  });
+
+  // Rails: test "update with nested attributes"
+  it("updates existing associated records", async () => {
+    class Comment extends Base {
+      static { this._tableName = "comments"; this.attribute("id", "integer"); this.attribute("body", "string"); this.attribute("post_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Comment);
+
+    class Post extends Base {
+      static { this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+    Associations.hasMany.call(Post, "comments");
+    acceptsNestedAttributesFor(Post, "comments");
+    registerModel(Post);
+
+    const post = await Post.create({ title: "Hello" });
+    const comment = await Comment.create({ body: "Original", post_id: post.id });
+
+    assignNestedAttributes(post, "comments", [
+      { id: comment.id, body: "Updated body" },
+    ]);
+    await post.save();
+
+    await comment.reload();
+    expect(comment.readAttribute("body")).toBe("Updated body");
+  });
+
+  // Rails: test "destroy with nested attributes"
+  it("destroys associated records when _destroy is set and allowDestroy is true", async () => {
+    class Comment extends Base {
+      static { this._tableName = "comments"; this.attribute("id", "integer"); this.attribute("body", "string"); this.attribute("post_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Comment);
+
+    class Post extends Base {
+      static { this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+    Associations.hasMany.call(Post, "comments");
+    acceptsNestedAttributesFor(Post, "comments", { allowDestroy: true });
+    registerModel(Post);
+
+    const post = await Post.create({ title: "Hello" });
+    const c1 = await Comment.create({ body: "Keep me", post_id: post.id });
+    const c2 = await Comment.create({ body: "Delete me", post_id: post.id });
+
+    assignNestedAttributes(post, "comments", [
+      { id: c2.id, _destroy: true },
+    ]);
+    await post.save();
+
+    const remaining = await Comment.all().toArray();
+    expect(remaining.length).toBe(1);
+    expect(remaining[0].readAttribute("body")).toBe("Keep me");
+  });
+
+  // Rails: test "reject_if"
+  it("rejects nested records matching rejectIf condition", async () => {
+    class Comment extends Base {
+      static { this._tableName = "comments"; this.attribute("id", "integer"); this.attribute("body", "string"); this.attribute("post_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Comment);
+
+    class Post extends Base {
+      static { this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
+    }
+    Associations.hasMany.call(Post, "comments");
+    acceptsNestedAttributesFor(Post, "comments", {
+      rejectIf: (attrs) => !attrs.body || (attrs.body as string).trim() === "",
+    });
+    registerModel(Post);
+
+    const post = new Post({ title: "Test" });
+    assignNestedAttributes(post, "comments", [
+      { body: "Valid comment" },
+      { body: "" },
+      { body: "Another valid" },
+    ]);
+    await post.save();
+
+    const comments = await Comment.all().toArray();
+    expect(comments.length).toBe(2);
   });
 });

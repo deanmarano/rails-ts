@@ -2,6 +2,14 @@ import { Model } from "@rails-js/activemodel";
 import { Table } from "@rails-js/arel";
 import type { DatabaseAdapter } from "./adapter.js";
 import { getInheritanceColumn, isStiSubclass, getStiBase, instantiateSti } from "./sti.js";
+import {
+  RecordNotFound,
+  RecordInvalid,
+  RecordNotSaved,
+  RecordNotDestroyed,
+  StaleObjectError,
+  ReadOnlyRecord,
+} from "./errors.js";
 
 /**
  * Pluralize a name (naive English pluralization).
@@ -173,8 +181,9 @@ export class Base extends Model {
       if (records.length !== id.length) {
         const foundIds = new Set(records.map((r: Base) => r.id));
         const missing = id.filter((i) => !foundIds.has(i));
-        throw new Error(
-          `${this.name} with ${this.primaryKey} in [${missing.join(", ")}] not found`
+        throw new RecordNotFound(
+          `${this.name} with ${this.primaryKey} in [${missing.join(", ")}] not found`,
+          this.name, this.primaryKey, id
         );
       }
       return records;
@@ -182,8 +191,9 @@ export class Base extends Model {
     // Single ID
     const record = await this.findBy({ [this.primaryKey]: id });
     if (!record) {
-      throw new Error(
-        `${this.name} with ${this.primaryKey}=${id} not found`
+      throw new RecordNotFound(
+        `${this.name} with ${this.primaryKey}=${id} not found`,
+        this.name, this.primaryKey, id
       );
     }
     return record;
@@ -226,7 +236,7 @@ export class Base extends Model {
   ): Promise<Base> {
     const record = await this.findBy(conditions);
     if (!record) {
-      throw new Error(`${this.name} not found`);
+      throw new RecordNotFound(`${this.name} not found`, this.name);
     }
     return record;
   }
@@ -263,6 +273,30 @@ export class Base extends Model {
    */
   static where(conditions: Record<string, unknown>): any {
     return this.all().where(conditions);
+  }
+
+  /**
+   * Insert multiple records in a single INSERT statement (skip callbacks/validations).
+   *
+   * Mirrors: ActiveRecord::Base.insert_all
+   */
+  static async insertAll(
+    records: Record<string, unknown>[],
+    options?: { uniqueBy?: string | string[] }
+  ): Promise<number> {
+    return this.all().insertAll(records, options);
+  }
+
+  /**
+   * Upsert multiple records in a single statement (skip callbacks/validations).
+   *
+   * Mirrors: ActiveRecord::Base.upsert_all
+   */
+  static async upsertAll(
+    records: Record<string, unknown>[],
+    options?: { uniqueBy?: string | string[] }
+  ): Promise<number> {
+    return this.all().upsertAll(records, options);
   }
 
   /**
@@ -333,6 +367,8 @@ export class Base extends Model {
     record._newRecord = false;
     record._dirty.snapshot(record._attributes);
     record.changesApplied();
+    // Fire after_find callbacks
+    this._callbackChain.runAfter("find", record);
     return record;
   }
 
@@ -523,14 +559,12 @@ export class Base extends Model {
    */
   async save(): Promise<boolean> {
     if (this._destroyed) {
-      throw new Error(
-        `Cannot save a destroyed ${(this.constructor as typeof Base).name}`
+      throw new RecordNotSaved(
+        `Cannot save a destroyed ${(this.constructor as typeof Base).name}`, this
       );
     }
     if (this._readonly) {
-      throw new Error(
-        `${(this.constructor as typeof Base).name} is marked as readonly`
-      );
+      throw new ReadOnlyRecord(this);
     }
     // Set validation context for on: :create / on: :update
     this._validationContext = this._newRecord ? "create" : "update";
@@ -626,9 +660,7 @@ export class Base extends Model {
   async saveBang(): Promise<true> {
     const result = await this.save();
     if (!result) {
-      throw new Error(
-        `Validation failed: ${this.errors.fullMessages.join(", ")}`
-      );
+      throw new RecordInvalid(this);
     }
     return true;
   }
@@ -727,9 +759,7 @@ export class Base extends Model {
     const sql = `UPDATE "${table.name}" SET ${finalSetClause} WHERE "${ctor.primaryKey}" = ${pkQuoted}${lockClause}`;
     this._pendingOperation = ctor.adapter.executeMutation(sql).then((affected) => {
       if (lockClause && affected === 0) {
-        throw new Error(
-          `StaleObjectError: Attempted to update a stale ${ctor.name}. The record has been modified by another process.`
-        );
+        throw new StaleObjectError(this, "update");
       }
     });
   }
@@ -765,9 +795,7 @@ export class Base extends Model {
    */
   async destroy(): Promise<this> {
     if (this._readonly) {
-      throw new Error(
-        `${(this.constructor as typeof Base).name} is marked as readonly`
-      );
+      throw new ReadOnlyRecord(this);
     }
     const ctor = this.constructor as typeof Base;
 
@@ -860,8 +888,9 @@ export class Base extends Model {
     );
 
     if (row.length === 0) {
-      throw new Error(
-        `${ctor.name} with ${ctor.primaryKey}=${this.id} not found`
+      throw new RecordNotFound(
+        `${ctor.name} with ${ctor.primaryKey}=${this.id} not found`,
+        ctor.name, ctor.primaryKey, this.id
       );
     }
 
