@@ -961,6 +961,26 @@ export class Base extends Model {
   }
 
   /**
+   * Reset counter caches by recounting the actual associated records.
+   *
+   * Mirrors: ActiveRecord::Base.reset_counters
+   */
+  static async resetCounters(id: unknown, ...counterNames: string[]): Promise<void> {
+    const record = await this.find(id);
+    if (!record) return;
+    for (const counterName of counterNames) {
+      const counterColumn = `${counterName}_count`;
+      // Load associated records to get actual count
+      const assocDefs = (this as any)._associations as Map<string, any> | undefined;
+      if (assocDefs && assocDefs.has(counterName)) {
+        const { loadHasMany } = await import("./associations.js");
+        const records = await loadHasMany(record, counterName, assocDefs.get(counterName).options);
+        await record.updateColumn(counterColumn, records.length);
+      }
+    }
+  }
+
+  /**
    * Instantiate a model from a database row (marks it as persisted).
    */
   static _instantiate(row: Record<string, unknown>): Base {

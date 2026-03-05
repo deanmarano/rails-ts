@@ -8334,6 +8334,124 @@ describe("ActiveRecord", () => {
   });
 
   // ===========================================================================
+  // CollectionProxy enhancements
+  // ===========================================================================
+  describe("CollectionProxy enhancements", () => {
+    it("push adds records to the collection", async () => {
+      const adapter = freshAdapter();
+      class Author extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      class Post extends Base {
+        static { this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+      }
+      registerModel("Author", Author);
+      registerModel("Post", Post);
+      (Author as any)._associations = [{ type: "hasMany", name: "posts", options: { className: "Post", foreignKey: "author_id" } }];
+
+      const author = await Author.create({ name: "Alice" });
+      const post = await Post.create({ title: "Hello" });
+      const proxy = association(author, "posts");
+      await proxy.push(post);
+      expect(post.readAttribute("author_id")).toBe(author.id);
+    });
+
+    it("size returns count", async () => {
+      const adapter = freshAdapter();
+      class Author extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      class Post extends Base {
+        static { this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+      }
+      registerModel("Author", Author);
+      registerModel("Post", Post);
+      (Author as any)._associations = [{ type: "hasMany", name: "posts", options: { className: "Post", foreignKey: "author_id" } }];
+
+      const author = await Author.create({ name: "Alice" });
+      await Post.create({ title: "P1", author_id: author.id });
+      const proxy = association(author, "posts");
+      expect(await proxy.size()).toBe(1);
+    });
+
+    it("isEmpty returns true/false", async () => {
+      const adapter = freshAdapter();
+      class Author extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      class Post extends Base {
+        static { this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+      }
+      registerModel("Author", Author);
+      registerModel("Post", Post);
+      (Author as any)._associations = [{ type: "hasMany", name: "posts", options: { className: "Post", foreignKey: "author_id" } }];
+
+      const author = await Author.create({ name: "Alice" });
+      const proxy = association(author, "posts");
+      expect(await proxy.isEmpty()).toBe(true);
+      await Post.create({ title: "P1", author_id: author.id });
+      expect(await proxy.isEmpty()).toBe(false);
+    });
+
+    it("first and last return correct records", async () => {
+      const adapter = freshAdapter();
+      class Author extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      class Post extends Base {
+        static { this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+      }
+      registerModel("Author", Author);
+      registerModel("Post", Post);
+      (Author as any)._associations = [{ type: "hasMany", name: "posts", options: { className: "Post", foreignKey: "author_id" } }];
+
+      const author = await Author.create({ name: "Alice" });
+      await Post.create({ title: "First", author_id: author.id });
+      await Post.create({ title: "Second", author_id: author.id });
+      const proxy = association(author, "posts");
+      const first = await proxy.first();
+      expect(first).not.toBeNull();
+      expect(first!.readAttribute("title")).toBe("First");
+      const last = await proxy.last();
+      expect(last!.readAttribute("title")).toBe("Second");
+    });
+
+    it("includes checks for record membership", async () => {
+      const adapter = freshAdapter();
+      class Author extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      class Post extends Base {
+        static { this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+      }
+      registerModel("Author", Author);
+      registerModel("Post", Post);
+      (Author as any)._associations = [{ type: "hasMany", name: "posts", options: { className: "Post", foreignKey: "author_id" } }];
+
+      const author = await Author.create({ name: "Alice" });
+      const post = await Post.create({ title: "Mine", author_id: author.id });
+      const other = await Post.create({ title: "Other", author_id: 999 });
+      const proxy = association(author, "posts");
+      expect(await proxy.includes(post)).toBe(true);
+      expect(await proxy.includes(other)).toBe(false);
+    });
+  });
+
+  // ===========================================================================
+  // loadAsync on Relation
+  // ===========================================================================
+  describe("Relation#loadAsync", () => {
+    it("returns the relation for chaining", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const rel = User.where({ name: "Alice" }).loadAsync();
+      expect(rel).toBeDefined();
+    });
+  });
+
+  // ===========================================================================
   // invertWhere
   // ===========================================================================
   describe("Relation#invertWhere", () => {

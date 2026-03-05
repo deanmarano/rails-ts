@@ -27,6 +27,7 @@ import { SqlLiteral } from "./sql-literal.js";
 import { NamedFunction } from "./named-function.js";
 import { Extract } from "./extract.js";
 import { Regexp as RegexpNode, NotRegexp } from "./regexp.js";
+import { IsDistinctFrom, IsNotDistinctFrom } from "./distinct-from.js";
 
 function buildQuoted(value: unknown): Node {
   if (value instanceof Node) return value;
@@ -285,6 +286,16 @@ export class Attribute extends Node {
 
   coalesce(...others: unknown[]): NamedFunction {
     return new NamedFunction("COALESCE", [this, ...others.map(buildQuoted)]);
+  }
+
+  // -- Distinct From --
+
+  isDistinctFrom(other: unknown): IsDistinctFrom {
+    return new IsDistinctFrom(this, buildQuoted(other));
+  }
+
+  isNotDistinctFrom(other: unknown): IsNotDistinctFrom {
+    return new IsNotDistinctFrom(this, buildQuoted(other));
   }
 
   accept<T>(visitor: NodeVisitor<T>): T {

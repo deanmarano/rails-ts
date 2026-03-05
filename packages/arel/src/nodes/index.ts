@@ -84,6 +84,7 @@ export { BindParam } from "./bind-param.js";
 export { Concat } from "./concat.js";
 export { True, False } from "./true-false.js";
 export { Regexp, NotRegexp } from "./regexp.js";
+export { IsDistinctFrom, IsNotDistinctFrom } from "./distinct-from.js";
 
 import { SqlLiteral } from "./sql-literal.js";
 

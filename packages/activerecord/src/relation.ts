@@ -862,6 +862,21 @@ export class Relation<T extends Base> {
   }
 
   /**
+   * Schedule loading in the background. Returns self for chaining.
+   * In JS, this eagerly starts the load as a promise.
+   *
+   * Mirrors: ActiveRecord::Relation#load_async
+   */
+  loadAsync(): Relation<T> {
+    // Start loading in background; result is cached when accessed
+    this.toArray().then(records => {
+      this._loaded = true;
+      this._records = records;
+    });
+    return this;
+  }
+
+  /**
    * Create a fresh copy of this relation.
    *
    * Mirrors: ActiveRecord::Relation#spawn

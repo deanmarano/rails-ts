@@ -540,6 +540,114 @@ export class CollectionProxy {
     const records = await this.toArray();
     return records.length;
   }
+
+  /**
+   * Alias for count.
+   *
+   * Mirrors: ActiveRecord::Associations::CollectionProxy#size
+   */
+  async size(): Promise<number> {
+    return this.count();
+  }
+
+  /**
+   * Check if the collection is empty.
+   *
+   * Mirrors: ActiveRecord::Associations::CollectionProxy#empty?
+   */
+  async isEmpty(): Promise<boolean> {
+    return (await this.count()) === 0;
+  }
+
+  /**
+   * Add one or more records to the collection by setting the FK and saving.
+   *
+   * Mirrors: ActiveRecord::Associations::CollectionProxy#push / #<<
+   */
+  async push(...records: Base[]): Promise<void> {
+    const ctor = this._record.constructor as typeof Base;
+    const foreignKey = this._assocDef.options.foreignKey ?? `${underscore(ctor.name)}_id`;
+    const primaryKey = this._assocDef.options.primaryKey ?? ctor.primaryKey;
+    const pkValue = this._record.readAttribute(primaryKey);
+    for (const record of records) {
+      record.writeAttribute(foreignKey, pkValue);
+      await record.save();
+    }
+  }
+
+  /**
+   * Alias for push.
+   */
+  async concat(...records: Base[]): Promise<void> {
+    return this.push(...records);
+  }
+
+  /**
+   * Delete associated records by nullifying the FK.
+   *
+   * Mirrors: ActiveRecord::Associations::CollectionProxy#delete
+   */
+  async delete(...records: Base[]): Promise<void> {
+    const ctor = this._record.constructor as typeof Base;
+    const foreignKey = this._assocDef.options.foreignKey ?? `${underscore(ctor.name)}_id`;
+    for (const record of records) {
+      record.writeAttribute(foreignKey, null);
+      await record.save();
+    }
+  }
+
+  /**
+   * Destroy associated records (runs callbacks and deletes from DB).
+   *
+   * Mirrors: ActiveRecord::Associations::CollectionProxy#destroy
+   */
+  async destroy(...records: Base[]): Promise<void> {
+    for (const record of records) {
+      await record.destroy();
+    }
+  }
+
+  /**
+   * Remove all records from the collection by nullifying FKs.
+   *
+   * Mirrors: ActiveRecord::Associations::CollectionProxy#clear
+   */
+  async clear(): Promise<void> {
+    const records = await this.toArray();
+    await this.delete(...records);
+  }
+
+  /**
+   * Check if a record is in the collection.
+   *
+   * Mirrors: ActiveRecord::Associations::CollectionProxy#include?
+   */
+  async includes(record: Base): Promise<boolean> {
+    const records = await this.toArray();
+    const pk = (record.constructor as typeof Base).primaryKey;
+    const targetId = record.readAttribute(pk);
+    return records.some(r => r.readAttribute(pk) === targetId);
+  }
+
+  /**
+   * Return the first associated record.
+   *
+   * Mirrors: ActiveRecord::Associations::CollectionProxy#first
+   */
+  async first(): Promise<Base | null> {
+    const records = await this.toArray();
+    return records[0] ?? null;
+  }
+
+  /**
+   * Return the last associated record.
+   *
+   * Mirrors: ActiveRecord::Associations::CollectionProxy#last
+   */
+  async last(): Promise<Base | null> {
+    const records = await this.toArray();
+    return records[records.length - 1] ?? null;
+  }
 }
 
 /**

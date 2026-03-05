@@ -2355,6 +2355,42 @@ describe("ActiveModel", () => {
   });
 
   // ===========================================================================
+  // attributePreviouslyChanged / attributePreviouslyWas
+  // ===========================================================================
+  describe("attributePreviouslyChanged / attributePreviouslyWas", () => {
+    it("attributePreviouslyChanged returns true for attributes changed in last save", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Alice" });
+      u.writeAttribute("name", "Bob");
+      u.changesApplied(); // simulate save — records name change as previous
+      expect(u.attributePreviouslyChanged("name")).toBe(true);
+    });
+
+    it("attributePreviouslyChanged supports from/to options", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Alice" });
+      u.writeAttribute("name", "Bob");
+      u.changesApplied();
+      expect(u.attributePreviouslyChanged("name", { from: "Alice", to: "Bob" })).toBe(true);
+      expect(u.attributePreviouslyChanged("name", { to: "Charlie" })).toBe(false);
+    });
+
+    it("attributePreviouslyWas returns value before last save", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Alice" });
+      u.writeAttribute("name", "Bob");
+      u.changesApplied();
+      expect(u.attributePreviouslyWas("name")).toBe("Alice");
+    });
+  });
+
+  // ===========================================================================
   // attributeMethodPrefix / attributeMethodSuffix / attributeMethodAffix
   // ===========================================================================
   describe("attribute method prefix/suffix/affix", () => {

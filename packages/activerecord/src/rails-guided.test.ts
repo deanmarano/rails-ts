@@ -7761,6 +7761,64 @@ describe("Grouped Calculations (Rails-guided)", () => {
     expect(User.i18nScope).toBe("activemodel");
   });
 
+  // Rails guide: attribute_previously_changed?
+  it("attributePreviouslyChanged checks last save changes", async () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    const u = await User.create({ name: "Alice" });
+    u.writeAttribute("name", "Bob");
+    await u.save();
+    expect(u.attributePreviouslyChanged("name")).toBe(true);
+    expect(u.attributePreviouslyChanged("name", { from: "Alice", to: "Bob" })).toBe(true);
+  });
+
+  // Rails guide: CollectionProxy#push
+  it("CollectionProxy push adds records", async () => {
+    const adapter = new MemoryAdapter();
+    class Author extends Base {
+      static { this._tableName = "authors"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class Post extends Base {
+      static { this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel("Author", Author);
+    registerModel("Post", Post);
+    Associations.hasMany.call(Author, "posts");
+    const author = await Author.create({ name: "Alice" });
+    const post = await Post.create({ title: "Hello" });
+    const proxy = association(author, "posts");
+    await proxy.push(post);
+    expect(await proxy.size()).toBe(1);
+  });
+
+  // Rails guide: CollectionProxy#isEmpty
+  it("CollectionProxy isEmpty returns true when empty", async () => {
+    const adapter = new MemoryAdapter();
+    class Author extends Base {
+      static { this._tableName = "authors"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class Post extends Base {
+      static { this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel("Author", Author);
+    registerModel("Post", Post);
+    Associations.hasMany.call(Author, "posts");
+    const author = await Author.create({ name: "Alice" });
+    expect(await association(author, "posts").isEmpty()).toBe(true);
+  });
+
+  // Rails guide: load_async schedules background load
+  it("loadAsync returns the relation for chaining", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.adapter = adapter; }
+    }
+    const rel = User.where({ id: 1 }).loadAsync();
+    expect(rel).toBeDefined();
+  });
+
   // Rails guide: attribute_method_prefix
   it("attributeMethodPrefix defines prefixed methods", () => {
     const adapter = new MemoryAdapter();

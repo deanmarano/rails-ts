@@ -1454,6 +1454,28 @@ describe("Arel", () => {
     });
   });
 
+  describe("IsDistinctFrom and IsNotDistinctFrom nodes", () => {
+    it("generates IS DISTINCT FROM", () => {
+      const node = users.attr("name").isDistinctFrom("Alice");
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe("\"users\".\"name\" IS DISTINCT FROM 'Alice'");
+    });
+
+    it("generates IS NOT DISTINCT FROM", () => {
+      const node = users.attr("name").isNotDistinctFrom(null);
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe("\"users\".\"name\" IS NOT DISTINCT FROM NULL");
+    });
+
+    it("can be constructed directly", () => {
+      const left = users.attr("age");
+      const right = new Nodes.Quoted(25);
+      const node = new Nodes.IsDistinctFrom(left, right);
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe("\"users\".\"age\" IS DISTINCT FROM 25");
+    });
+  });
+
   describe("True and False nodes", () => {
     it("generates TRUE", () => {
       const node = new Nodes.True();

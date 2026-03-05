@@ -872,6 +872,26 @@ export class Model {
     return changes[name];
   }
 
+  /**
+   * Check if a specific attribute changed in the last save.
+   * Alias for savedChangeToAttribute.
+   *
+   * Mirrors: ActiveModel::Dirty#attribute_previously_changed?
+   */
+  attributePreviouslyChanged(name: string, options?: { from?: unknown; to?: unknown }): boolean {
+    return this.savedChangeToAttribute(name, options);
+  }
+
+  /**
+   * Get the value of an attribute before the last save.
+   * Alias for attributeBeforeLastSave.
+   *
+   * Mirrors: ActiveModel::Dirty#attribute_previously_was
+   */
+  attributePreviouslyWas(name: string): unknown {
+    return this.attributeBeforeLastSave(name);
+  }
+
   restoreAttributes(): void {
     this._dirty.restore(this._attributes);
   }
