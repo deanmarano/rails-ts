@@ -140,6 +140,35 @@ export class Model {
   }
   static _nullifyBlanks: string[] | true | false = false;
 
+  /**
+   * Apply common options to multiple validation/callback calls.
+   *
+   * Mirrors: ActiveSupport::OptionMerger / with_options
+   *
+   * Usage:
+   *   User.withOptions({ if: (r) => r.readAttribute("active") }, (m) => {
+   *     m.validates("name", { presence: true });
+   *     m.validates("email", { presence: true });
+   *   });
+   */
+  static withOptions(
+    defaults: Record<string, unknown>,
+    fn: (model: typeof Model) => void
+  ): void {
+    // Create a proxy that merges defaults into validates() calls
+    const proxy = new Proxy(this, {
+      get(target: any, prop: string | symbol) {
+        if (prop === "validates") {
+          return (attr: string, rules: Record<string, unknown>) => {
+            target.validates(attr, { ...defaults, ...rules });
+          };
+        }
+        return target[prop];
+      },
+    });
+    fn(proxy);
+  }
+
   // -- Validations (Phase 1100) --
 
   static validates(
@@ -792,6 +821,56 @@ export class Model {
 
   toJson(options?: SerializeOptions): string {
     return JSON.stringify(this.asJson(options));
+  }
+
+  /**
+   * Serialize this model to XML.
+   *
+   * Mirrors: ActiveModel::Serializers::Xml#to_xml
+   */
+  toXml(options?: SerializeOptions & { root?: string }): string {
+    const hash = this.serializableHash(options);
+    const root = options?.root ?? (this.constructor as typeof Model).modelName.singular;
+    return `<${root}>\n${this._hashToXml(hash, "  ")}</${root}>`;
+  }
+
+  private _hashToXml(hash: Record<string, unknown>, indent: string): string {
+    let xml = "";
+    for (const [key, value] of Object.entries(hash)) {
+      const tag = key.replace(/_/g, "-");
+      if (value === null || value === undefined) {
+        xml += `${indent}<${tag} nil="true"/>\n`;
+      } else if (typeof value === "object" && !Array.isArray(value) && !(value instanceof Date)) {
+        xml += `${indent}<${tag}>\n${this._hashToXml(value as Record<string, unknown>, indent + "  ")}${indent}</${tag}>\n`;
+      } else if (Array.isArray(value)) {
+        xml += `${indent}<${tag} type="array">\n`;
+        for (const item of value) {
+          if (typeof item === "object" && item !== null) {
+            xml += `${indent}  <item>\n${this._hashToXml(item as Record<string, unknown>, indent + "    ")}${indent}  </item>\n`;
+          } else {
+            xml += `${indent}  <item>${this._escapeXml(String(item))}</item>\n`;
+          }
+        }
+        xml += `${indent}</${tag}>\n`;
+      } else if (typeof value === "number") {
+        xml += `${indent}<${tag} type="integer">${value}</${tag}>\n`;
+      } else if (typeof value === "boolean") {
+        xml += `${indent}<${tag} type="boolean">${value}</${tag}>\n`;
+      } else if (value instanceof Date) {
+        xml += `${indent}<${tag} type="dateTime">${value.toISOString()}</${tag}>\n`;
+      } else {
+        xml += `${indent}<${tag}>${this._escapeXml(String(value))}</${tag}>\n`;
+      }
+    }
+    return xml;
+  }
+
+  private _escapeXml(str: string): string {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   // -- Naming / Conversion --

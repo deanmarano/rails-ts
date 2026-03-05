@@ -7579,4 +7579,46 @@ describe("Grouped Calculations (Rails-guided)", () => {
     (User as any)._callbackChain.runBefore("destroy", u);
     expect(order[0]).toBe("prepended");
   });
+
+  // Rails guide: suppress — skip persistence during block
+  it("suppress() prevents database writes", async () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    await User.suppress(async () => {
+      await User.create({ name: "Ghost" });
+    });
+    const all = await User.all().toArray();
+    expect(all.length).toBe(0);
+  });
+
+  // Rails guide: with_options — common validation options
+  it("withOptions applies shared options to multiple validates calls", () => {
+    class User extends Base {
+      static {
+        this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("email", "string"); this.adapter = new MemoryAdapter();
+      }
+    }
+    User.withOptions({ on: "update" }, (m: any) => {
+      m.validates("name", { presence: true });
+      m.validates("email", { presence: true });
+    });
+    const validations = (User as any)._validations.filter((v: any) => v.on === "update");
+    expect(validations.length).toBe(2);
+  });
+
+  // Rails guide: to_xml — XML serialization
+  it("toXml() serializes model to XML", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("age", "integer"); this.adapter = adapter; }
+    }
+    const u = new User({ name: "Alice", age: 30 });
+    const xml = u.toXml();
+    expect(xml).toContain("<user>");
+    expect(xml).toContain("<name>Alice</name>");
+    expect(xml).toContain("<age");
+    expect(xml).toContain("</user>");
+  });
 });

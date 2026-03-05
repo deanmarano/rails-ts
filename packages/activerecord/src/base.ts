@@ -286,6 +286,31 @@ export class Base extends Model {
     _encrypts(this, ...args);
   }
 
+  // -- Suppress --
+  private static _suppressed = false;
+
+  /**
+   * Suppress persistence operations (insert/update/delete) during the block.
+   * Records appear to save but nothing hits the database.
+   *
+   * Mirrors: ActiveRecord::Suppressor.suppress
+   */
+  static async suppress<R>(fn: () => R | Promise<R>): Promise<R> {
+    this._suppressed = true;
+    try {
+      return await fn();
+    } finally {
+      this._suppressed = false;
+    }
+  }
+
+  /**
+   * Check if this model class is currently suppressed.
+   */
+  static get isSuppressed(): boolean {
+    return this._suppressed;
+  }
+
   // -- Scopes registry (used by Relation) --
   static _scopes: Map<string, (rel: any, ...args: any[]) => any> = new Map();
   static _defaultScope: ((rel: any) => any) | null = null;
@@ -1407,6 +1432,15 @@ export class Base extends Model {
 
   private _performInsert(): void {
     const ctor = this.constructor as typeof Base;
+
+    // If suppressed, skip the actual insert but update record state
+    if (ctor._suppressed || (ctor as any).__proto__._suppressed) {
+      this._newRecord = false;
+      this._dirty.snapshot(this._attributes);
+      this.changesApplied();
+      return;
+    }
+
     const table = ctor.arelTable;
 
     // Auto-populate timestamps (unless touch: false)
@@ -1454,6 +1488,14 @@ export class Base extends Model {
 
   private _performUpdate(): void {
     const ctor = this.constructor as typeof Base;
+
+    // If suppressed, skip the actual update
+    if (ctor._suppressed || (ctor as any).__proto__._suppressed) {
+      this._dirty.snapshot(this._attributes);
+      this.changesApplied();
+      return;
+    }
+
     const table = ctor.arelTable;
 
     // Auto-populate updated_at timestamp (unless touch: false)

@@ -2211,4 +2211,64 @@ describe("ActiveModel", () => {
       expect(order).toEqual(["prepended", "first"]);
     });
   });
+
+  describe("withOptions()", () => {
+    it("applies common validation options to all validates calls", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.attribute("active", "boolean", { default: true });
+        }
+      }
+
+      User.withOptions({ on: "create" }, (m) => {
+        m.validates("name", { presence: true });
+        m.validates("email", { presence: true });
+      });
+
+      // The validations should have on: "create" context
+      const validations = (User as any)._validations;
+      const nameV = validations.find((v: any) => v.attribute === "name");
+      const emailV = validations.find((v: any) => v.attribute === "email");
+      expect(nameV.on).toBe("create");
+      expect(emailV.on).toBe("create");
+    });
+  });
+
+  describe("toXml()", () => {
+    it("serializes model to XML", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+        }
+      }
+      const u = new User({ name: "Alice", age: 30 });
+      const xml = u.toXml();
+      expect(xml).toContain("<user>");
+      expect(xml).toContain("<name>Alice</name>");
+      expect(xml).toContain("<age type=\"integer\">30</age>");
+      expect(xml).toContain("</user>");
+    });
+
+    it("handles null values", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({});
+      const xml = u.toXml();
+      expect(xml).toContain('nil="true"');
+    });
+
+    it("supports custom root element", () => {
+      class User extends Model {
+        static { this.attribute("name", "string"); }
+      }
+      const u = new User({ name: "Alice" });
+      const xml = u.toXml({ root: "person" });
+      expect(xml).toContain("<person>");
+      expect(xml).toContain("</person>");
+    });
+  });
 });

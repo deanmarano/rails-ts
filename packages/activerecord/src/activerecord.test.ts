@@ -8291,4 +8291,45 @@ describe("ActiveRecord", () => {
       expect(User.tableName).toBe("custom_users");
     });
   });
+
+  describe("suppress()", () => {
+    it("prevents records from being persisted to database", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      await User.suppress(async () => {
+        const user = await User.create({ name: "Ghost" });
+        // Record appears saved locally
+        expect(user.isNewRecord()).toBe(false);
+      });
+
+      // But nothing in the database
+      const all = await User.all().toArray();
+      expect(all.length).toBe(0);
+    });
+  });
+
+  describe("toXml() on Base", () => {
+    it("serializes a record to XML", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      const u = new User({ name: "Alice" });
+      const xml = u.toXml();
+      expect(xml).toContain("<user>");
+      expect(xml).toContain("<name>Alice</name>");
+      expect(xml).toContain("</user>");
+    });
+  });
 });
