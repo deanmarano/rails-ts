@@ -7871,4 +7871,66 @@ describe("ActiveRecord", () => {
       expect(user.readAttribute("email")).toBe("alice@test.com");
     });
   });
+
+  describe("static destroy(id)", () => {
+    it("destroys a single record by id", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const user = await User.create({ name: "Alice" });
+      await User.destroy(user.id);
+      expect(await User.count()).toBe(0);
+    });
+
+    it("destroys multiple records by array of ids", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const u1 = await User.create({ name: "Alice" });
+      const u2 = await User.create({ name: "Bob" });
+      await User.create({ name: "Charlie" });
+
+      await User.destroy([u1.id, u2.id]);
+      expect(await User.count()).toBe(1);
+    });
+  });
+
+  describe("find with variadic args", () => {
+    it("finds multiple records with variadic ids", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      const u1 = await User.create({ name: "Alice" });
+      const u2 = await User.create({ name: "Bob" });
+
+      const results = await User.find(u1.id, u2.id);
+      expect(results.length).toBe(2);
+    });
+  });
+
+  describe("static updateBang", () => {
+    it("updates and raises on validation failure", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.validates("name", { presence: true });
+      User.adapter = adapter;
+
+      const user = await User.create({ name: "Alice" });
+      const updated = await User.updateBang(user.id, { name: "Bob" });
+      expect(updated.readAttribute("name")).toBe("Bob");
+
+      await expect(User.updateBang(user.id, { name: "" })).rejects.toThrow();
+    });
+  });
 });

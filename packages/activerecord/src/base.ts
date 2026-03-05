@@ -269,7 +269,12 @@ export class Base extends Model {
    *
    * Mirrors: ActiveRecord::Base.find
    */
-  static async find(id: unknown): Promise<any> {
+  static async find(...ids: unknown[]): Promise<any> {
+    // Variadic: User.find(1, 2, 3)
+    if (ids.length > 1) {
+      return this.find(ids);
+    }
+    const id = ids[0];
     // Multiple IDs — return an array
     if (Array.isArray(id)) {
       if (id.length === 0) return [];
@@ -454,12 +459,41 @@ export class Base extends Model {
   }
 
   /**
+   * Destroy a record by primary key (with callbacks).
+   *
+   * Mirrors: ActiveRecord::Base.destroy(id)
+   */
+  static async destroy(id: unknown | unknown[]): Promise<Base | Base[]> {
+    if (Array.isArray(id)) {
+      const records = await this.find(id);
+      for (const record of records) {
+        await record.destroy();
+      }
+      return records;
+    }
+    const record = await this.find(id);
+    await record.destroy();
+    return record;
+  }
+
+  /**
    * Destroy all records (with callbacks).
    *
    * Mirrors: ActiveRecord::Base.destroy_all
    */
   static async destroyAll(): Promise<Base[]> {
     return this.all().destroyAll();
+  }
+
+  /**
+   * Update a record and raise on validation failure.
+   *
+   * Mirrors: ActiveRecord::Base.update!
+   */
+  static async updateBang(id: unknown, attrs: Record<string, unknown>): Promise<Base> {
+    const record = await this.find(id);
+    await record.updateBang(attrs);
+    return record;
   }
 
   /**

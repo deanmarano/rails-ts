@@ -7255,4 +7255,40 @@ describe("Grouped Calculations (Rails-guided)", () => {
     const user = await User.create({ email: "  ALICE@TEST.COM  " });
     expect(user.readAttribute("email")).toBe("alice@test.com");
   });
+
+  // Rails: test "destroy(id)"
+  it("Base.destroy(id) finds and destroys a record", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    const user = await User.create({ name: "Alice" });
+    const destroyed = await User.destroy(user.id);
+    expect((destroyed as any).isDestroyed()).toBe(true);
+    expect(await User.count()).toBe(0);
+  });
+
+  // Rails: test "find with multiple ids"
+  it("find(id1, id2) returns array of records", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    const u1 = await User.create({ name: "Alice" });
+    const u2 = await User.create({ name: "Bob" });
+
+    const results = await User.find(u1.id, u2.id);
+    expect(results.length).toBe(2);
+  });
+
+  // Rails: test "update!(id, attrs)"
+  it("Base.updateBang raises on validation failure", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.validates("name", { presence: true }); this.adapter = adapter; }
+    }
+
+    const user = await User.create({ name: "Alice" });
+    const updated = await User.updateBang(user.id, { name: "Bob" });
+    expect(updated.readAttribute("name")).toBe("Bob");
+  });
 });
