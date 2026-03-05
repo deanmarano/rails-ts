@@ -503,6 +503,32 @@ export class Base extends Model {
   }
 
   /**
+   * Dynamic finder by a single attribute name.
+   * e.g., User.findByName("Alice") → User.findBy({ name: "Alice" })
+   *
+   * Mirrors: ActiveRecord::Base.find_by_* dynamic finders
+   */
+  static async findByAttribute(attribute: string, value: unknown): Promise<Base | null> {
+    return this.findBy({ [attribute]: value });
+  }
+
+  /**
+   * Check if a dynamic finder method name is valid.
+   *
+   * Mirrors: ActiveRecord::Base.respond_to_missing?
+   */
+  static respondToMissingFinder(methodName: string): boolean {
+    if (!methodName.startsWith("findBy")) return false;
+    const attrPart = methodName.slice(6); // remove "findBy"
+    if (!attrPart) return false;
+    // Convert camelCase to snake_case: findByFirstName → first_name
+    const attr = attrPart
+      .replace(/^./, c => c.toLowerCase())
+      .replace(/[A-Z]/g, c => `_${c.toLowerCase()}`);
+    return this._attributeDefinitions.has(attr);
+  }
+
+  /**
    * Find the sole record matching conditions.
    * Raises RecordNotFound if none, SoleRecordExceeded if more than one.
    *
@@ -2024,6 +2050,19 @@ export class Base extends Model {
    */
   static attributeNames(): string[] {
     return [...this._attributeDefinitions.keys()];
+  }
+
+  /**
+   * Return a hash of attribute name to default value.
+   *
+   * Mirrors: ActiveRecord::Base.column_defaults
+   */
+  static get columnDefaults(): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const [name, def] of this._attributeDefinitions) {
+      result[name] = typeof def.defaultValue === "function" ? def.defaultValue() : (def.defaultValue ?? null);
+    }
+    return result;
   }
 
   /**

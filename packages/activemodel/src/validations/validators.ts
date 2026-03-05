@@ -224,6 +224,7 @@ export class AcceptanceValidator implements Validator {
 
 export interface ConfirmationOptions extends ConditionalOptions {
   message?: string;
+  caseSensitive?: boolean;
 }
 
 export class ConfirmationValidator implements Validator {
@@ -233,7 +234,15 @@ export class ConfirmationValidator implements Validator {
     if (!shouldValidate(record, this.options)) return;
     const confirmation = record._attributes?.get(`${attribute}_confirmation`) ??
       record[`${attribute}_confirmation`];
-    if (confirmation !== undefined && value !== confirmation) {
+    if (confirmation === undefined) return;
+    const caseSensitive = this.options.caseSensitive ?? true;
+    let matches: boolean;
+    if (!caseSensitive && typeof value === "string" && typeof confirmation === "string") {
+      matches = value.toLowerCase() === confirmation.toLowerCase();
+    } else {
+      matches = value === confirmation;
+    }
+    if (!matches) {
       errors.add(attribute, "confirmation", { message: this.options.message });
     }
   }

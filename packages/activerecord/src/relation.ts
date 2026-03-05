@@ -703,15 +703,19 @@ export class Relation<T extends Base> {
 
   /**
    * Add custom methods to this relation instance.
+   * Accepts an object with methods, or a function that receives the relation.
    *
    * Mirrors: ActiveRecord::Relation#extending
    */
-  extending(mod: Record<string, Function>): Relation<T> {
+  extending(mod: Record<string, Function> | ((rel: Relation<T>) => void)): Relation<T> {
     const rel = this._clone();
-    rel._extending.push(mod);
-    // Apply the methods directly to the proxy target
-    for (const [name, fn] of Object.entries(mod)) {
-      (rel as any)[name] = fn.bind(rel);
+    if (typeof mod === "function") {
+      mod(rel);
+    } else {
+      rel._extending.push(mod);
+      for (const [name, fn] of Object.entries(mod)) {
+        (rel as any)[name] = fn.bind(rel);
+      }
     }
     return rel;
   }

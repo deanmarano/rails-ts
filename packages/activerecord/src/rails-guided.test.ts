@@ -7819,6 +7819,61 @@ describe("Grouped Calculations (Rails-guided)", () => {
     expect(rel).toBeDefined();
   });
 
+  // Rails guide: column_defaults
+  it("columnDefaults returns default values", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static {
+        this._tableName = "users";
+        this.attribute("id", "integer");
+        this.attribute("role", "string", { default: "user" });
+        this.adapter = adapter;
+      }
+    }
+    expect(User.columnDefaults.role).toBe("user");
+  });
+
+  // Rails guide: find_by_attribute dynamic finder
+  it("findByAttribute finds record by single column", async () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    await User.create({ name: "Alice" });
+    const found = await User.findByAttribute("name", "Alice");
+    expect(found).not.toBeNull();
+    expect(found!.readAttribute("name")).toBe("Alice");
+  });
+
+  // Rails guide: confirmation validator with caseSensitive: false
+  it("confirmation validator supports case_sensitive: false", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static {
+        this._tableName = "users";
+        this.attribute("id", "integer");
+        this.attribute("email", "string");
+        this.adapter = adapter;
+        this.validates("email", { confirmation: { caseSensitive: false } });
+      }
+    }
+    const u = new User({ email: "Test@Example.com" });
+    u._attributes.set("email_confirmation", "test@example.com");
+    expect(u.isValid()).toBe(true);
+  });
+
+  // Rails guide: extending with function
+  it("extending accepts a function argument", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    const rel = User.where({ name: "Alice" }).extending((r: any) => {
+      r.greet = () => "hello";
+    });
+    expect((rel as any).greet()).toBe("hello");
+  });
+
   // Rails guide: attribute_method_prefix
   it("attributeMethodPrefix defines prefixed methods", () => {
     const adapter = new MemoryAdapter();

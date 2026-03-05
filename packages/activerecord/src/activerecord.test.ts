@@ -8334,6 +8334,92 @@ describe("ActiveRecord", () => {
   });
 
   // ===========================================================================
+  // columnDefaults
+  // ===========================================================================
+  describe("Base.columnDefaults", () => {
+    it("returns default values for all attributes", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string", { default: "Anonymous" });
+          this.attribute("active", "boolean", { default: true });
+          this.adapter = adapter;
+        }
+      }
+      const defaults = User.columnDefaults;
+      expect(defaults.name).toBe("Anonymous");
+      expect(defaults.active).toBe(true);
+      expect(defaults.id).toBe(null);
+    });
+  });
+
+  // ===========================================================================
+  // findByAttribute (dynamic finder)
+  // ===========================================================================
+  describe("Base.findByAttribute", () => {
+    it("finds a record by a single attribute", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      const found = await User.findByAttribute("name", "Bob");
+      expect(found).not.toBeNull();
+      expect(found!.readAttribute("name")).toBe("Bob");
+    });
+
+    it("returns null when not found", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const found = await User.findByAttribute("name", "Nobody");
+      expect(found).toBeNull();
+    });
+  });
+
+  // ===========================================================================
+  // respondToMissingFinder
+  // ===========================================================================
+  describe("Base.respondToMissingFinder", () => {
+    it("returns true for valid dynamic finders", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("email", "string"); this.adapter = adapter; }
+      }
+      expect(User.respondToMissingFinder("findByName")).toBe(true);
+      expect(User.respondToMissingFinder("findByEmail")).toBe(true);
+    });
+
+    it("returns false for invalid dynamic finders", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      expect(User.respondToMissingFinder("findByFoo")).toBe(false);
+      expect(User.respondToMissingFinder("something")).toBe(false);
+    });
+  });
+
+  // ===========================================================================
+  // extending with function argument
+  // ===========================================================================
+  describe("Relation#extending with function", () => {
+    it("accepts a function that modifies the relation", () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const rel = User.where({ name: "Alice" }).extending((r: any) => {
+        r.customMethod = () => "hello";
+      });
+      expect((rel as any).customMethod()).toBe("hello");
+    });
+  });
+
+  // ===========================================================================
   // CollectionProxy enhancements
   // ===========================================================================
   describe("CollectionProxy enhancements", () => {

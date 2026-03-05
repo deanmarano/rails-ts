@@ -2330,6 +2330,38 @@ describe("ActiveModel", () => {
   });
 
   // ===========================================================================
+  // ConfirmationValidator caseSensitive option
+  // ===========================================================================
+  describe("ConfirmationValidator caseSensitive", () => {
+    it("is case-sensitive by default", () => {
+      class User extends Model {
+        static { this.attribute("email", "string"); this.validates("email", { confirmation: true }); }
+      }
+      const u = new User({ email: "Alice@example.com" });
+      u._attributes.set("email_confirmation", "alice@example.com");
+      expect(u.isValid()).toBe(false);
+    });
+
+    it("supports caseSensitive: false", () => {
+      class User extends Model {
+        static { this.attribute("email", "string"); this.validates("email", { confirmation: { caseSensitive: false } }); }
+      }
+      const u = new User({ email: "Alice@example.com" });
+      u._attributes.set("email_confirmation", "alice@example.com");
+      expect(u.isValid()).toBe(true);
+    });
+
+    it("still fails when values differ with caseSensitive: false", () => {
+      class User extends Model {
+        static { this.attribute("email", "string"); this.validates("email", { confirmation: { caseSensitive: false } }); }
+      }
+      const u = new User({ email: "alice@example.com" });
+      u._attributes.set("email_confirmation", "bob@example.com");
+      expect(u.isValid()).toBe(false);
+    });
+  });
+
+  // ===========================================================================
   // toModel (ActiveModel::Conversion)
   // ===========================================================================
   describe("toModel", () => {
