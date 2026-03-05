@@ -3069,4 +3069,21 @@ describe("ActiveModel", () => {
       expect(u.hasChangesToSave).toBe(true);
     });
   });
+
+  describe("attributeNames (instance)", () => {
+    it("returns the same names as the class method", () => {
+      class User extends Model {
+        constructor(attrs: Record<string, unknown> = {}) {
+          super(attrs);
+        }
+      }
+      User.attribute("name", "string");
+      User.attribute("age", "integer");
+
+      const u = new User({ name: "Alice", age: 25 });
+      expect(u.attributeNames()).toEqual(User.attributeNames());
+      expect(u.attributeNames()).toContain("name");
+      expect(u.attributeNames()).toContain("age");
+    });
+  });
 });

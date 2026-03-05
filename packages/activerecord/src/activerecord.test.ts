@@ -9894,4 +9894,25 @@ describe("ActiveRecord", () => {
       expect(result).toBeNull();
     });
   });
+
+  describe("Relation async iterator", () => {
+    it("supports for-await-of", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+
+      const names: string[] = [];
+      for await (const user of User.where({})) {
+        names.push(user.readAttribute("name") as string);
+      }
+      expect(names.sort()).toEqual(["Alice", "Bob"]);
+    });
+  });
 });

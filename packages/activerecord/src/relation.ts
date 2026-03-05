@@ -1152,6 +1152,16 @@ export class Relation<T extends Base> {
   }
 
   /**
+   * Async iterator support — allows `for await (const record of relation)`.
+   */
+  async *[Symbol.asyncIterator](): AsyncIterableIterator<T> {
+    const records = await this.toArray();
+    for (const record of records) {
+      yield record;
+    }
+  }
+
+  /**
    * Return the first record, or first N records when n is given.
    *
    * Mirrors: ActiveRecord::Relation#first

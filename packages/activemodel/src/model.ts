@@ -775,6 +775,15 @@ export class Model {
     return (this.constructor as typeof Model)._attributeDefinitions.has(name);
   }
 
+  /**
+   * Return the list of attribute names for this instance's class.
+   *
+   * Mirrors: ActiveModel::AttributeMethods#attribute_names (instance)
+   */
+  attributeNames(): string[] {
+    return (this.constructor as typeof Model).attributeNames();
+  }
+
   get attributes(): Record<string, unknown> {
     const result: Record<string, unknown> = {};
     for (const [k, v] of this._attributes) {
