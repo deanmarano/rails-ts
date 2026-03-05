@@ -582,6 +582,24 @@ export class Model {
     this._dirty.changesApplied(this._attributes);
   }
 
+  /**
+   * Clear all dirty tracking information (changes + previous changes).
+   *
+   * Mirrors: ActiveModel::Dirty#clear_changes_information
+   */
+  clearChangesInformation(): void {
+    this._dirty.clearChangesInformation();
+  }
+
+  /**
+   * Clear dirty tracking for specific attributes only.
+   *
+   * Mirrors: ActiveModel::Dirty#clear_attribute_changes
+   */
+  clearAttributeChanges(attributes: string[]): void {
+    this._dirty.clearAttributeChanges(attributes);
+  }
+
   // -- Serialization --
 
   serializableHash(options?: SerializeOptions): Record<string, unknown> {

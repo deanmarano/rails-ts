@@ -1858,4 +1858,51 @@ describe("ActiveModel", () => {
       expect(w2.isValid()).toBe(false);
     });
   });
+
+  describe("clearChangesInformation", () => {
+    it("clears both current and previous changes", () => {
+      class Person extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+        }
+      }
+
+      const p = new Person({ name: "Alice", age: 30 });
+      p.changesApplied(); // snapshot as clean
+      p.writeAttribute("name", "Bob");
+      p.changesApplied(); // this makes name change a "previous change"
+      expect(Object.keys(p.previousChanges).length).toBeGreaterThan(0);
+
+      // Now make another current change
+      p.writeAttribute("age", 31);
+      expect(p.changed).toBe(true);
+
+      p.clearChangesInformation();
+      expect(p.changed).toBe(false);
+      expect(Object.keys(p.previousChanges).length).toBe(0);
+    });
+  });
+
+  describe("clearAttributeChanges", () => {
+    it("clears changes for specific attributes only", () => {
+      class Person extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("age", "integer");
+        }
+      }
+
+      const p = new Person({ name: "Alice", age: 30 });
+      p.changesApplied();
+      p.writeAttribute("name", "Bob");
+      p.writeAttribute("age", 31);
+      expect(p.changedAttributes).toContain("name");
+      expect(p.changedAttributes).toContain("age");
+
+      p.clearAttributeChanges(["name"]);
+      expect(p.changedAttributes).not.toContain("name");
+      expect(p.changedAttributes).toContain("age");
+    });
+  });
 });

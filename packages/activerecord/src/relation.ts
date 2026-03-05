@@ -194,6 +194,20 @@ export class Relation<T extends Base> {
   }
 
   /**
+   * Combine this relation with another using AND — merges all WHERE
+   * conditions from the other relation into this one.
+   *
+   * Mirrors: ActiveRecord::Relation#and
+   */
+  and(other: Relation<T>): Relation<T> {
+    const rel = this._clone();
+    rel._whereClauses = [...rel._whereClauses, ...other._whereClauses];
+    rel._whereNotClauses = [...rel._whereNotClauses, ...other._whereNotClauses];
+    rel._whereRawClauses = [...rel._whereRawClauses, ...other._whereRawClauses];
+    return rel;
+  }
+
+  /**
    * Exclude specific records from the result.
    *
    * Mirrors: ActiveRecord::Relation#excluding / #without
@@ -791,6 +805,29 @@ export class Relation<T extends Base> {
   async length(): Promise<number> {
     const records = await this.toArray();
     return records.length;
+  }
+
+  /**
+   * Filter loaded records, removing those that match the predicate.
+   *
+   * Mirrors: ActiveRecord::Relation#reject (Ruby Enumerable)
+   */
+  async reject(fn: (record: T) => boolean): Promise<T[]> {
+    const records = await this.toArray();
+    return records.filter((r) => !fn(r));
+  }
+
+  /**
+   * Filter to only records where the given column is not null/undefined.
+   *
+   * Mirrors: Rails where.not(column: nil) pattern
+   */
+  compactBlank(...columns: string[]): Relation<T> {
+    let rel: Relation<T> = this;
+    for (const col of columns) {
+      rel = rel.whereNot({ [col]: null });
+    }
+    return rel;
   }
 
   // -- Terminal methods --

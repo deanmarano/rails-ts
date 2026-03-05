@@ -145,6 +145,22 @@ export class Base extends Model {
     return this._attributeDefinitions.has(name);
   }
 
+  // -- Ignored columns --
+  static _ignoredColumns: string[] = [];
+
+  /**
+   * Columns that should be ignored (not loaded from the database).
+   *
+   * Mirrors: ActiveRecord::Base.ignored_columns
+   */
+  static get ignoredColumns(): string[] {
+    return this._ignoredColumns;
+  }
+
+  static set ignoredColumns(columns: string[]) {
+    this._ignoredColumns = columns;
+  }
+
   // -- Readonly attributes --
   static _readonlyAttributes: Set<string> = new Set();
 
@@ -1693,5 +1709,36 @@ export class Base extends Model {
    */
   static attributeNames(): string[] {
     return [...this._attributeDefinitions.keys()];
+  }
+
+  /**
+   * Sanitize a SQL template with bind parameters.
+   *
+   * Mirrors: ActiveRecord::Base.sanitize_sql_array
+   */
+  static sanitizeSqlArray(template: string, ...binds: unknown[]): string {
+    let result = template;
+    for (const bind of binds) {
+      const quoted = bind === null || bind === undefined
+        ? "NULL"
+        : typeof bind === "number"
+        ? String(bind)
+        : typeof bind === "boolean"
+        ? (bind ? "TRUE" : "FALSE")
+        : `'${String(bind).replace(/'/g, "''")}'`;
+      result = result.replace("?", quoted);
+    }
+    return result;
+  }
+
+  /**
+   * Sanitize SQL — accepts either a string or an array of [template, ...binds].
+   *
+   * Mirrors: ActiveRecord::Base.sanitize_sql
+   */
+  static sanitizeSql(input: string | [string, ...unknown[]]): string {
+    if (typeof input === "string") return input;
+    const [template, ...binds] = input;
+    return this.sanitizeSqlArray(template, ...binds);
   }
 }

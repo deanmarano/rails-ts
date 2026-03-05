@@ -7037,4 +7037,75 @@ describe("Grouped Calculations (Rails-guided)", () => {
     const hash = User.all().where({ name: "Alice", role: "admin" }).whereValuesHash();
     expect(hash).toEqual({ name: "Alice", role: "admin" });
   });
+
+  // Rails: test "and"
+  it("and() combines two relations with AND intersection", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("role", "string"); this.adapter = adapter; }
+    }
+
+    await User.create({ name: "Alice", role: "admin" });
+    await User.create({ name: "Bob", role: "user" });
+    await User.create({ name: "Charlie", role: "admin" });
+
+    const results = await User.all().where({ role: "admin" }).and(User.all().where({ name: "Alice" })).toArray();
+    expect(results.length).toBe(1);
+    expect(results[0].readAttribute("name")).toBe("Alice");
+  });
+
+  // Rails: test "reject"
+  it("reject() filters out matching records", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.adapter = adapter; }
+    }
+
+    await User.create({ name: "Alice" });
+    await User.create({ name: "Bob" });
+    const results = await User.all().reject((u) => u.readAttribute("name") === "Alice");
+    expect(results.length).toBe(1);
+    expect(results[0].readAttribute("name")).toBe("Bob");
+  });
+
+  // Rails: test "compact_blank"
+  it("compactBlank() filters out records with null column values", async () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("email", "string"); this.adapter = adapter; }
+    }
+
+    await User.create({ name: "Alice", email: "a@test.com" });
+    await User.create({ name: "Bob" }); // email is null
+
+    const results = await User.all().compactBlank("email").toArray();
+    expect(results.length).toBe(1);
+    expect(results[0].readAttribute("name")).toBe("Alice");
+  });
+
+  // Rails: test "sanitize_sql_array"
+  it("sanitizeSqlArray safely quotes values", () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.adapter = adapter; }
+    }
+
+    expect(User.sanitizeSqlArray("name = ? AND age > ?", "O'Brien", 25)).toBe("name = 'O''Brien' AND age > 25");
+  });
+
+  // Rails: test "sanitize_sql"
+  it("sanitizeSql handles both string and array forms", () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.adapter = adapter; }
+    }
+
+    expect(User.sanitizeSql("raw SQL")).toBe("raw SQL");
+    expect(User.sanitizeSql(["name = ?", "Alice"])).toBe("name = 'Alice'");
+  });
+
+  // Rails: test "ignored_columns"
+  it("ignoredColumns can be set and retrieved", () => {
+    class User extends Base {
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.adapter = adapter; }
+    }
+
+    User.ignoredColumns = ["old_field", "deprecated_col"];
+    expect(User.ignoredColumns).toEqual(["old_field", "deprecated_col"]);
+  });
 });

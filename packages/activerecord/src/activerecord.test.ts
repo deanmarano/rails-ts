@@ -7496,4 +7496,102 @@ describe("ActiveRecord", () => {
       expect(rel.whereValuesHash()).toEqual({ role: "admin" });
     });
   });
+
+  describe("and()", () => {
+    it("combines two relations with AND", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.attribute("role", "string");
+      User.adapter = adapter;
+
+      await User.create({ name: "Alice", role: "admin" });
+      await User.create({ name: "Bob", role: "user" });
+      await User.create({ name: "Charlie", role: "admin" });
+
+      const admins = User.all().where({ role: "admin" });
+      const alices = User.all().where({ name: "Alice" });
+      const results = await admins.and(alices).toArray();
+      expect(results.length).toBe(1);
+      expect(results[0].readAttribute("name")).toBe("Alice");
+    });
+  });
+
+  describe("reject()", () => {
+    it("filters out matching records from loaded results", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.adapter = adapter;
+
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      await User.create({ name: "Charlie" });
+
+      const results = await User.all().reject((u) => u.readAttribute("name") === "Bob");
+      expect(results.length).toBe(2);
+      expect(results.map((u) => u.readAttribute("name")).sort()).toEqual(["Alice", "Charlie"]);
+    });
+  });
+
+  describe("compactBlank()", () => {
+    it("filters out records where column is null", async () => {
+      const adapter = freshAdapter();
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.attribute("email", "string");
+      User.adapter = adapter;
+
+      await User.create({ name: "Alice", email: "alice@test.com" });
+      await User.create({ name: "Bob" }); // email is null
+
+      const results = await User.all().compactBlank("email").toArray();
+      expect(results.length).toBe(1);
+      expect(results[0].readAttribute("name")).toBe("Alice");
+    });
+  });
+
+  describe("ignoredColumns", () => {
+    it("can be set and retrieved on a model class", () => {
+      class User extends Base { static _tableName = "users"; }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+
+      User.ignoredColumns = ["legacy_field"];
+      expect(User.ignoredColumns).toEqual(["legacy_field"]);
+    });
+  });
+
+  describe("sanitizeSql", () => {
+    it("sanitizeSqlArray replaces ? placeholders with quoted values", () => {
+      class User extends Base { static _tableName = "users"; }
+
+      expect(User.sanitizeSqlArray("name = ?", "Alice")).toBe("name = 'Alice'");
+      expect(User.sanitizeSqlArray("age > ?", 18)).toBe("age > 18");
+      expect(User.sanitizeSqlArray("name = ? AND age > ?", "Bob", 25)).toBe("name = 'Bob' AND age > 25");
+      expect(User.sanitizeSqlArray("active = ?", true)).toBe("active = TRUE");
+      expect(User.sanitizeSqlArray("deleted_at = ?", null)).toBe("deleted_at = NULL");
+    });
+
+    it("sanitizeSqlArray escapes single quotes", () => {
+      class User extends Base { static _tableName = "users"; }
+
+      expect(User.sanitizeSqlArray("name = ?", "O'Brien")).toBe("name = 'O''Brien'");
+    });
+
+    it("sanitizeSql handles string passthrough", () => {
+      class User extends Base { static _tableName = "users"; }
+
+      expect(User.sanitizeSql("name = 'Alice'")).toBe("name = 'Alice'");
+    });
+
+    it("sanitizeSql handles array format", () => {
+      class User extends Base { static _tableName = "users"; }
+
+      expect(User.sanitizeSql(["name = ? AND age > ?", "Alice", 30])).toBe("name = 'Alice' AND age > 30");
+    });
+  });
 });

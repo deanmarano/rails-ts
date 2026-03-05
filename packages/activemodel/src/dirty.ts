@@ -107,6 +107,27 @@ export class DirtyTracker {
   }
 
   /**
+   * Clear all dirty tracking information (changes + previous changes).
+   *
+   * Mirrors: ActiveModel::Dirty#clear_changes_information
+   */
+  clearChangesInformation(): void {
+    this._changedAttributes.clear();
+    this._previousChanges.clear();
+  }
+
+  /**
+   * Clear dirty tracking for specific attributes.
+   *
+   * Mirrors: ActiveModel::Dirty#clear_attribute_changes
+   */
+  clearAttributeChanges(attributes: string[]): void {
+    for (const attr of attributes) {
+      this._changedAttributes.delete(attr);
+    }
+  }
+
+  /**
    * Restore attributes to their original values.
    */
   restore(attributes: Map<string, unknown>): void {
