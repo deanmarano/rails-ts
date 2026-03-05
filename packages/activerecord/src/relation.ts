@@ -2074,6 +2074,31 @@ export class Relation<T extends Base> {
   // -- SQL generation --
 
   /**
+   * Return the Arel SelectManager for this relation.
+   *
+   * Mirrors: ActiveRecord::Relation#arel
+   */
+  toArel(): SelectManager {
+    const table = this._modelClass.arelTable;
+    const projections = this._selectColumns
+      ? this._selectColumns.map((c) => {
+          if (/[(*\s]/.test(c)) return new Nodes.SqlLiteral(c);
+          return table.get(c);
+        })
+      : ["*"];
+    const manager = table.project(...(projections as any));
+    this._applyWheresToManager(manager, table);
+    this._applyOrderToManager(manager, table);
+    if (this._isDistinct) manager.distinct();
+    if (this._limitValue !== null) manager.take(this._limitValue);
+    if (this._offsetValue !== null) manager.skip(this._offsetValue);
+    for (const col of this._groupColumns) {
+      manager.group(col);
+    }
+    return manager;
+  }
+
+  /**
    * Generate the SQL for this relation.
    */
   toSql(): string {

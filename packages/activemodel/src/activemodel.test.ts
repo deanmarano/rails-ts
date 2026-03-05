@@ -2825,4 +2825,42 @@ describe("ActiveModel", () => {
       expect(u.errors.generateMessage("age", "greater_than", { count: 0 })).toBe("must be greater than 0");
     });
   });
+
+  describe("strict validations", () => {
+    it("raises an exception instead of adding to errors", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true, strict: true });
+        }
+      }
+      const u = new User({});
+      expect(() => u.isValid()).toThrow();
+    });
+
+    it("does not throw when validation passes", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true, strict: true });
+        }
+      }
+      const u = new User({ name: "Alice" });
+      expect(u.isValid()).toBe(true);
+    });
+
+    it("non-strict validations still add errors normally", () => {
+      class User extends Model {
+        static {
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.validates("name", { presence: true, strict: true });
+          this.validates("email", { presence: true });
+        }
+      }
+      const u = new User({ name: "Alice" });
+      expect(u.isValid()).toBe(false);
+      expect(u.errors.get("email").length).toBeGreaterThan(0);
+    });
+  });
 });

@@ -30,6 +30,7 @@ interface ValidationEntry {
   attribute: string;
   validator: Validator;
   on?: string;
+  strict?: boolean;
   if?: ((record: any) => boolean) | string;
   unless?: ((record: any) => boolean) | string;
 }
@@ -184,12 +185,14 @@ export class Model {
     const onContext = rules.on as string | undefined;
     const ifCond = rules.if as ((record: any) => boolean) | string | undefined;
     const unlessCond = rules.unless as ((record: any) => boolean) | string | undefined;
+    const isStrict = rules.strict as boolean | undefined;
 
     const push = (validator: Validator) => {
       this._validations.push({
         attribute,
         validator,
         on: onContext,
+        ...(isStrict && { strict: true }),
         ...(ifCond !== undefined && { if: ifCond }),
         ...(unlessCond !== undefined && { unless: unlessCond }),
       });
@@ -808,7 +811,17 @@ export class Model {
         if (result) continue;
       }
       const value = this._attributes.get(entry.attribute);
-      entry.validator.validate(this, entry.attribute, value, this.errors);
+      if (entry.strict) {
+        // Strict validation: collect errors into a temporary Errors, then throw
+        const tempErrors = new Errors();
+        entry.validator.validate(this, entry.attribute, value, tempErrors);
+        if (tempErrors.any) {
+          const msg = tempErrors.fullMessages.join(", ");
+          throw new Error(`${entry.attribute} ${msg}`);
+        }
+      } else {
+        entry.validator.validate(this, entry.attribute, value, this.errors);
+      }
     }
 
     // Run custom validations

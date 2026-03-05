@@ -9434,4 +9434,33 @@ describe("ActiveRecord", () => {
       expect(await User.where({}).length()).toBe(1);
     });
   });
+
+  describe("Relation#toArel", () => {
+    it("returns a SelectManager", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+        }
+      }
+      const manager = User.where({ name: "Alice" }).toArel();
+      expect(typeof manager.toSql).toBe("function");
+      const sql = manager.toSql();
+      expect(sql).toContain("users");
+      expect(sql).toContain("Alice");
+    });
+
+    it("respects limit and offset", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+        }
+      }
+      const manager = User.where({}).limit(5).offset(10).toArel();
+      const sql = manager.toSql();
+      expect(sql).toContain("LIMIT 5");
+      expect(sql).toContain("OFFSET 10");
+    });
+  });
 });
