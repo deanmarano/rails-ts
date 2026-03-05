@@ -1000,6 +1000,141 @@ export class Base extends Model {
   }
 
   /**
+   * Return the first record.
+   *
+   * Mirrors: ActiveRecord::Base.first
+   */
+  static async first(n?: number): Promise<Base | Base[] | null> {
+    return this.all().first(n as any);
+  }
+
+  /**
+   * Return the first record, or throw if none found.
+   *
+   * Mirrors: ActiveRecord::Base.first!
+   */
+  static async firstBang(): Promise<Base> {
+    return this.all().firstBang();
+  }
+
+  /**
+   * Return the last record.
+   *
+   * Mirrors: ActiveRecord::Base.last
+   */
+  static async last(n?: number): Promise<Base | Base[] | null> {
+    return this.all().last(n as any);
+  }
+
+  /**
+   * Return the last record, or throw if none found.
+   *
+   * Mirrors: ActiveRecord::Base.last!
+   */
+  static async lastBang(): Promise<Base> {
+    return this.all().lastBang();
+  }
+
+  /**
+   * Return a record without any implied ordering.
+   *
+   * Mirrors: ActiveRecord::Base.take
+   */
+  static async take(n?: number): Promise<Base | Base[] | null> {
+    return this.all().take(n as any);
+  }
+
+  /**
+   * Return the sole matching record, or throw.
+   *
+   * Mirrors: ActiveRecord::Base.sole
+   */
+  static async sole(): Promise<Base> {
+    return this.all().sole();
+  }
+
+  /**
+   * Scope: SELECT specific columns.
+   *
+   * Mirrors: ActiveRecord::Base.select
+   */
+  static select(...columns: string[]) {
+    return this.all().select(...columns);
+  }
+
+  /**
+   * Scope: ORDER BY.
+   *
+   * Mirrors: ActiveRecord::Base.order
+   */
+  static order(...args: Array<string | Record<string, "asc" | "desc">>) {
+    return this.all().order(...args);
+  }
+
+  /**
+   * Scope: GROUP BY.
+   *
+   * Mirrors: ActiveRecord::Base.group
+   */
+  static group(...columns: string[]) {
+    return this.all().group(...columns);
+  }
+
+  /**
+   * Scope: LIMIT.
+   *
+   * Mirrors: ActiveRecord::Base.limit
+   */
+  static limit(value: number) {
+    return this.all().limit(value);
+  }
+
+  /**
+   * Scope: OFFSET.
+   *
+   * Mirrors: ActiveRecord::Base.offset
+   */
+  static offset(value: number) {
+    return this.all().offset(value);
+  }
+
+  /**
+   * Scope: DISTINCT.
+   *
+   * Mirrors: ActiveRecord::Base.distinct
+   */
+  static distinct() {
+    return this.all().distinct();
+  }
+
+  /**
+   * Scope: JOIN.
+   *
+   * Mirrors: ActiveRecord::Base.joins
+   */
+  static joins(...args: any[]) {
+    return (this.all() as any).joins(...args);
+  }
+
+  /**
+   * Scope: LEFT OUTER JOIN.
+   *
+   * Mirrors: ActiveRecord::Base.left_joins
+   */
+  static leftJoins(...args: any[]) {
+    return (this.all() as any).leftJoins(...args);
+  }
+
+  /**
+   * Scope: return an empty relation.
+   *
+   * Mirrors: ActiveRecord::Base.none
+   */
+  static none() {
+    return this.all().none();
+  }
+
+  /**
    * Find the first record matching conditions, or create one.
    *
    * Mirrors: ActiveRecord::Base.find_or_create_by
