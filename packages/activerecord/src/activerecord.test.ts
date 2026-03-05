@@ -9327,4 +9327,111 @@ describe("ActiveRecord", () => {
       expect((user as any).theme).toBe("neon");
     });
   });
+
+  describe("async query aliases (Rails 7.0+)", () => {
+    it("asyncCount returns the same as count", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      const count = await User.where({}).asyncCount();
+      expect(count).toBe(2);
+    });
+
+    it("asyncSum returns the same as sum", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ age: 20 });
+      await User.create({ age: 30 });
+      const total = await User.where({}).asyncSum("age");
+      expect(total).toBe(50);
+    });
+
+    it("asyncMinimum returns the same as minimum", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ age: 20 });
+      await User.create({ age: 30 });
+      const min = await User.where({}).asyncMinimum("age");
+      expect(min).toBe(20);
+    });
+
+    it("asyncMaximum returns the same as maximum", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("age", "integer");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ age: 20 });
+      await User.create({ age: 30 });
+      const max = await User.where({}).asyncMaximum("age");
+      expect(max).toBe(30);
+    });
+
+    it("asyncPluck returns the same as pluck", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      const names = await User.where({}).asyncPluck("name");
+      expect(names).toEqual(["Alice", "Bob"]);
+    });
+  });
+
+  describe("Relation#size and Relation#length", () => {
+    it("size returns count without loading records", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      const rel = User.where({});
+      expect(await rel.size()).toBe(2);
+    });
+
+    it("length forces loading and returns count", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice" });
+      expect(await User.where({}).length()).toBe(1);
+    });
+  });
 });

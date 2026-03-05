@@ -1457,6 +1457,66 @@ export class Relation<T extends Base> {
     return (c as number) > 0;
   }
 
+  // -- Async query interface (Rails 7.0+) --
+  // In TypeScript, all query methods already return Promises,
+  // but these aliases provide Rails 7.0 API parity.
+
+  /**
+   * Mirrors: ActiveRecord::Relation#async_count
+   */
+  asyncCount(column?: string) { return this.count(column); }
+
+  /**
+   * Mirrors: ActiveRecord::Relation#async_sum
+   */
+  asyncSum(column: string) { return this.sum(column); }
+
+  /**
+   * Mirrors: ActiveRecord::Relation#async_minimum
+   */
+  asyncMinimum(column: string) { return this.minimum(column); }
+
+  /**
+   * Mirrors: ActiveRecord::Relation#async_maximum
+   */
+  asyncMaximum(column: string) { return this.maximum(column); }
+
+  /**
+   * Mirrors: ActiveRecord::Relation#async_average
+   */
+  asyncAverage(column: string) { return this.average(column); }
+
+  /**
+   * Mirrors: ActiveRecord::Relation#async_pluck
+   */
+  asyncPluck(...columns: Array<string | Nodes.Attribute | Nodes.NamedFunction | Nodes.SqlLiteral>) { return this.pluck(...columns); }
+
+  /**
+   * Mirrors: ActiveRecord::Relation#async_ids
+   */
+  asyncIds() { return this.ids(); }
+
+  /**
+   * Returns the size of the relation. If loaded, returns the cached count.
+   * Otherwise, executes a COUNT query.
+   *
+   * Mirrors: ActiveRecord::Relation#size
+   */
+  async size(): Promise<number> {
+    if (this._loaded) return this._records.length;
+    return this.count() as Promise<number>;
+  }
+
+  /**
+   * Returns the length of loaded records (forces loading if not loaded).
+   *
+   * Mirrors: ActiveRecord::Relation#length
+   */
+  async length(): Promise<number> {
+    const records = await this.toArray();
+    return records.length;
+  }
+
   /**
    * Generic calculation method.
    *
