@@ -104,6 +104,13 @@ export class ToSql implements NodeVisitor<SQLString> {
     if (node instanceof Nodes.NamedFunction) return this.visitNamedFunction(node);
     if (node instanceof Nodes.Exists) return this.visitExists(node);
 
+    // Advanced grouping
+    if (node instanceof Nodes.Cube) return this.visitCube(node);
+    if (node instanceof Nodes.Rollup) return this.visitRollup(node);
+    if (node instanceof Nodes.GroupingSet) return this.visitGroupingSet(node);
+    if (node instanceof Nodes.Lateral) return this.visitLateral(node);
+    if (node instanceof Nodes.Comment) return this.visitComment(node);
+
     // Boolean literals
     if (node instanceof Nodes.True) return this.visitTrue(node);
     if (node instanceof Nodes.False) return this.visitFalse(node);
@@ -762,6 +769,55 @@ export class ToSql implements NodeVisitor<SQLString> {
 
   private visitFalse(_node: Nodes.False): SQLString {
     this.collector.append("FALSE");
+    return this.collector;
+  }
+
+  // -- Advanced grouping --
+
+  private visitCube(node: Nodes.Cube): SQLString {
+    this.collector.append("CUBE(");
+    const exprs = node.expressions;
+    for (let i = 0; i < exprs.length; i++) {
+      if (i > 0) this.collector.append(", ");
+      this.visit(exprs[i]);
+    }
+    this.collector.append(")");
+    return this.collector;
+  }
+
+  private visitRollup(node: Nodes.Rollup): SQLString {
+    this.collector.append("ROLLUP(");
+    const exprs = node.expressions;
+    for (let i = 0; i < exprs.length; i++) {
+      if (i > 0) this.collector.append(", ");
+      this.visit(exprs[i]);
+    }
+    this.collector.append(")");
+    return this.collector;
+  }
+
+  private visitGroupingSet(node: Nodes.GroupingSet): SQLString {
+    this.collector.append("GROUPING SETS(");
+    const exprs = node.expressions;
+    for (let i = 0; i < exprs.length; i++) {
+      if (i > 0) this.collector.append(", ");
+      this.visit(exprs[i]);
+    }
+    this.collector.append(")");
+    return this.collector;
+  }
+
+  private visitLateral(node: Nodes.Lateral): SQLString {
+    this.collector.append("LATERAL (");
+    this.visit(node.subquery);
+    this.collector.append(")");
+    return this.collector;
+  }
+
+  private visitComment(node: Nodes.Comment): SQLString {
+    for (const value of node.values) {
+      this.collector.append(` /* ${value} */`);
+    }
     return this.collector;
   }
 

@@ -1489,4 +1489,41 @@ describe("Arel", () => {
       expect(visitor.compile(node)).toBe("FALSE");
     });
   });
+
+  describe("Cube, Rollup, GroupingSet nodes", () => {
+    it("generates CUBE(...)", () => {
+      const node = new Nodes.Cube([users.attr("name"), users.attr("age")]);
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('CUBE("users"."name", "users"."age")');
+    });
+
+    it("generates ROLLUP(...)", () => {
+      const node = new Nodes.Rollup([users.attr("name"), users.attr("age")]);
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('ROLLUP("users"."name", "users"."age")');
+    });
+
+    it("generates GROUPING SETS(...)", () => {
+      const node = new Nodes.GroupingSet([users.attr("name"), users.attr("age")]);
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('GROUPING SETS("users"."name", "users"."age")');
+    });
+  });
+
+  describe("Lateral node", () => {
+    it("generates LATERAL (subquery)", () => {
+      const subquery = new Nodes.SqlLiteral("SELECT 1");
+      const node = new Nodes.Lateral(subquery);
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe("LATERAL (SELECT 1)");
+    });
+  });
+
+  describe("Comment node", () => {
+    it("generates SQL comment", () => {
+      const node = new Nodes.Comment("load users", "for dashboard");
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe(" /* load users */ /* for dashboard */");
+    });
+  });
 });
