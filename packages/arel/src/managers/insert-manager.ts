@@ -50,6 +50,15 @@ export class InsertManager {
   }
 
   /**
+   * Return the current columns list.
+   *
+   * Mirrors: Arel::InsertManager#columns
+   */
+  get columns(): Node[] {
+    return this.ast.columns;
+  }
+
+  /**
    * Generate SQL string.
    */
   toSql(): string {

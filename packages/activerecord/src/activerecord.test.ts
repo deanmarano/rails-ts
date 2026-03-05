@@ -9861,4 +9861,37 @@ describe("ActiveRecord", () => {
       expect(User.inheritanceColumn).toBeNull();
     });
   });
+
+  describe("Relation#presence", () => {
+    it("returns self when records exist", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+      await User.create({ name: "Alice" });
+
+      const rel = User.where({ name: "Alice" });
+      const result = await rel.presence();
+      expect(result).not.toBeNull();
+    });
+
+    it("returns null when no records exist", async () => {
+      const adapter = freshAdapter();
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.adapter = adapter;
+        }
+      }
+
+      const rel = User.where({ name: "Nobody" });
+      const result = await rel.presence();
+      expect(result).toBeNull();
+    });
+  });
 });

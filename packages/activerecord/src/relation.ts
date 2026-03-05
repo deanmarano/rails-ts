@@ -1047,6 +1047,15 @@ export class Relation<T extends Base> {
   }
 
   /**
+   * Return self if any records exist, null otherwise.
+   *
+   * Mirrors: ActiveRecord::Relation#presence
+   */
+  async presence(): Promise<Relation<T> | null> {
+    return (await this.isAny()) ? this : null;
+  }
+
+  /**
    * Check if another relation is structurally compatible for use with or().
    *
    * Mirrors: ActiveRecord::Relation#structurally_compatible?

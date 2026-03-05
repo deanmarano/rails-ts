@@ -1714,4 +1714,21 @@ describe("Arel", () => {
       expect(froms[0]).toBe(users);
     });
   });
+
+  describe("InsertManager columns getter", () => {
+    it("returns empty array before insert", () => {
+      const manager = new InsertManager();
+      expect(manager.columns).toEqual([]);
+    });
+
+    it("returns columns after insert()", () => {
+      const manager = new InsertManager();
+      manager.into(users);
+      manager.insert([
+        [users.attr("name"), "Alice"],
+        [users.attr("email"), "alice@example.com"],
+      ]);
+      expect(manager.columns.length).toBe(2);
+    });
+  });
 });
