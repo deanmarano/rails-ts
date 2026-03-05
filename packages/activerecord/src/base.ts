@@ -1,6 +1,7 @@
 import { Model } from "@rails-js/activemodel";
 import { Table } from "@rails-js/arel";
 import type { DatabaseAdapter } from "./adapter.js";
+import { getInheritanceColumn, isStiSubclass, getStiBase, instantiateSti } from "./sti.js";
 
 /**
  * Pluralize a name (naive English pluralization).
@@ -58,6 +59,10 @@ export class Base extends Model {
    */
   static get tableName(): string {
     if (this._tableName) return this._tableName;
+    // STI subclasses inherit the base class's table name
+    if (isStiSubclass(this)) {
+      return getStiBase(this).tableName;
+    }
     return pluralize(underscore(this.name));
   }
 
@@ -241,6 +246,13 @@ export class Base extends Model {
     if (this._defaultScope) {
       rel = this._defaultScope(rel);
     }
+    // STI subclasses auto-filter by type column
+    if (isStiSubclass(this)) {
+      const col = getInheritanceColumn(getStiBase(this));
+      if (col) {
+        rel = rel.where({ [col]: this.name });
+      }
+    }
     return rel;
   }
 
@@ -311,6 +323,12 @@ export class Base extends Model {
    * Instantiate a model from a database row (marks it as persisted).
    */
   static _instantiate(row: Record<string, unknown>): Base {
+    // If STI is enabled, delegate to the correct subclass
+    const inheritanceCol = getInheritanceColumn(this);
+    if (inheritanceCol && row[inheritanceCol] && row[inheritanceCol] !== this.name) {
+      return instantiateSti(this, row);
+    }
+
     const record = new this(row);
     record._newRecord = false;
     record._dirty.snapshot(record._attributes);
@@ -496,6 +514,14 @@ export class Base extends Model {
 
     const ctor = this.constructor as typeof Base;
 
+    // Auto-set STI type column on new records
+    if (this._newRecord && isStiSubclass(ctor)) {
+      const col = getInheritanceColumn(getStiBase(ctor));
+      if (col && !this.readAttribute(col)) {
+        this._attributes.set(col, ctor.name);
+      }
+    }
+
     // Run save callbacks.
     // Use runBefore/runAfter to control the lifecycle:
     // before_save → before_create/update → INSERT/UPDATE → after_create/update → after_save
@@ -597,6 +623,7 @@ export class Base extends Model {
         if (typeof v === "number") return String(v);
         if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
         if (v instanceof Date) return `'${v.toISOString()}'`;
+        if (typeof v === "object") return `'${JSON.stringify(v).replace(/'/g, "''")}'`;
         return `'${String(v).replace(/'/g, "''")}'`;
       })
       .join(", ");
@@ -632,6 +659,7 @@ export class Base extends Model {
         if (typeof val === "boolean")
           return `"${key}" = ${val ? "TRUE" : "FALSE"}`;
         if (val instanceof Date) return `"${key}" = '${val.toISOString()}'`;
+        if (typeof val === "object") return `"${key}" = '${JSON.stringify(val).replace(/'/g, "''")}'`;
         return `"${key}" = '${String(val).replace(/'/g, "''")}'`;
       })
       .join(", ");
@@ -862,6 +890,7 @@ export class Base extends Model {
         if (typeof val === "number") return `"${key}" = ${val}`;
         if (typeof val === "boolean") return `"${key}" = ${val ? "TRUE" : "FALSE"}`;
         if (val instanceof Date) return `"${key}" = '${val.toISOString()}'`;
+        if (typeof val === "object") return `"${key}" = '${JSON.stringify(val).replace(/'/g, "''")}'`;
         return `"${key}" = '${String(val).replace(/'/g, "''")}'`;
       })
       .join(", ");

@@ -22,7 +22,12 @@ export {
   association,
 } from "./associations.js";
 export type { AssociationOptions } from "./associations.js";
+export { loadHabtm } from "./associations.js";
 export { Transaction, transaction, savepoint, currentTransaction } from "./transactions.js";
+export { defineEnum, readEnumValue, castEnumValue } from "./enum.js";
+export { enableSti, getInheritanceColumn, instantiateSti } from "./sti.js";
+export { hasSecurePassword } from "./secure-password.js";
+export { store, storeAccessor } from "./store.js";
 export { SqliteAdapter } from "./adapters/sqlite-adapter.js";
 export { PostgresAdapter } from "./adapters/postgres-adapter.js";
 export { MysqlAdapter } from "./adapters/mysql-adapter.js";

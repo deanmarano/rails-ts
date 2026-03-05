@@ -11,12 +11,14 @@ export interface AssociationOptions {
   inverseOf?: string;
   through?: string;
   source?: string;
+  polymorphic?: boolean;
+  as?: string;
 }
 
-interface AssociationDefinition {
-  type: "belongsTo" | "hasOne" | "hasMany";
+export interface AssociationDefinition {
+  type: "belongsTo" | "hasOne" | "hasMany" | "hasAndBelongsToMany";
   name: string;
-  options: AssociationOptions;
+  options: AssociationOptions & { joinTable?: string };
 }
 
 /**
@@ -39,6 +41,19 @@ function singularize(word: string): string {
   }
   if (word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1);
   return word;
+}
+
+/**
+ * Pluralize a name (naive English pluralization).
+ */
+function pluralize(word: string): string {
+  if (word.endsWith("s") || word.endsWith("x") || word.endsWith("z")) {
+    return word + "es";
+  }
+  if (word.endsWith("y") && !/[aeiou]y$/i.test(word)) {
+    return word.slice(0, -1) + "ies";
+  }
+  return word + "s";
 }
 
 /**
@@ -92,7 +107,7 @@ export class Associations {
    */
   static belongsTo(name: string, options: AssociationOptions = {}): void {
     if (!Object.prototype.hasOwnProperty.call(this, "_associations")) {
-      this._associations = [...this._associations];
+      this._associations = [...(this._associations ?? [])];
     }
     this._associations.push({ type: "belongsTo", name, options });
   }
@@ -104,7 +119,7 @@ export class Associations {
    */
   static hasOne(name: string, options: AssociationOptions = {}): void {
     if (!Object.prototype.hasOwnProperty.call(this, "_associations")) {
-      this._associations = [...this._associations];
+      this._associations = [...(this._associations ?? [])];
     }
     this._associations.push({ type: "hasOne", name, options });
   }
@@ -116,9 +131,24 @@ export class Associations {
    */
   static hasMany(name: string, options: AssociationOptions = {}): void {
     if (!Object.prototype.hasOwnProperty.call(this, "_associations")) {
-      this._associations = [...this._associations];
+      this._associations = [...(this._associations ?? [])];
     }
     this._associations.push({ type: "hasMany", name, options });
+  }
+
+  /**
+   * Define a has_and_belongs_to_many association.
+   *
+   * Mirrors: ActiveRecord::Associations::ClassMethods#has_and_belongs_to_many
+   */
+  static hasAndBelongsToMany(
+    name: string,
+    options: AssociationOptions & { joinTable?: string } = {}
+  ): void {
+    if (!Object.prototype.hasOwnProperty.call(this, "_associations")) {
+      this._associations = [...(this._associations ?? [])];
+    }
+    this._associations.push({ type: "hasAndBelongsToMany", name, options });
   }
 }
 
@@ -135,10 +165,19 @@ export async function loadBelongsTo(
     return (record as any)._preloadedAssociations.get(assocName) as Base | null;
   }
 
-  const className =
-    options.className ?? camelize(assocName);
   const foreignKey = options.foreignKey ?? `${underscore(assocName)}_id`;
   const primaryKey = options.primaryKey ?? "id";
+
+  // Polymorphic: use the _type column to determine the target model
+  let className: string;
+  if (options.polymorphic) {
+    const typeCol = `${underscore(assocName)}_type`;
+    const typeName = record.readAttribute(typeCol) as string | null;
+    if (!typeName) return null;
+    className = typeName;
+  } else {
+    className = options.className ?? camelize(assocName);
+  }
 
   const targetModel = resolveModel(className);
   const fkValue = record.readAttribute(foreignKey);
@@ -162,13 +201,23 @@ export async function loadHasOne(
 
   const ctor = record.constructor as typeof Base;
   const className = options.className ?? camelize(assocName);
-  const foreignKey = options.foreignKey ?? `${underscore(ctor.name)}_id`;
   const primaryKey = options.primaryKey ?? ctor.primaryKey;
 
   const targetModel = resolveModel(className);
   const pkValue = record.readAttribute(primaryKey);
   if (pkValue === null || pkValue === undefined) return null;
 
+  // Polymorphic "as" option: has_one :image, as: :imageable
+  if (options.as) {
+    const foreignKey = options.foreignKey ?? `${underscore(options.as)}_id`;
+    const typeCol = `${underscore(options.as)}_type`;
+    return targetModel.findBy({
+      [foreignKey]: pkValue,
+      [typeCol]: ctor.name,
+    });
+  }
+
+  const foreignKey = options.foreignKey ?? `${underscore(ctor.name)}_id`;
   return targetModel.findBy({ [foreignKey]: pkValue });
 }
 
@@ -193,13 +242,24 @@ export async function loadHasMany(
   const ctor = record.constructor as typeof Base;
   const className =
     options.className ?? camelize(singularize(assocName));
-  const foreignKey = options.foreignKey ?? `${underscore(ctor.name)}_id`;
   const primaryKey = options.primaryKey ?? ctor.primaryKey;
 
   const targetModel = resolveModel(className);
   const pkValue = record.readAttribute(primaryKey);
   if (pkValue === null || pkValue === undefined) return [];
 
+  // Polymorphic "as" option: has_many :comments, as: :commentable
+  if (options.as) {
+    const foreignKey = options.foreignKey ?? `${underscore(options.as)}_id`;
+    const typeCol = `${underscore(options.as)}_type`;
+    const rel = (targetModel as any).all().where({
+      [foreignKey]: pkValue,
+      [typeCol]: ctor.name,
+    });
+    return rel.toArray();
+  }
+
+  const foreignKey = options.foreignKey ?? `${underscore(ctor.name)}_id`;
   const rel = (targetModel as any).all().where({ [foreignKey]: pkValue });
   return rel.toArray();
 }
@@ -239,6 +299,52 @@ export async function loadHasManyThrough(
 
   const rel = (targetModel as any).all().where({ [targetModel.primaryKey]: targetIds });
   return rel.toArray();
+}
+
+/**
+ * Compute the default join table name for HABTM.
+ * Uses the two table names in alphabetical order, joined by underscore.
+ */
+function defaultJoinTableName(model1: typeof Base, assocName: string): string {
+  const table1 = underscore(model1.name);
+  const table2 = underscore(assocName);
+  // Sort alphabetically
+  const sorted = [pluralize(table1), table2].sort();
+  return sorted.join("_");
+}
+
+/**
+ * Load a has_and_belongs_to_many association.
+ */
+export async function loadHabtm(
+  record: Base,
+  assocName: string,
+  options: AssociationOptions & { joinTable?: string }
+): Promise<Base[]> {
+  // Check preloaded cache first
+  if ((record as any)._preloadedAssociations?.has(assocName)) {
+    return (record as any)._preloadedAssociations.get(assocName) as Base[];
+  }
+
+  const ctor = record.constructor as typeof Base;
+  const className = options.className ?? camelize(singularize(assocName));
+  const targetModel = resolveModel(className);
+  const joinTable = options.joinTable ?? defaultJoinTableName(ctor, assocName);
+  const ownerFk = `${underscore(ctor.name)}_id`;
+  const targetFk = `${underscore(singularize(assocName))}_id`;
+  const pkValue = record.readAttribute(ctor.primaryKey);
+  if (pkValue === null || pkValue === undefined) return [];
+
+  // Query the join table to get target IDs
+  const pkQuoted = typeof pkValue === "number" ? String(pkValue) : `'${pkValue}'`;
+  const joinRows = await ctor.adapter.execute(
+    `SELECT "${targetFk}" FROM "${joinTable}" WHERE "${ownerFk}" = ${pkQuoted}`
+  );
+
+  const targetIds = joinRows.map((r) => r[targetFk]).filter((v) => v != null);
+  if (targetIds.length === 0) return [];
+
+  return (targetModel as any).all().where({ [targetModel.primaryKey]: targetIds }).toArray();
 }
 
 /**

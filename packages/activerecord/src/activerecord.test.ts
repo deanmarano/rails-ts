@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { Base, Relation, Range, MemoryAdapter, transaction, savepoint, CollectionProxy, association, MigrationRunner } from "./index.js";
+import { Base, Relation, Range, MemoryAdapter, transaction, savepoint, CollectionProxy, association, MigrationRunner, defineEnum, readEnumValue, enableSti, hasSecurePassword, store, loadHabtm } from "./index.js";
 import { Migration, TableDefinition, Schema } from "./migration.js";
 import {
   Associations,
@@ -4062,6 +4062,491 @@ describe("ActiveRecord", () => {
       await runner.migrate();
       // Running again should not throw
       await runner.migrate();
+    });
+  });
+
+  // -- Enum --
+  describe("Enum", () => {
+    let adapter: MemoryAdapter;
+
+    beforeEach(() => {
+      adapter = freshAdapter();
+    });
+
+    it("defines scopes for each enum value", async () => {
+      class Post extends Base {
+        static _tableName = "posts";
+      }
+      Post.attribute("id", "integer");
+      Post.attribute("title", "string");
+      Post.attribute("status", "integer");
+      Post.adapter = adapter;
+      defineEnum(Post, "status", ["draft", "published", "archived"]);
+
+      await Post.create({ title: "A", status: 0 });
+      await Post.create({ title: "B", status: 1 });
+      await Post.create({ title: "C", status: 2 });
+
+      const drafts = await (Post as any).draft().toArray();
+      expect(drafts).toHaveLength(1);
+      expect(drafts[0].readAttribute("title")).toBe("A");
+
+      const published = await (Post as any).published().toArray();
+      expect(published).toHaveLength(1);
+      expect(published[0].readAttribute("title")).toBe("B");
+    });
+
+    it("defines predicate methods", () => {
+      class Post extends Base {
+        static _tableName = "posts";
+      }
+      Post.attribute("id", "integer");
+      Post.attribute("status", "integer");
+      Post.adapter = freshAdapter();
+      defineEnum(Post, "status", ["draft", "published", "archived"]);
+
+      const post = new Post({ status: 0 });
+      expect((post as any).isDraft()).toBe(true);
+      expect((post as any).isPublished()).toBe(false);
+      expect((post as any).isArchived()).toBe(false);
+    });
+
+    it("defines setter methods", () => {
+      class Post extends Base {
+        static _tableName = "posts";
+      }
+      Post.attribute("id", "integer");
+      Post.attribute("status", "integer");
+      Post.adapter = freshAdapter();
+      defineEnum(Post, "status", ["draft", "published", "archived"]);
+
+      const post = new Post({ status: 0 });
+      expect((post as any).isDraft()).toBe(true);
+      (post as any).published();
+      expect((post as any).isPublished()).toBe(true);
+      expect(post.readAttribute("status")).toBe(1);
+    });
+
+    it("supports hash mapping", () => {
+      class Post extends Base {
+        static _tableName = "posts";
+      }
+      Post.attribute("id", "integer");
+      Post.attribute("status", "integer");
+      Post.adapter = freshAdapter();
+      defineEnum(Post, "status", { draft: 0, published: 5, archived: 10 });
+
+      const post = new Post({ status: 5 });
+      expect((post as any).isPublished()).toBe(true);
+      expect(readEnumValue(post, "status")).toBe("published");
+    });
+
+    it("readEnumValue returns the string name", () => {
+      class Post extends Base {
+        static _tableName = "posts";
+      }
+      Post.attribute("id", "integer");
+      Post.attribute("status", "integer");
+      Post.adapter = freshAdapter();
+      defineEnum(Post, "status", ["draft", "published", "archived"]);
+
+      const post = new Post({ status: 2 });
+      expect(readEnumValue(post, "status")).toBe("archived");
+    });
+  });
+
+  // -- Single Table Inheritance --
+  describe("STI", () => {
+    let adapter: MemoryAdapter;
+
+    beforeEach(() => {
+      adapter = freshAdapter();
+    });
+
+    it("subclasses share the parent table", () => {
+      class Vehicle extends Base {
+        static _tableName = "vehicles";
+      }
+      enableSti(Vehicle);
+      class Car extends Vehicle {}
+      class Truck extends Vehicle {}
+
+      expect(Car.tableName).toBe("vehicles");
+      expect(Truck.tableName).toBe("vehicles");
+    });
+
+    it("auto-sets the type column on save", async () => {
+      class Vehicle extends Base {
+        static _tableName = "vehicles";
+      }
+      Vehicle.attribute("id", "integer");
+      Vehicle.attribute("name", "string");
+      Vehicle.attribute("type", "string");
+      Vehicle.adapter = adapter;
+      enableSti(Vehicle);
+
+      class Car extends Vehicle {}
+      Car.adapter = adapter;
+      registerModel(Car);
+
+      const car = await Car.create({ name: "Civic" });
+      expect(car.readAttribute("type")).toBe("Car");
+    });
+
+    it("subclass queries filter by type", async () => {
+      class Vehicle extends Base {
+        static _tableName = "vehicles";
+      }
+      Vehicle.attribute("id", "integer");
+      Vehicle.attribute("name", "string");
+      Vehicle.attribute("type", "string");
+      Vehicle.adapter = adapter;
+      enableSti(Vehicle);
+
+      class Car extends Vehicle {}
+      Car.adapter = adapter;
+      registerModel(Car);
+
+      class Truck extends Vehicle {}
+      Truck.adapter = adapter;
+      registerModel(Truck);
+
+      await Car.create({ name: "Civic" });
+      await Truck.create({ name: "F-150" });
+      await Car.create({ name: "Accord" });
+
+      const cars = await Car.all().toArray();
+      expect(cars).toHaveLength(2);
+      expect(cars.every((c: any) => c.readAttribute("type") === "Car")).toBe(true);
+
+      const trucks = await Truck.all().toArray();
+      expect(trucks).toHaveLength(1);
+
+      // Base class returns all
+      const all = await Vehicle.all().toArray();
+      expect(all).toHaveLength(3);
+    });
+
+    it("instantiates the correct subclass from base queries", async () => {
+      class Vehicle extends Base {
+        static _tableName = "vehicles";
+      }
+      Vehicle.attribute("id", "integer");
+      Vehicle.attribute("name", "string");
+      Vehicle.attribute("type", "string");
+      Vehicle.adapter = adapter;
+      enableSti(Vehicle);
+
+      class Car extends Vehicle {}
+      Car.adapter = adapter;
+      registerModel(Car);
+
+      class Truck extends Vehicle {}
+      Truck.adapter = adapter;
+      registerModel(Truck);
+
+      await Car.create({ name: "Civic" });
+      await Truck.create({ name: "F-150" });
+
+      const all = await Vehicle.all().toArray();
+      expect(all[0]).toBeInstanceOf(Car);
+      expect(all[1]).toBeInstanceOf(Truck);
+    });
+  });
+
+  // -- Polymorphic Associations --
+  describe("Polymorphic Associations", () => {
+    let adapter: MemoryAdapter;
+
+    beforeEach(() => {
+      adapter = freshAdapter();
+    });
+
+    it("belongsTo polymorphic loads correct parent type", async () => {
+      class Article extends Base {
+        static _tableName = "articles";
+      }
+      Article.attribute("id", "integer");
+      Article.attribute("title", "string");
+      Article.adapter = adapter;
+      registerModel(Article);
+
+      class Photo extends Base {
+        static _tableName = "photos";
+      }
+      Photo.attribute("id", "integer");
+      Photo.attribute("url", "string");
+      Photo.adapter = adapter;
+      registerModel(Photo);
+
+      class Comment extends Base {
+        static _tableName = "comments";
+      }
+      Comment.attribute("id", "integer");
+      Comment.attribute("body", "string");
+      Comment.attribute("commentable_id", "integer");
+      Comment.attribute("commentable_type", "string");
+      Comment.adapter = adapter;
+      Associations.belongsTo.call(Comment, "commentable", { polymorphic: true });
+
+      const article = await Article.create({ title: "Hello" });
+      const photo = await Photo.create({ url: "pic.jpg" });
+      const c1 = await Comment.create({ body: "Nice!", commentable_id: article.id, commentable_type: "Article" });
+      const c2 = await Comment.create({ body: "Cool!", commentable_id: photo.id, commentable_type: "Photo" });
+
+      const parent1 = await loadBelongsTo(c1, "commentable", { polymorphic: true });
+      expect(parent1).toBeInstanceOf(Article);
+      expect(parent1!.readAttribute("title")).toBe("Hello");
+
+      const parent2 = await loadBelongsTo(c2, "commentable", { polymorphic: true });
+      expect(parent2).toBeInstanceOf(Photo);
+      expect(parent2!.readAttribute("url")).toBe("pic.jpg");
+    });
+
+    it("hasMany with as: loads polymorphic children", async () => {
+      class Article extends Base {
+        static _tableName = "articles";
+      }
+      Article.attribute("id", "integer");
+      Article.attribute("title", "string");
+      Article.adapter = adapter;
+      registerModel(Article);
+      Associations.hasMany.call(Article, "comments", { as: "commentable" });
+
+      class Comment extends Base {
+        static _tableName = "comments";
+      }
+      Comment.attribute("id", "integer");
+      Comment.attribute("body", "string");
+      Comment.attribute("commentable_id", "integer");
+      Comment.attribute("commentable_type", "string");
+      Comment.adapter = adapter;
+      registerModel(Comment);
+
+      const article = await Article.create({ title: "Hello" });
+      await Comment.create({ body: "Nice!", commentable_id: article.id, commentable_type: "Article" });
+      await Comment.create({ body: "Cool!", commentable_id: article.id, commentable_type: "Article" });
+      await Comment.create({ body: "Other", commentable_id: 999, commentable_type: "Photo" });
+
+      const assocDef = (Article as any)._associations.find((a: any) => a.name === "comments");
+      const comments = await loadHasMany(article, "comments", assocDef.options);
+      expect(comments).toHaveLength(2);
+    });
+  });
+
+  // -- HABTM --
+  describe("has_and_belongs_to_many", () => {
+    let adapter: MemoryAdapter;
+
+    beforeEach(() => {
+      adapter = freshAdapter();
+    });
+
+    it("loads associated records through a join table", async () => {
+      class Post extends Base {
+        static _tableName = "posts";
+      }
+      Post.attribute("id", "integer");
+      Post.attribute("title", "string");
+      Post.adapter = adapter;
+      Associations.hasAndBelongsToMany.call(Post, "tags", { joinTable: "posts_tags" });
+
+      class Tag extends Base {
+        static _tableName = "tags";
+      }
+      Tag.attribute("id", "integer");
+      Tag.attribute("name", "string");
+      Tag.adapter = adapter;
+      registerModel(Tag);
+      registerModel(Post);
+
+      const post = await Post.create({ title: "Hello" });
+      const t1 = await Tag.create({ name: "ruby" });
+      const t2 = await Tag.create({ name: "rails" });
+      const t3 = await Tag.create({ name: "js" });
+
+      // Manually insert into join table
+      await adapter.executeMutation(
+        `INSERT INTO "posts_tags" ("post_id", "tag_id") VALUES (${post.id}, ${t1.id})`
+      );
+      await adapter.executeMutation(
+        `INSERT INTO "posts_tags" ("post_id", "tag_id") VALUES (${post.id}, ${t2.id})`
+      );
+
+      const tags = await loadHabtm(post, "tags", { joinTable: "posts_tags" });
+      expect(tags).toHaveLength(2);
+      const names = tags.map((t: any) => t.readAttribute("name")).sort();
+      expect(names).toEqual(["rails", "ruby"]);
+    });
+
+    it("uses default join table name (alphabetical)", async () => {
+      class Developer extends Base {
+        static _tableName = "developers";
+      }
+      Developer.attribute("id", "integer");
+      Developer.attribute("name", "string");
+      Developer.adapter = adapter;
+      Associations.hasAndBelongsToMany.call(Developer, "projects");
+      registerModel(Developer);
+
+      class Project extends Base {
+        static _tableName = "projects";
+      }
+      Project.attribute("id", "integer");
+      Project.attribute("name", "string");
+      Project.adapter = adapter;
+      registerModel(Project);
+
+      const dev = await Developer.create({ name: "Alice" });
+      const proj = await Project.create({ name: "Rails" });
+
+      // Default join table: alphabetical order of pluralized names
+      // "developers" and "projects" -> "developers_projects"
+      await adapter.executeMutation(
+        `INSERT INTO "developers_projects" ("developer_id", "project_id") VALUES (${dev.id}, ${proj.id})`
+      );
+
+      const projects = await loadHabtm(dev, "projects", {});
+      expect(projects).toHaveLength(1);
+      expect(projects[0].readAttribute("name")).toBe("Rails");
+    });
+  });
+
+  // -- secure_password --
+  describe("secure_password", () => {
+    let adapter: MemoryAdapter;
+
+    beforeEach(() => {
+      adapter = freshAdapter();
+    });
+
+    it("hashes password on save and authenticates", async () => {
+      class User extends Base {
+        static _tableName = "users";
+      }
+      User.attribute("id", "integer");
+      User.attribute("name", "string");
+      User.attribute("password_digest", "string");
+      User.adapter = adapter;
+      hasSecurePassword(User, { validations: false });
+
+      const user = new User({ name: "Alice" });
+      (user as any).password = "secret123";
+      await user.save();
+
+      const digest = user.readAttribute("password_digest") as string;
+      expect(digest).toBeTruthy();
+      expect(digest).toContain(":");
+
+      // authenticate returns record on success
+      const result = (user as any).authenticate("secret123");
+      expect(result).toBe(user);
+
+      // authenticate returns false on failure
+      const badResult = (user as any).authenticate("wrong");
+      expect(badResult).toBe(false);
+    });
+
+    it("validates password presence on create", async () => {
+      class User extends Base {
+        static _tableName = "users";
+      }
+      User.attribute("id", "integer");
+      User.attribute("password_digest", "string");
+      User.adapter = adapter;
+      hasSecurePassword(User);
+
+      const user = new User({});
+      const saved = await user.save();
+      expect(saved).toBe(false);
+      expect(user.errors.fullMessages).toContain("Password can't be blank");
+    });
+
+    it("validates password confirmation mismatch", async () => {
+      class User extends Base {
+        static _tableName = "users";
+      }
+      User.attribute("id", "integer");
+      User.attribute("password_digest", "string");
+      User.adapter = adapter;
+      hasSecurePassword(User);
+
+      const user = new User({});
+      (user as any).password = "secret123";
+      (user as any).passwordConfirmation = "different";
+      const saved = await user.save();
+      expect(saved).toBe(false);
+      expect(user.errors.fullMessages.some((m: string) =>
+        m.includes("doesn't match Password")
+      )).toBe(true);
+    });
+  });
+
+  // -- Store --
+  describe("Store", () => {
+    let adapter: MemoryAdapter;
+
+    beforeEach(() => {
+      adapter = freshAdapter();
+    });
+
+    it("reads and writes individual store accessors", () => {
+      class User extends Base {
+        static _tableName = "users";
+      }
+      User.attribute("id", "integer");
+      User.attribute("settings", "json");
+      User.adapter = adapter;
+      store(User, "settings", { accessors: ["theme", "language"] });
+
+      const user = new User({});
+      expect((user as any).theme).toBeNull();
+      expect((user as any).language).toBeNull();
+
+      (user as any).theme = "dark";
+      (user as any).language = "en";
+
+      expect((user as any).theme).toBe("dark");
+      expect((user as any).language).toBe("en");
+
+      // Underlying attribute is an object
+      const settings = user.readAttribute("settings");
+      expect(settings).toEqual({ theme: "dark", language: "en" });
+    });
+
+    it("reads from pre-existing JSON data", () => {
+      class User extends Base {
+        static _tableName = "users";
+      }
+      User.attribute("id", "integer");
+      User.attribute("settings", "json");
+      User.adapter = adapter;
+      store(User, "settings", { accessors: ["theme", "language"] });
+
+      const user = new User({ settings: '{"theme":"light","language":"fr"}' });
+      expect((user as any).theme).toBe("light");
+      expect((user as any).language).toBe("fr");
+    });
+
+    it("persists through save and reload", async () => {
+      class User extends Base {
+        static _tableName = "users";
+      }
+      User.attribute("id", "integer");
+      User.attribute("settings", "json");
+      User.adapter = adapter;
+      store(User, "settings", { accessors: ["theme", "language"] });
+      registerModel(User);
+
+      const user = new User({});
+      (user as any).theme = "dark";
+      (user as any).language = "en";
+      await user.save();
+
+      const found = await User.find(user.id);
+      // Store data should persist (might be serialized as object or string)
+      expect((found as any).theme).toBe("dark");
+      expect((found as any).language).toBe("en");
     });
   });
 });
