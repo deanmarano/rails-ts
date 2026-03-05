@@ -10,6 +10,7 @@ export type CallbackEvent = string;
 export interface CallbackConditions {
   if?: (record: any) => boolean;
   unless?: (record: any) => boolean;
+  prepend?: boolean;
 }
 
 interface CallbackEntry {
@@ -33,7 +34,12 @@ export class CallbackChain {
     fn: CallbackFn | AroundCallbackFn,
     conditions?: CallbackConditions
   ): void {
-    this.callbacks.push({ timing, event, fn, conditions });
+    const entry = { timing, event, fn, conditions };
+    if (conditions?.prepend) {
+      this.callbacks.unshift(entry);
+    } else {
+      this.callbacks.push(entry);
+    }
   }
 
   /**

@@ -100,6 +100,10 @@ export class ToSql implements NodeVisitor<SQLString> {
     if (node instanceof Nodes.NamedFunction) return this.visitNamedFunction(node);
     if (node instanceof Nodes.Exists) return this.visitExists(node);
 
+    // Boolean literals
+    if (node instanceof Nodes.True) return this.visitTrue(node);
+    if (node instanceof Nodes.False) return this.visitFalse(node);
+
     // Leaf nodes
     if (node instanceof Nodes.Distinct) return this.visitDistinct(node);
     if (node instanceof Nodes.SqlLiteral) return this.visitSqlLiteral(node);
@@ -742,6 +746,18 @@ export class ToSql implements NodeVisitor<SQLString> {
   private visitTableAlias(node: Nodes.TableAlias): SQLString {
     this.visit(node.relation);
     this.collector.append(` "${node.name}"`);
+    return this.collector;
+  }
+
+  // -- Boolean literals --
+
+  private visitTrue(_node: Nodes.True): SQLString {
+    this.collector.append("TRUE");
+    return this.collector;
+  }
+
+  private visitFalse(_node: Nodes.False): SQLString {
+    this.collector.append("FALSE");
     return this.collector;
   }
 

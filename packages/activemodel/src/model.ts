@@ -113,6 +113,33 @@ export class Model {
     }
   }
 
+  /**
+   * Auto-nullify blank string values for specified attributes (or all string attributes).
+   * A blank value is an empty string or whitespace-only string.
+   *
+   * Mirrors: Rails pattern of normalizing blank strings to nil
+   *
+   * Usage:
+   *   User.nullifyBlanks("name", "email")  // specific attributes
+   *   User.nullifyBlanks()                 // all string attributes
+   */
+  static nullifyBlanks(...attributes: string[]): void {
+    if (!Object.prototype.hasOwnProperty.call(this, "_nullifyBlanks")) {
+      this._nullifyBlanks = attributes.length > 0 ? [...attributes] : true;
+    } else {
+      if (attributes.length > 0) {
+        if (Array.isArray(this._nullifyBlanks)) {
+          this._nullifyBlanks.push(...attributes);
+        } else {
+          this._nullifyBlanks = [...attributes];
+        }
+      } else {
+        this._nullifyBlanks = true;
+      }
+    }
+  }
+  static _nullifyBlanks: string[] | true | false = false;
+
   // -- Validations (Phase 1100) --
 
   static validates(
@@ -444,6 +471,13 @@ export class Model {
         if (normalizer) {
           castValue = normalizer(castValue);
         }
+        // Nullify blank strings if configured
+        if (typeof castValue === "string" && castValue.trim() === "") {
+          const nbConfig = ctor._nullifyBlanks;
+          if (nbConfig === true || (Array.isArray(nbConfig) && nbConfig.includes(name))) {
+            castValue = null;
+          }
+        }
         this._attributes.set(name, castValue);
       } else {
         const defVal =
@@ -485,8 +519,24 @@ export class Model {
     if (normalizer) {
       newValue = normalizer(newValue);
     }
+    // Nullify blank strings if configured
+    newValue = this._applyNullifyBlanks(name, newValue);
     this._attributes.set(name, newValue);
     this._dirty.attributeWillChange(name, oldValue, newValue);
+  }
+
+  /**
+   * Apply nullifyBlanks: convert blank strings to null.
+   */
+  private _applyNullifyBlanks(name: string, value: unknown): unknown {
+    const ctor = this.constructor as typeof Model;
+    const config = ctor._nullifyBlanks;
+    if (config === false) return value;
+    if (typeof value !== "string") return value;
+    if (config === true || (Array.isArray(config) && config.includes(name))) {
+      if (value.trim() === "") return null;
+    }
+    return value;
   }
 
   /**

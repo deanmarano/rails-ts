@@ -1426,4 +1426,18 @@ describe("Arel", () => {
       expect(sql).toBe('"users"."first_name" || \' \' AS display_name');
     });
   });
+
+  describe("True and False nodes", () => {
+    it("generates TRUE", () => {
+      const node = new Nodes.True();
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe("TRUE");
+    });
+
+    it("generates FALSE", () => {
+      const node = new Nodes.False();
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe("FALSE");
+    });
+  });
 });

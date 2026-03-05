@@ -7543,4 +7543,40 @@ describe("Grouped Calculations (Rails-guided)", () => {
     (Order as any)._callbackChain.runAfter("deliver", o);
     expect(log).toEqual(["before_ship", "after_deliver"]);
   });
+
+  // Rails guide: nullify_blanks — auto-nullify blank strings
+  it("nullifyBlanks converts empty strings to null", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static {
+        this._tableName = "users";
+        this.attribute("id", "integer");
+        this.attribute("name", "string");
+        this.attribute("bio", "string");
+        this.adapter = adapter;
+        this.nullifyBlanks("name");
+      }
+    }
+    const u = new User({ name: "  ", bio: "  " });
+    expect(u.readAttribute("name")).toBeNull();
+    expect(u.readAttribute("bio")).toBe("  ");
+  });
+
+  // Rails guide: prepend callbacks
+  it("before_destroy with prepend: true runs first", () => {
+    const adapter = new MemoryAdapter();
+    class User extends Base {
+      static {
+        this._tableName = "users";
+        this.attribute("id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    const order: string[] = [];
+    User.beforeDestroy(() => { order.push("normal"); });
+    User.beforeDestroy(() => { order.push("prepended"); }, { prepend: true });
+    const u = new User({});
+    (User as any)._callbackChain.runBefore("destroy", u);
+    expect(order[0]).toBe("prepended");
+  });
 });
