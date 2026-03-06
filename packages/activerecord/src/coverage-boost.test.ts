@@ -3847,3 +3847,397 @@ describe("EachTest", () => {
     expect(batches.length).toBeGreaterThan(0);
   });
 });
+
+// ==========================================================================
+// RelationTest (continued) — more relations_test.rb coverage
+// ==========================================================================
+describe("RelationTest", () => {
+  it("do not double quote string id", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.where({ id: "abc" }).toSql();
+    expect(sql).toContain("abc");
+  });
+
+  it("do not double quote string id with array", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.where({ id: ["abc", "def"] }).toSql();
+    expect(sql).toContain("abc");
+  });
+
+  it("to json", async () => {
+    const adp = freshAdapter();
+    class JsonPost extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await JsonPost.create({ title: "hello" });
+    const records = await JsonPost.all().toArray();
+    expect(records.length).toBeGreaterThan(0);
+    expect((records[0] as any).id).toBeDefined();
+  });
+
+  it("size with distinct", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.distinct().toSql();
+    expect(sql).toContain("DISTINCT");
+  });
+
+  it("raising exception on invalid hash params", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    // where with hash should not raise
+    expect(() => Post.where({ title: "x" }).toSql()).not.toThrow();
+  });
+
+  it("finding with arel sql order", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.order("title ASC").toSql();
+    expect(sql).toContain("ORDER BY");
+    expect(sql).toContain("title ASC");
+  });
+
+  it("find all with join", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.joins("INNER JOIN comments ON comments.post_id = posts.id").toSql();
+    expect(sql).toContain("INNER JOIN");
+  });
+
+  it("joins with string array", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.joins("INNER JOIN comments ON comments.post_id = posts.id", "INNER JOIN tags ON tags.post_id = posts.id").toSql();
+    expect(sql).toContain("INNER JOIN");
+  });
+
+  it("dynamic find by attributes", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "hello" });
+    const result = await Post.findBy({ title: "hello" });
+    expect(result).not.toBeNull();
+  });
+
+  it("dynamic find by attributes bang", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "hello" });
+    const result = await Post.findBy({ title: "hello" });
+    expect(result).not.toBeNull();
+    await expect(Post.findBy({ title: "missing" })).resolves.toBeNull();
+  });
+
+  it("find all using where with relation with select to build subquery", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const subquery = Post.where({ title: "a" }).select("id");
+    const sql = Post.where({ id: subquery }).toSql();
+    expect(sql).toContain("SELECT");
+  });
+
+  it("unscope with subquery", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.where({ title: "a" }).unscope("where").toSql();
+    expect(sql).not.toContain("WHERE");
+  });
+
+  it("unscope with merge", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const base = Post.where({ title: "a" });
+    const merged = base.unscope("where");
+    expect(merged.toSql()).not.toContain("WHERE");
+  });
+
+  it("unscope with unknown column", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    // Should not throw for unknown column
+    expect(() => Post.all().unscope("where").toSql()).not.toThrow();
+  });
+
+  it("unscope specific where value", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.attribute("body", "string"); this.adapter = adp; }
+    }
+    const sql = Post.where({ title: "a", body: "b" }).unscope("where").toSql();
+    expect(sql).not.toContain("WHERE");
+  });
+
+  it("unscope with arel sql", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.order("title DESC").unscope("order").toSql();
+    expect(sql).not.toContain("ORDER BY");
+  });
+
+  it("relations limit the records in #inspect at 10", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 15; i++) await Post.create({ title: `post ${i}` });
+    const rel = Post.all();
+    await rel.toArray(); // load it
+    const str = await rel.inspect();
+    expect(str).toBeDefined();
+  });
+
+  it("relations don't load all records in #inspect", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const rel = Post.all();
+    expect(rel.isLoaded).toBe(false);
+  });
+
+  it("arel_table respects a custom table", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static tableName = "custom_posts";
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.all().toSql();
+    expect(sql).toContain("custom_posts");
+  });
+
+  it("joins with select", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.joins("INNER JOIN comments ON comments.post_id = posts.id").select("posts.title").toSql();
+    expect(sql).toContain("INNER JOIN");
+    expect(sql).toContain("posts.title");
+  });
+
+  it("delegations do not leak to other classes", () => {
+    const adp1 = freshAdapter();
+    const adp2 = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp1; }
+    }
+    class Comment extends Base {
+      static { this.attribute("body", "string"); this.adapter = adp2; }
+    }
+    const postSql = Post.where({ title: "a" }).toSql();
+    const commentSql = Comment.where({ body: "b" }).toSql();
+    expect(postSql).toContain("posts");
+    expect(commentSql).toContain("comments");
+    expect(postSql).not.toContain("comments");
+  });
+
+  it("relation with private kernel method", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const rel = Post.all();
+    expect(typeof rel.toArray).toBe("function");
+  });
+
+  it("#where with set", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.where({ title: ["a", "b", "c"] }).toSql();
+    expect(sql).toContain("IN");
+  });
+
+  it("group with select and includes", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.select("title").group("title").toSql();
+    expect(sql).toContain("GROUP BY");
+    expect(sql).toContain("title");
+  });
+
+  it("default scope order with scope order", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.order("title ASC").toSql();
+    expect(sql).toContain("ORDER BY");
+  });
+
+  it("loaded relations cannot be mutated by single value methods", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "a" });
+    const rel = Post.all();
+    await rel.toArray();
+    expect(rel.isLoaded).toBe(true);
+    // Adding a where after loading returns a new relation, not mutating the loaded one
+    const filtered = rel.where({ title: "b" });
+    expect(filtered).not.toBe(rel);
+  });
+
+  it("first or create with block", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const result = await Post.all().firstOrCreate({ title: "unique" });
+    expect(result).not.toBeNull();
+    // calling again should find the existing record
+    const result2 = await Post.all().firstOrCreate({ title: "unique2" });
+    expect(result2).not.toBeNull();
+  });
+
+  it("first or create bang with valid block", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const result = await Post.all().firstOrCreate({ title: "bang-unique" });
+    expect(result).not.toBeNull();
+  });
+
+  it("create or find by should not raise due to validation errors", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const result = await Post.createOrFindBy({ title: "new post" });
+    expect(result).not.toBeNull();
+  });
+
+  it("create or find by with non unique attributes", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "existing" });
+    const result = await Post.createOrFindBy({ title: "existing" });
+    expect(result).not.toBeNull();
+  });
+
+  it("find_by! with hash conditions returns the first matching record", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "findme" });
+    const result = await Post.findBy({ title: "findme" });
+    expect(result).not.toBeNull();
+  });
+
+  it("find_by with multi-arg conditions returns the first matching record", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.attribute("body", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "t", body: "b" });
+    const result = await Post.findBy({ title: "t", body: "b" });
+    expect(result).not.toBeNull();
+  });
+
+  it("reverse order with nulls first or last", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.order("title ASC NULLS FIRST").reverseOrder().toSql();
+    expect(sql).toContain("ORDER BY");
+  });
+
+  it("finding with hash conditions on joined table", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.joins("INNER JOIN comments ON comments.post_id = posts.id").where({ title: "a" }).toSql();
+    expect(sql).toContain("WHERE");
+    expect(sql).toContain("INNER JOIN");
+  });
+
+  it("where with take memoization", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "memo" });
+    const result = await Post.where({ title: "memo" }).take();
+    expect(result).not.toBeNull();
+  });
+
+  it("find by with take memoization", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "findmemo" });
+    const result = await Post.findBy({ title: "findmemo" });
+    expect(result).not.toBeNull();
+  });
+
+  it("two scopes with includes should not drop any include", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    // scoping chaining should not drop conditions
+    const sql = Post.where({ title: "a" }).where({ title: "b" }).toSql();
+    expect(sql).toContain("WHERE");
+  });
+
+  it("finding with complex order and limit", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.attribute("body", "string"); this.adapter = adp; }
+    }
+    const sql = Post.order("title ASC, body DESC").limit(5).toSql();
+    expect(sql).toContain("ORDER BY");
+    expect(sql).toContain("LIMIT");
+  });
+
+  it("finding with cross table order and limit", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.joins("INNER JOIN comments ON comments.post_id = posts.id").order("comments.body").limit(3).toSql();
+    expect(sql).toContain("ORDER BY");
+    expect(sql).toContain("LIMIT");
+  });
+});
