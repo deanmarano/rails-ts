@@ -19,7 +19,6 @@ import {
   transaction,
   savepoint,
   registerModel,
-  loadBelongsTo,
   loadHasOne,
   loadHasMany,
   loadHasManyThrough,
@@ -1136,7 +1135,7 @@ describe("Transactions (Rails-guided)", () => {
     const log: string[] = [];
 
     await transaction(Account, async (tx) => {
-      tx.afterCommit(() => log.push("committed"));
+      tx.afterCommit(() => { log.push("committed"); });
       await Account.create({ name: "Alice", balance: 100 });
     });
 
@@ -1148,7 +1147,7 @@ describe("Transactions (Rails-guided)", () => {
 
     try {
       await transaction(Account, async (tx) => {
-        tx.afterRollback(() => log.push("rolled_back"));
+        tx.afterRollback(() => { log.push("rolled_back"); });
         throw new Error("boom");
       });
     } catch {
@@ -1163,7 +1162,7 @@ describe("Transactions (Rails-guided)", () => {
 
     try {
       await transaction(Account, async (tx) => {
-        tx.afterCommit(() => log.push("committed"));
+        tx.afterCommit(() => { log.push("committed"); });
         throw new Error("boom");
       });
     } catch {
@@ -1177,7 +1176,7 @@ describe("Transactions (Rails-guided)", () => {
     const log: string[] = [];
 
     await transaction(Account, async (tx) => {
-      tx.afterRollback(() => log.push("rolled_back"));
+      tx.afterRollback(() => { log.push("rolled_back"); });
       await Account.create({ name: "Alice", balance: 100 });
     });
 
@@ -1206,9 +1205,9 @@ describe("Transactions (Rails-guided)", () => {
     const log: string[] = [];
 
     await transaction(Account, async (tx) => {
-      tx.afterCommit(() => log.push("first"));
-      tx.afterCommit(() => log.push("second"));
-      tx.afterCommit(() => log.push("third"));
+      tx.afterCommit(() => { log.push("first"); });
+      tx.afterCommit(() => { log.push("second"); });
+      tx.afterCommit(() => { log.push("third"); });
     });
 
     expect(log).toEqual(["first", "second", "third"]);
@@ -5922,7 +5921,7 @@ describe("Grouped Calculations (Rails-guided)", () => {
 
     await Topic.updateAll({ status: "published" });
     const topics = await Topic.all().toArray();
-    expect(topics.every(t => t.readAttribute("status") === "published")).toBe(true);
+    expect(topics.every((t: any) => t.readAttribute("status") === "published")).toBe(true);
   });
 
   // =====================================================================
@@ -7061,7 +7060,7 @@ describe("Grouped Calculations (Rails-guided)", () => {
 
     await User.create({ name: "Alice" });
     await User.create({ name: "Bob" });
-    const results = await User.all().reject((u) => u.readAttribute("name") === "Alice");
+    const results = await User.all().reject((u: any) => u.readAttribute("name") === "Alice");
     expect(results.length).toBe(1);
     expect(results[0].readAttribute("name")).toBe("Bob");
   });
@@ -7148,7 +7147,7 @@ describe("Grouped Calculations (Rails-guided)", () => {
   it("afterTouch fires after touch()", async () => {
     const log: string[] = [];
     class User extends Base {
-      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("updated_at", "datetime"); this.afterTouch((r: any) => log.push("touched")); this.adapter = adapter; }
+      static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("updated_at", "datetime"); this.afterTouch((r: any) => { log.push("touched"); }); this.adapter = adapter; }
     }
 
     const user = await User.create({ name: "Alice" });

@@ -5,6 +5,7 @@ export { DirtyTracker } from "./dirty.js";
 export { CallbackChain } from "./callbacks.js";
 export type { CallbackConditions } from "./callbacks.js";
 export { serializableHash } from "./serialization.js";
+export { Type } from "./types/type.js";
 
 export * as Types from "./types/index.js";
 export * as Validations from "./validations/index.js";

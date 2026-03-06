@@ -637,7 +637,7 @@ export class Model {
   _attributes: Map<string, unknown> = new Map();
   _attributesBeforeTypeCast: Map<string, unknown> = new Map();
   errors: Errors = new Errors(this);
-  private _dirty: DirtyTracker = new DirtyTracker();
+  _dirty: DirtyTracker = new DirtyTracker();
 
   constructor(attrs: Record<string, unknown> = {}) {
     const ctor = this.constructor as typeof Model;

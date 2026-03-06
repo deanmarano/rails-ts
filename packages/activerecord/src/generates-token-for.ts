@@ -46,7 +46,7 @@ export function generatesTokenFor(
   });
 
   // Add instance method: generateTokenFor(purpose)
-  if (!modelClass.prototype.generateTokenFor) {
+  if (!(modelClass.prototype as any).generateTokenFor) {
     Object.defineProperty(modelClass.prototype, "generateTokenFor", {
       value: function (this: Base, purposeName: string): string {
         return _generateToken(this, purposeName);

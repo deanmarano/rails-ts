@@ -3,7 +3,6 @@ import { Base, Relation, Range, MemoryAdapter, transaction, savepoint, Collectio
 import { Migration, TableDefinition, Schema } from "./migration.js";
 import {
   Associations,
-  registerModel,
   loadBelongsTo,
   loadHasOne,
   loadHasMany,
@@ -944,7 +943,7 @@ describe("ActiveRecord", () => {
     it("whereNot excludes matching records", async () => {
       const items = await Widget.all().whereNot({ color: "red" }).toArray();
       expect(items).toHaveLength(2);
-      expect(items.every(i => i.readAttribute("color") !== "red")).toBe(true);
+      expect(items.every((i: any) => i.readAttribute("color") !== "red")).toBe(true);
     });
 
     it("whereNot with null uses IS NOT NULL", async () => {
@@ -2548,7 +2547,7 @@ describe("ActiveRecord", () => {
       await User.create({ name: "Alice" });
 
       const first = await User.all().first();
-      expect(first!.readAttribute("name")).toBe("Bob"); // ID 1
+      expect((first as any)!.readAttribute("name")).toBe("Bob"); // ID 1
     });
 
     it("last on unordered relation returns last by PK", async () => {
@@ -2565,7 +2564,7 @@ describe("ActiveRecord", () => {
       await User.create({ name: "Alice" });
 
       const last = await User.all().last();
-      expect(last!.readAttribute("name")).toBe("Alice"); // ID 2
+      expect((last as any)!.readAttribute("name")).toBe("Alice"); // ID 2
     });
 
     it("count on empty table returns 0", async () => {
@@ -6102,7 +6101,7 @@ describe("ActiveRecord", () => {
 
       await Item.updateAll({ status: "new" });
       const items = await Item.all().toArray();
-      expect(items.every(i => i.readAttribute("status") === "new")).toBe(true);
+      expect(items.every((i: any) => i.readAttribute("status") === "new")).toBe(true);
     });
   });
 
@@ -7573,9 +7572,9 @@ describe("ActiveRecord", () => {
       await User.create({ name: "Bob" });
       await User.create({ name: "Charlie" });
 
-      const results = await User.all().reject((u) => u.readAttribute("name") === "Bob");
+      const results = await User.all().reject((u: any) => u.readAttribute("name") === "Bob");
       expect(results.length).toBe(2);
-      expect(results.map((u) => u.readAttribute("name")).sort()).toEqual(["Alice", "Charlie"]);
+      expect(results.map((u: any) => u.readAttribute("name")).sort()).toEqual(["Alice", "Charlie"]);
     });
   });
 
@@ -8465,7 +8464,7 @@ describe("ActiveRecord", () => {
       }
       const author = await Author.create({ name: "Alice" });
       // Simulate preloaded associations
-      const fakePost = { _attributes: new Map([["title", "Hello"], ["id", 1]]) };
+      const fakePost = { _attributes: new Map<string, string | number>([["title", "Hello"], ["id", 1]]) };
       (author as any)._preloadedAssociations = new Map([["posts", [fakePost]]]);
 
       const { serializableHash } = await import("@rails-js/activemodel");
@@ -8640,9 +8639,9 @@ describe("ActiveRecord", () => {
       const proxy = association(author, "posts");
       const first = await proxy.first();
       expect(first).not.toBeNull();
-      expect(first!.readAttribute("title")).toBe("First");
+      expect((first as any)!.readAttribute("title")).toBe("First");
       const last = await proxy.last();
-      expect(last!.readAttribute("title")).toBe("Second");
+      expect((last as any)!.readAttribute("title")).toBe("Second");
     });
 
     it("includes checks for record membership", async () => {
@@ -9600,7 +9599,7 @@ describe("ActiveRecord", () => {
 
       const results = await User.where({}).whereAny({ name: "Alice" }, { name: "Bob" }).toArray();
       expect(results.length).toBe(2);
-      const names = results.map((u) => u.readAttribute("name")).sort();
+      const names = results.map((u: any) => u.readAttribute("name")).sort();
       expect(names).toEqual(["Alice", "Bob"]);
     });
   });
@@ -10934,7 +10933,7 @@ describe("ActiveRecord", () => {
     it("whereNot excludes matching records", async () => {
       const result = await User.all().whereNot({ name: "Alice" }).toArray();
       expect(result).toHaveLength(2);
-      expect(result.every(r => r.readAttribute("name") !== "Alice")).toBe(true);
+      expect(result.every((r: any) => r.readAttribute("name") !== "Alice")).toBe(true);
     });
 
     it("whereNot with null generates IS NOT NULL", async () => {
@@ -11266,7 +11265,7 @@ describe("ActiveRecord", () => {
       await Item.create({ status: "old" });
       await Item.updateAll({ status: "new" });
       const items = await Item.all().toArray();
-      expect(items.every(i => i.readAttribute("status") === "new")).toBe(true);
+      expect(items.every((i: any) => i.readAttribute("status") === "new")).toBe(true);
     });
   });
 
@@ -12474,7 +12473,7 @@ describe("ActiveRecord", () => {
       await User.create({ name: "Alice" });
       const first = await User.first();
       expect(first).not.toBeNull();
-      expect(first!.readAttribute("name")).toBe("Alice");
+      expect((first as any)!.readAttribute("name")).toBe("Alice");
     });
 
     it("Base.last returns the last record", async () => {
@@ -12485,7 +12484,7 @@ describe("ActiveRecord", () => {
       await User.create({ name: "Bob" });
       const last = await User.last();
       expect(last).not.toBeNull();
-      expect(last!.readAttribute("name")).toBe("Bob");
+      expect((last as any)!.readAttribute("name")).toBe("Bob");
     });
 
     it("Base.count returns count", async () => {

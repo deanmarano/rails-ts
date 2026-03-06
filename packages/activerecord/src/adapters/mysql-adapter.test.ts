@@ -27,14 +27,18 @@ const MYSQL_TEST_URL =
 
 let mysqlAvailable = false;
 
-try {
-  const conn = await mysql.createConnection({ uri: MYSQL_TEST_URL });
-  await conn.query("SELECT 1");
-  await conn.end();
-  mysqlAvailable = true;
-} catch {
-  mysqlAvailable = false;
+async function checkMysql(): Promise<boolean> {
+  try {
+    const conn = await mysql.createConnection({ uri: MYSQL_TEST_URL });
+    await conn.query("SELECT 1");
+    await conn.end();
+    return true;
+  } catch {
+    return false;
+  }
 }
+
+mysqlAvailable = await checkMysql();
 
 const describeIfMysql = mysqlAvailable ? describe : describe.skip;
 

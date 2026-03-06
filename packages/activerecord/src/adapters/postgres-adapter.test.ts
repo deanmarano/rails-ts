@@ -29,15 +29,19 @@ const PG_TEST_URL =
 let pgAvailable = false;
 
 // Quick connectivity check
-try {
-  const client = new pg.Client({ connectionString: PG_TEST_URL });
-  await client.connect();
-  await client.query("SELECT 1");
-  await client.end();
-  pgAvailable = true;
-} catch {
-  pgAvailable = false;
+async function checkPg(): Promise<boolean> {
+  try {
+    const client = new pg.Client({ connectionString: PG_TEST_URL });
+    await client.connect();
+    await client.query("SELECT 1");
+    await client.end();
+    return true;
+  } catch {
+    return false;
+  }
 }
+
+pgAvailable = await checkPg();
 
 const describeIfPg = pgAvailable ? describe : describe.skip;
 

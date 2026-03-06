@@ -59,16 +59,16 @@ export function Attributes<TBase extends Constructor>(Base: TBase) {
     }
 
     _attributes: Map<string, unknown> = new Map();
-    private _initialized = false;
+    #initialized = false;
 
     constructor(...args: any[]) {
       super(...args);
-      this._initAttributes(args[0] ?? {});
+      this.#initAttributes(args[0] ?? {});
     }
 
-    private _initAttributes(initial: Record<string, unknown>) {
-      if (this._initialized) return;
-      this._initialized = true;
+    #initAttributes(initial: Record<string, unknown>) {
+      if (this.#initialized) return;
+      this.#initialized = true;
       const ctor = this.constructor as any;
       const defs: Map<string, AttributeDefinition> =
         ctor._attributeDefinitions ?? new Map();

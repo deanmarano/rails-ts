@@ -1374,7 +1374,7 @@ export class Base extends Model {
     const record = new this(row);
     this._skipEncryption = false;
     record._newRecord = false;
-    record._dirty.snapshot(record._attributes);
+     (record as any)._dirty.snapshot(record._attributes);
     record.changesApplied();
     // Apply strict_loading_by_default
     if (this._strictLoadingByDefault) {
@@ -1856,7 +1856,7 @@ export class Base extends Model {
     // If suppressed, skip the actual insert but update record state
     if (ctor._suppressed || (ctor as any).__proto__._suppressed) {
       this._newRecord = false;
-      this._dirty.snapshot(this._attributes);
+       (this as any)._dirty.snapshot(this._attributes);
       this.changesApplied();
       return;
     }
@@ -1911,7 +1911,7 @@ export class Base extends Model {
 
     // If suppressed, skip the actual update
     if (ctor._suppressed || (ctor as any).__proto__._suppressed) {
-      this._dirty.snapshot(this._attributes);
+       (this as any)._dirty.snapshot(this._attributes);
       this.changesApplied();
       return;
     }
@@ -2106,7 +2106,7 @@ export class Base extends Model {
       this._attributes.set(key, value);
     }
 
-    this._dirty.snapshot(this._attributes);
+     (this as any)._dirty.snapshot(this._attributes);
     return this;
   }
 
@@ -2132,7 +2132,7 @@ export class Base extends Model {
     for (const [key, value] of Object.entries(rows[0])) {
       this._attributes.set(key, value);
     }
-    this._dirty.snapshot(this._attributes);
+     (this as any)._dirty.snapshot(this._attributes);
     return this;
   }
 
@@ -2143,7 +2143,7 @@ export class Base extends Model {
    */
   async withLock(fn?: (record: this) => Promise<void> | void): Promise<void> {
     const { transaction } = await import("./transactions.js");
-    await transaction(async () => {
+    await transaction(this.constructor as typeof Base, async () => {
       await this.lockBang();
       if (fn) await fn(this);
     });
@@ -2382,7 +2382,7 @@ export class Base extends Model {
     copy._destroyed = this._destroyed;
     copy._readonly = this._readonly;
     if (!this._newRecord) {
-      copy._dirty.snapshot(copy._attributes);
+       (copy as any)._dirty.snapshot(copy._attributes);
       copy.changesApplied();
     }
     return copy;
@@ -2397,7 +2397,7 @@ export class Base extends Model {
     const instance = new klass(this.attributes);
     instance._newRecord = this._newRecord;
     if (!this._newRecord) {
-      instance._dirty.snapshot(instance._attributes);
+       (instance as any)._dirty.snapshot(instance._attributes);
       instance.changesApplied();
     }
     return instance;
@@ -2470,7 +2470,7 @@ export class Base extends Model {
    *
    * Mirrors: ActiveRecord::Base.attribute_types
    */
-  static get attributeTypes(): Record<string, import("@rails-js/activemodel").Type> {
+  static get attributeTypes(): Record<string, any> {
     const result: Record<string, any> = {};
     for (const [name, def] of this._attributeDefinitions) {
       result[name] = def.type;
@@ -2642,9 +2642,9 @@ export class Base extends Model {
    *
    * Mirrors: ActiveRecord::Base#transaction
    */
-  async transaction<R>(fn?: () => R | Promise<R>): Promise<R> {
+  async transaction<R>(fn: (tx: any) => Promise<R>): Promise<R> {
     const { transaction: txn } = await import("./transactions.js");
-    return txn(fn as () => R | Promise<R>);
+    return txn(this.constructor as typeof Base, fn);
   }
 
   /**
@@ -2657,7 +2657,7 @@ export class Base extends Model {
    *
    * Mirrors: ActiveRecord::Validations#valid?
    */
-  isValid(context?: string): boolean {
+  override isValid(context?: string): boolean {
     return super.isValid(context);
   }
 

@@ -20,9 +20,11 @@ export {
   processDependentAssociations,
   CollectionProxy,
   association,
+  loadHabtm,
+  updateCounterCaches,
+  touchBelongsToParents,
 } from "./associations.js";
 export type { AssociationOptions } from "./associations.js";
-export { loadHabtm, updateCounterCaches, touchBelongsToParents } from "./associations.js";
 export { Transaction, transaction, savepoint, currentTransaction } from "./transactions.js";
 export { delegate } from "./delegate.js";
 export { defineEnum, readEnumValue, castEnumValue } from "./enum.js";

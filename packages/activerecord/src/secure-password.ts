@@ -75,13 +75,15 @@ export function hasSecurePassword(
   });
 
   // authenticate method
-  modelClass.prototype.authenticate = function (
-    password: string
-  ): Base | false {
-    const digest = this.readAttribute("password_digest");
-    if (!digest) return false;
-    return verifyPassword(password, digest as string) ? this : false;
-  };
+  Object.defineProperty(modelClass.prototype, "authenticate", {
+    value: function (this: Base, password: string): Base | false {
+      const digest = this.readAttribute("password_digest");
+      if (!digest) return false;
+      return verifyPassword(password, digest as string) ? this : false;
+    },
+    writable: true,
+    configurable: true,
+  });
 
   // Hook into save to hash the password
   modelClass.beforeSave(function (record: Base) {

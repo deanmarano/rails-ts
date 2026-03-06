@@ -1,9 +1,9 @@
 import type { Base } from "./base.js";
 
 interface ComposedOfOptions {
-  className: new (...args: unknown[]) => unknown;
+  className: new (...args: any[]) => any;
   mapping: [string, string][];
-  constructor?: (...args: unknown[]) => unknown;
+  constructorFn?: (...args: any[]) => any;
   converter?: (value: unknown) => unknown;
 }
 
