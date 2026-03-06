@@ -4,6 +4,7 @@ import path from "path";
 export default defineConfig({
   resolve: {
     alias: {
+      "@rails-ts/activesupport": path.resolve(__dirname, "packages/activesupport/src/index.ts"),
       "@rails-ts/arel/src": path.resolve(__dirname, "packages/arel/src"),
       "@rails-ts/arel": path.resolve(__dirname, "packages/arel/src/index.ts"),
       "@rails-ts/activemodel": path.resolve(

@@ -3,6 +3,8 @@
  *
  * Mirrors: ActiveModel::Name
  */
+import { underscore, pluralize } from "@rails-ts/activesupport";
+
 export class ModelName {
   readonly name: string;
   readonly singular: string;
@@ -29,30 +31,13 @@ export class ModelName {
       ? className.split("::").pop()!
       : className;
 
-    const lower = this.underscore(baseName);
+    const lower = underscore(baseName);
     this.singular = lower;
-    this.plural = this.pluralize(lower);
+    this.plural = ModelName._uncountables.has(lower) ? lower : pluralize(lower);
     this.element = lower;
     this.collection = this.plural;
     this.paramKey = lower;
     this.routeKey = this.plural;
     this.i18nKey = lower;
-  }
-
-  private underscore(str: string): string {
-    return str
-      .replace(/::/g, "/")
-      .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
-      .replace(/([a-z\d])([A-Z])/g, "$1_$2")
-      .toLowerCase();
-  }
-
-  private pluralize(str: string): string {
-    if (ModelName._uncountables.has(str)) return str;
-    if (str.endsWith("s")) return str + "es";
-    if (str.endsWith("y") && !/[aeiou]y$/.test(str)) {
-      return str.slice(0, -1) + "ies";
-    }
-    return str + "s";
   }
 }

@@ -18,6 +18,7 @@
   },
   "files": [],
   "references": [
+    { "path": "packages/activesupport" },
     { "path": "packages/arel" },
     { "path": "packages/activemodel" },
     { "path": "packages/activerecord" }

@@ -3864,7 +3864,7 @@ describe("ActiveModel", () => {
       class Person extends Model {
         static { this.attribute("name", "string"); }
       }
-      expect(new Person({ name: "Alice" }).toPartialPath()).toBe("persons/_person");
+      expect(new Person({ name: "Alice" }).toPartialPath()).toBe("people/_person");
     });
   });
 
@@ -5606,7 +5606,7 @@ describe("ActiveModel", () => {
     it("translated model names", () => {
       class Person extends Model {}
       expect(Person.modelName.singular).toBe("person");
-      expect(Person.modelName.plural).toBe("persons");
+      expect(Person.modelName.plural).toBe("people");
     });
 
     it("translated model when missing translation", () => {
@@ -5735,7 +5735,7 @@ describe("ActiveModel", () => {
       // A model name constructed with empty string
       const name = new ModelName("");
       expect(name.singular).toBe("");
-      expect(name.plural).toBe("s");
+      expect(name.plural).toBe("");
     });
   });
 
@@ -7484,7 +7484,7 @@ describe("ActiveModel", () => {
     });
     it("plural", () => {
       const name = new ModelName("Person");
-      expect(name.plural).toBe("persons");
+      expect(name.plural).toBe("people");
     });
   });
 
