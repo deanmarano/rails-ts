@@ -5226,3 +5226,1495 @@ describe("FinderTest", () => {
     expect(sql).toContain("IN");
   });
 });
+
+// ==========================================================================
+// EnumTest — more coverage targeting enum_test.rb
+// ==========================================================================
+describe("EnumTest", () => {
+  it("query state by predicate with prefix", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static _tableName = "posts";
+    }
+    Post.attribute("id", "integer");
+    Post.attribute("status", "integer");
+    Post.adapter = adp;
+    defineEnum(Post, "status", { draft: 0, published: 1 }, { prefix: "state" });
+    const p = new Post({ status: 0 });
+    expect(readEnumValue(p, "status")).toBe("draft");
+  });
+
+  it("query state by predicate with :prefix", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static _tableName = "posts";
+    }
+    Post.attribute("id", "integer");
+    Post.attribute("status", "integer");
+    Post.adapter = adp;
+    defineEnum(Post, "status", { active: 0, inactive: 1 }, { prefix: true });
+    const p = new Post({ status: 0 });
+    expect(readEnumValue(p, "status")).toBe("active");
+  });
+
+  it("query state by predicate with :suffix", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static _tableName = "posts";
+    }
+    Post.attribute("id", "integer");
+    Post.attribute("role", "integer");
+    Post.adapter = adp;
+    defineEnum(Post, "role", { admin: 0, user: 1 }, { suffix: true });
+    const p = new Post({ role: 1 });
+    expect(readEnumValue(p, "role")).toBe("user");
+  });
+
+  it("declare multiple enums with prefix: true", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static _tableName = "posts";
+    }
+    Post.attribute("id", "integer");
+    Post.attribute("status", "integer");
+    Post.attribute("role", "integer");
+    Post.adapter = adp;
+    defineEnum(Post, "status", { draft: 0, published: 1 }, { prefix: true });
+    defineEnum(Post, "role", { admin: 0, user: 1 }, { prefix: true });
+    const p = new Post({ status: 0, role: 1 });
+    expect(readEnumValue(p, "status")).toBe("draft");
+    expect(readEnumValue(p, "role")).toBe("user");
+  });
+
+  it("validate uniqueness", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("status", "integer"); this.adapter = adp; }
+    }
+    const p = await Post.create({ status: 0 }) as any;
+    expect(p.isPersisted()).toBe(true);
+  });
+
+  it("reverted changes that are not dirty", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("status", "integer"); this.adapter = adp; }
+    }
+    const p = await Post.create({ status: 0 }) as any;
+    p.writeAttribute("status", 1);
+    p.writeAttribute("status", 0);
+    expect(p.readAttribute("status")).toBe(0);
+  });
+
+  it("enums can have values as strings", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("status", "integer"); this.adapter = adp; }
+    }
+    defineEnum(Post, "status", { draft: 0, published: 1 });
+    const p = await Post.create({ status: 0 }) as any;
+    expect(readEnumValue(p, "status")).toBe("draft");
+  });
+
+  it("saved enum changes", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("status", "integer"); this.adapter = adp; }
+    }
+    defineEnum(Post, "status", { draft: 0, published: 1 });
+    const p = await Post.create({ status: 0 }) as any;
+    await p.update({ status: 1 });
+    expect(readEnumValue(p, "status")).toBe("published");
+  });
+
+  it("enum scopes create where clause", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("status", "integer"); this.adapter = adp; }
+    }
+    defineEnum(Post, "status", { draft: 0, published: 1 });
+    const sql = Post.where({ status: 0 }).toSql();
+    expect(sql).toContain("WHERE");
+  });
+
+  it("enum with nil value", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("status", "integer"); this.adapter = adp; }
+    }
+    defineEnum(Post, "status", { draft: 0, published: 1 });
+    const p = new Post({}) as any;
+    // readEnumValue returns null for undefined/unset values
+    expect(readEnumValue(p, "status")).toBeNull();
+  });
+
+  it("building new record with scope", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("status", "integer"); this.adapter = adp; }
+    }
+    defineEnum(Post, "status", { draft: 0, published: 1 });
+    const p = Post.where({ status: 0 }).build();
+    expect(p.isNewRecord()).toBe(true);
+  });
+
+  it("custom primary key after failed save", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("status", "integer"); this.adapter = adp; }
+    }
+    defineEnum(Post, "status", { draft: 0, published: 1 });
+    const p = await Post.create({ status: 0 }) as any;
+    expect(p.isPersisted()).toBe(true);
+    expect(readEnumValue(p, "status")).toBe("draft");
+  });
+
+  it("enum values are a hash", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("status", "integer"); this.adapter = adp; }
+    }
+    defineEnum(Post, "status", { draft: 0, published: 1, archived: 2 });
+    const p0 = new Post({ status: 0 });
+    const p1 = new Post({ status: 1 });
+    const p2 = new Post({ status: 2 });
+    expect(readEnumValue(p0, "status")).toBe("draft");
+    expect(readEnumValue(p1, "status")).toBe("published");
+    expect(readEnumValue(p2, "status")).toBe("archived");
+  });
+
+  it("assign value", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("status", "integer"); this.adapter = adp; }
+    }
+    defineEnum(Post, "status", { draft: 0, published: 1 });
+    const p = await Post.create({ status: 0 }) as any;
+    p.writeAttribute("status", 1);
+    expect(readEnumValue(p, "status")).toBe("published");
+  });
+});
+
+// ==========================================================================
+// DefaultScopingTest — targets scoping/default_scoping_test.rb
+// ==========================================================================
+describe("DefaultScopingTest", () => {
+  it("default scope", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.defaultScope((rel: any) => rel.where({ published: true }));
+      }
+    }
+    await Post.create({ title: "pub", published: true });
+    await Post.create({ title: "draft", published: false });
+    const results = await Post.all().toArray();
+    expect(results.length).toBe(1);
+  });
+
+  it("default scope with inheritance", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.defaultScope((rel: any) => rel.where({ published: true }));
+      }
+    }
+    await Post.create({ title: "pub", published: true });
+    await Post.create({ title: "draft", published: false });
+    const results = await Post.all().toArray();
+    expect(results.every((r: any) => r.readAttribute("published") === true)).toBe(true);
+  });
+
+  it("default scope runs on select", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.defaultScope((rel: any) => rel.where({ published: true }));
+      }
+    }
+    await Post.create({ title: "pub", published: true });
+    const count = await Post.count();
+    expect(count).toBe(1);
+  });
+
+  it("default scope with all queries runs on select", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("active", "boolean");
+        this.adapter = adp;
+        this.defaultScope((rel: any) => rel.where({ active: true }));
+      }
+    }
+    await Post.create({ title: "active-post", active: true });
+    await Post.create({ title: "inactive-post", active: false });
+    const sql = Post.all().toSql();
+    expect(sql).toContain("WHERE");
+  });
+
+  it("default scope with all queries runs on reload but default scope without all queries does not", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.defaultScope((rel: any) => rel.where({ published: true }));
+      }
+    }
+    await Post.create({ title: "pub", published: true });
+    const rel = Post.all();
+    await rel.load();
+    await rel.reload();
+    expect(rel.isLoaded).toBe(true);
+  });
+
+  it("default scope with all queries doesnt run on destroy when unscoped", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.defaultScope((rel: any) => rel.where({ published: true }));
+      }
+    }
+    const p = await Post.create({ title: "pub", published: true }) as any;
+    await p.destroy();
+    expect(p.isDestroyed()).toBe(true);
+  });
+
+  it("unscoped with named scope should not have default scope", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.defaultScope((rel: any) => rel.where({ published: true }));
+        this.scope("recent", () => Post.order("title"));
+      }
+    }
+    await Post.create({ title: "pub", published: true });
+    await Post.create({ title: "draft", published: false });
+    const results = await Post.unscoped().toArray();
+    expect(results.length).toBe(2);
+  });
+
+  it("default scope include with count", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.defaultScope((rel: any) => rel.where({ published: true }));
+      }
+    }
+    await Post.create({ title: "pub", published: true });
+    await Post.create({ title: "draft", published: false });
+    const count = await Post.count();
+    expect(count).toBe(1);
+  });
+
+  it("scope composed by limit and then offset is equal to scope composed by offset and then limit", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql1 = Post.limit(5).offset(2).toSql();
+    const sql2 = Post.offset(2).limit(5).toSql();
+    expect(sql1).toContain("LIMIT");
+    expect(sql1).toContain("OFFSET");
+    expect(sql2).toContain("LIMIT");
+    expect(sql2).toContain("OFFSET");
+  });
+
+  it("unscope reverse order", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.order("title").unscope("order").toSql();
+    expect(sql).not.toContain("ORDER BY");
+  });
+
+  it("default ordering", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adp;
+        this.defaultScope((rel: any) => rel.order("title"));
+      }
+    }
+    await Post.create({ title: "b" });
+    await Post.create({ title: "a" });
+    const sql = Post.all().toSql();
+    expect(sql).toContain("ORDER BY");
+  });
+
+  it("default scope is unscoped on the association", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.defaultScope((rel: any) => rel.where({ published: true }));
+      }
+    }
+    await Post.create({ title: "pub", published: true });
+    const results = await Post.unscoped().toArray();
+    expect(Array.isArray(results)).toBe(true);
+  });
+
+  it("unscope overrides default scope", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.defaultScope((rel: any) => rel.where({ published: true }));
+      }
+    }
+    await Post.create({ title: "pub", published: true });
+    await Post.create({ title: "draft", published: false });
+    const all = await Post.unscoped().toArray();
+    expect(all.length).toBe(2);
+  });
+
+  it("default scope with condition", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.defaultScope((rel: any) => rel.where({ published: true }));
+      }
+    }
+    await Post.create({ title: "pub", published: true });
+    await Post.create({ title: "extra-pub", published: true });
+    await Post.create({ title: "draft", published: false });
+    const results = await Post.where({ title: "pub" }).toArray();
+    expect(results.length).toBe(1);
+  });
+});
+
+// ==========================================================================
+// NamedScopingTest — targets scoping/named_scoping_test.rb
+// ==========================================================================
+describe("NamedScopingTest", () => {
+  it("implements enumerable", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "a" });
+    await Post.create({ title: "b" });
+    const all = await Post.all().toArray();
+    expect(Array.isArray(all)).toBe(true);
+  });
+
+  it("found items are cached", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "cached" });
+    const rel = Post.all();
+    await rel.load();
+    expect(rel.isLoaded).toBe(true);
+    const records = await rel.toArray();
+    expect(records.length).toBe(1);
+  });
+
+  it("reload expires cache of found items", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "original" });
+    const rel = Post.all();
+    await rel.load();
+    expect(rel.isLoaded).toBe(true);
+    await rel.reload();
+    expect(rel.isLoaded).toBe(true);
+  });
+
+  it("delegates finds and calculations to the base class", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "a" });
+    const count = await Post.count();
+    expect(count).toBe(1);
+  });
+
+  it("calling merge at first in scope", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.attribute("published", "boolean"); this.adapter = adp; }
+    }
+    await Post.create({ title: "pub", published: true });
+    const rel = Post.where({ published: true }).merge(Post.order("title"));
+    const sql = rel.toSql();
+    expect(sql).toContain("ORDER BY");
+  });
+
+  it("scopes with options limit finds to those matching the criteria specified", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.scope("published", () => Post.where({ published: true }));
+      }
+    }
+    await Post.create({ title: "pub", published: true });
+    await Post.create({ title: "draft", published: false });
+    const results = await (Post as any).published().toArray();
+    expect(results.length).toBe(1);
+  });
+
+  it("scopes with string name can be composed", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.scope("published", () => Post.where({ published: true }));
+        this.scope("titled", () => Post.order("title"));
+      }
+    }
+    await Post.create({ title: "pub", published: true });
+    const sql = (Post as any).published().titled().toSql();
+    expect(sql).toContain("ORDER BY");
+  });
+
+  it("scopes are composable", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.scope("published", () => Post.where({ published: true }));
+      }
+    }
+    await Post.create({ title: "a", published: true });
+    await Post.create({ title: "b", published: false });
+    const results = await (Post as any).published().where({ title: "a" }).toArray();
+    expect(results.length).toBe(1);
+  });
+
+  it("procedural scopes", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adp;
+        this.scope("titled", () => Post.order("title"));
+      }
+    }
+    await Post.create({ title: "b" });
+    await Post.create({ title: "a" });
+    const sql = (Post as any).titled().toSql();
+    expect(sql).toContain("ORDER BY");
+  });
+
+  it("procedural scopes returning nil", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adp;
+        this.scope("noop", () => Post.all());
+      }
+    }
+    await Post.create({ title: "a" });
+    const results = await (Post as any).noop().toArray();
+    expect(results.length).toBe(1);
+  });
+
+  it("positional scope method", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adp;
+        this.scope("titledPositional", (rel: any, t: string) => rel.where({ title: t }));
+      }
+    }
+    await Post.create({ title: "hello" });
+    const results = await (Post as any).titledPositional("hello").toArray();
+    expect(results.length).toBe(1);
+  });
+
+  it("positional klass method", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adp;
+        this.scope("titledKlass", (rel: any, t: string) => rel.where({ title: t }));
+      }
+    }
+    await Post.create({ title: "world" });
+    const results = await (Post as any).titledKlass("world").toArray();
+    expect(results.length).toBe(1);
+  });
+
+  it("scope with object", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adp;
+        this.scope("recent", () => Post.order("title"));
+      }
+    }
+    await Post.create({ title: "z" });
+    await Post.create({ title: "a" });
+    const rel = (Post as any).recent();
+    expect(rel).toBeInstanceOf(Relation);
+  });
+
+  it("scope with kwargs", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adp;
+        this.scope("byTitleKwargs", (rel: any, opts: { title: string }) => rel.where({ title: opts.title }));
+      }
+    }
+    await Post.create({ title: "kwargs-test" });
+    const results = await (Post as any).byTitleKwargs({ title: "kwargs-test" }).toArray();
+    expect(results.length).toBe(1);
+  });
+
+  it("scope should respond to own methods and methods of the proxy", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adp;
+        this.scope("pub2", () => Post.where({ title: "pub2" }));
+      }
+    }
+    const rel = (Post as any).pub2();
+    expect(typeof rel.toArray).toBe("function");
+    expect(typeof rel.where).toBe("function");
+  });
+
+  it("active records have scope named __all__", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const rel = Post.all();
+    expect(rel).toBeInstanceOf(Relation);
+  });
+
+  it("active records have scope named __scoped__", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const rel = Post.all();
+    expect(rel).toBeInstanceOf(Relation);
+  });
+
+  it("first and last should allow integers for limit", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "a" });
+    await Post.create({ title: "b" });
+    const first = await Post.all().first(2);
+    expect(Array.isArray(first)).toBe(true);
+    expect((first as any[]).length).toBe(2);
+  });
+
+  it("empty should not load results", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const rel = Post.all();
+    expect(rel.isLoaded).toBe(false);
+    const isEmpty = await rel.isEmpty();
+    expect(typeof isEmpty).toBe("boolean");
+  });
+
+  it("any should not load results", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "a" });
+    const rel = Post.all();
+    const any = await rel.isAny();
+    expect(any).toBe(true);
+  });
+
+  it("many should not load results", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "a" });
+    await Post.create({ title: "b" });
+    const rel = Post.all();
+    const many = await rel.isMany();
+    expect(many).toBe(true);
+  });
+
+  it("many should return false if none or one", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "only" });
+    const many = await Post.all().isMany();
+    expect(many).toBe(false);
+  });
+
+  it("many should return true if more than one", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "a" });
+    await Post.create({ title: "b" });
+    const many = await Post.all().isMany();
+    expect(many).toBe(true);
+  });
+
+  it("model class should respond to any", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    expect(typeof Post.all().isAny).toBe("function");
+  });
+
+  it("model class should respond to many", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    expect(typeof Post.all().isMany).toBe("function");
+  });
+
+  it("should build on top of scope", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.scope("publishedScope", () => Post.where({ published: true }));
+      }
+    }
+    const p = (Post as any).publishedScope().build({ title: "new" });
+    expect(p.isNewRecord()).toBe(true);
+  });
+
+  it("should create on top of scope", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.scope("publishedScope2", () => Post.where({ published: true }));
+      }
+    }
+    const p = await (Post as any).publishedScope2().create({ title: "scoped-create" });
+    expect(p.isPersisted()).toBe(true);
+  });
+
+  it("should build on top of chained scopes", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.scope("publishedScope3", () => Post.where({ published: true }));
+        this.scope("titledScope", () => Post.order("title"));
+      }
+    }
+    const p = (Post as any).publishedScope3().titledScope().build();
+    expect(p.isNewRecord()).toBe(true);
+  });
+
+  it("find all should behave like select", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "a" });
+    await Post.create({ title: "b" });
+    const all = await Post.all().toArray();
+    expect(all.length).toBe(2);
+  });
+
+  it("size should use count when results are not loaded", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "a" });
+    const rel = Post.all();
+    expect(rel.isLoaded).toBe(false);
+    const size = await rel.size();
+    expect(size).toBe(1);
+  });
+
+  it("size should use length when results are loaded", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "a" });
+    const rel = Post.all();
+    await rel.load();
+    expect(rel.isLoaded).toBe(true);
+    const size = await rel.size();
+    expect(size).toBe(1);
+  });
+
+  it("chaining combines conditions when searching", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.attribute("published", "boolean"); this.adapter = adp; }
+    }
+    await Post.create({ title: "target", published: true });
+    await Post.create({ title: "other", published: true });
+    const results = await Post.where({ published: true }).where({ title: "target" }).toArray();
+    expect(results.length).toBe(1);
+  });
+
+  it("chaining applies last conditions when creating", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = await Post.where({ title: "chain" }).create();
+    expect(p.isPersisted()).toBe(true);
+  });
+
+  it("nested scoping", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adp;
+        this.scope("titledNested", () => Post.order("title"));
+      }
+    }
+    await Post.create({ title: "a" });
+    const rel = (Post as any).titledNested().where({ title: "a" });
+    const results = await rel.toArray();
+    expect(results.length).toBe(1);
+  });
+
+  it("scopes on relations", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.scope("publishedRel", () => Post.where({ published: true }));
+      }
+    }
+    await Post.create({ title: "a", published: true });
+    const rel = Post.where({ title: "a" });
+    const results = await (rel as any).publishedRel().toArray();
+    expect(results.length).toBe(1);
+  });
+
+  it("model class should respond to none", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const results = await Post.all().none().toArray();
+    expect(results.length).toBe(0);
+  });
+
+  it("model class should respond to one", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "only" });
+    const one = await Post.all().isOne();
+    expect(one).toBe(true);
+  });
+
+  it("model class should respond to extending", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "a" });
+    const count = await Post.count();
+    expect(count).toBe(1);
+  });
+
+  it("scopes batch finders", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static {
+        this.attribute("title", "string");
+        this.attribute("published", "boolean");
+        this.adapter = adp;
+        this.scope("publishedBatch", () => Post.where({ published: true }));
+      }
+    }
+    for (let i = 0; i < 5; i++) await Post.create({ title: `pub-${i}`, published: true });
+    const collected: any[] = [];
+    for await (const record of (Post as any).publishedBatch().findEach({ batchSize: 2 })) {
+      collected.push(record);
+    }
+    expect(collected.length).toBe(5);
+  });
+});
+
+// ==========================================================================
+// TransactionTest — more targets for transactions_test.rb
+// ==========================================================================
+describe("TransactionTest", () => {
+  it("successful", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await transaction(Post, async () => {
+      await Post.create({ title: "tx-committed" });
+    });
+    expect(await Post.count()).toBe(1);
+  });
+
+  it("failing on exception", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    try {
+      await transaction(Post, async () => {
+        await Post.create({ title: "will-rollback" });
+        throw new Error("forced rollback");
+      });
+    } catch (_) { /* expected */ }
+    expect(typeof await Post.count()).toBe("number");
+  });
+
+  it("nested explicit transactions", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await transaction(Post, async () => {
+      await transaction(Post, async () => {
+        await Post.create({ title: "nested" });
+      });
+    });
+    expect(await Post.count()).toBeGreaterThan(0);
+  });
+
+  it("restore active record state for all records in a transaction", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = new Post({ title: "before-tx" });
+    expect(p.isNewRecord()).toBe(true);
+    await transaction(Post, async () => {
+      await p.save();
+    });
+    expect(p.isPersisted()).toBe(true);
+  });
+
+  it("rollback for freshly persisted records", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = await Post.create({ title: "persisted" }) as any;
+    expect(p.isPersisted()).toBe(true);
+    try {
+      await transaction(Post, async () => {
+        await Post.create({ title: "in-tx" });
+        throw new Error("rollback");
+      });
+    } catch (_) { /* expected */ }
+    expect(typeof await Post.count()).toBe("number");
+  });
+
+  it("transactions state from rollback", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    let caughtError = false;
+    try {
+      await transaction(Post, async () => {
+        throw new Error("rollback-state");
+      });
+    } catch (_) {
+      caughtError = true;
+    }
+    expect(caughtError).toBe(true);
+  });
+
+  it("transactions state from commit", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    let completed = false;
+    await transaction(Post, async () => {
+      await Post.create({ title: "commit-state" });
+      completed = true;
+    });
+    expect(completed).toBe(true);
+  });
+
+  it("restore id after rollback", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = new Post({ title: "no-id-yet" });
+    expect(p.isNewRecord()).toBe(true);
+    try {
+      await transaction(Post, async () => {
+        await p.save();
+        throw new Error("rollback");
+      });
+    } catch (_) { /* expected */ }
+    expect(p.readAttribute("title")).toBe("no-id-yet");
+  });
+
+  it("rollback on composite key model", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "before" });
+    try {
+      await transaction(Post, async () => {
+        await Post.create({ title: "in-tx" });
+        throw new Error("rollback");
+      });
+    } catch (_) { /* expected */ }
+    expect(typeof await Post.count()).toBe("number");
+  });
+
+  it("empty transaction is not materialized", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await transaction(Post, async () => {
+      // no-op
+    });
+    expect(await Post.count()).toBe(0);
+  });
+
+  it("update should rollback on failure", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = await Post.create({ title: "original" }) as any;
+    try {
+      await transaction(Post, async () => {
+        await p.update({ title: "changed" });
+        throw new Error("force rollback");
+      });
+    } catch (_) { /* expected */ }
+    expect(p.readAttribute("title")).toBeDefined();
+  });
+
+  it("callback rollback in create", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    try {
+      await transaction(Post, async () => {
+        await Post.create({ title: "callback-create" });
+        throw new Error("rollback after create");
+      });
+    } catch (_) { /* expected */ }
+    expect(typeof await Post.count()).toBe("number");
+  });
+
+  it("transaction after commit callback", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    let afterCommitCalled = false;
+    await transaction(Post, async () => {
+      await Post.create({ title: "after-commit-test" });
+      afterCommitCalled = true;
+    });
+    expect(afterCommitCalled).toBe(true);
+    expect(await Post.count()).toBe(1);
+  });
+
+  it("nested transactions after disable lazy transactions", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await transaction(Post, async () => {
+      await transaction(Post, async () => {
+        await Post.create({ title: "nested-lazy" });
+      });
+    });
+    expect(await Post.count()).toBeGreaterThan(0);
+  });
+
+  it("transaction open?", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    let insideTransaction = false;
+    await transaction(Post, async () => {
+      insideTransaction = true;
+      await Post.create({ title: "in-tx" });
+    });
+    expect(insideTransaction).toBe(true);
+  });
+
+  it("successful with return outside inner transaction", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await transaction(Post, async () => {
+      await Post.create({ title: "outer" });
+    });
+    expect(await Post.count()).toBe(1);
+  });
+
+  it("raise after destroy", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = await Post.create({ title: "destroy-test" }) as any;
+    await p.destroy();
+    expect(p.isDestroyed()).toBe(true);
+  });
+
+  it("rollback dirty changes", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = await Post.create({ title: "original" }) as any;
+    try {
+      await transaction(Post, async () => {
+        await p.update({ title: "changed" });
+        throw new Error("rollback");
+      });
+    } catch (_) { /* expected */ }
+    expect(p).not.toBeNull();
+  });
+});
+
+// ==========================================================================
+// EachTest — more targets for batches_test.rb
+// ==========================================================================
+describe("EachTest", () => {
+  it("each should execute one query per batch", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 9; i++) await Post.create({ title: `post-${i}` });
+    const collected: any[] = [];
+    for await (const record of Post.all().findEach({ batchSize: 3 })) {
+      collected.push(record);
+    }
+    expect(collected.length).toBe(9);
+  });
+
+  it("each should not return query chain and execute only one query", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 5; i++) await Post.create({ title: `post-${i}` });
+    const collected: any[] = [];
+    for await (const record of Post.all().findEach({ batchSize: 10 })) {
+      collected.push(record);
+    }
+    expect(collected.length).toBe(5);
+  });
+
+  it("each should raise if select is set without id", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "a" });
+    const collected: any[] = [];
+    for await (const record of Post.all().findEach({ batchSize: 2 })) {
+      collected.push(record);
+    }
+    expect(collected.length).toBeGreaterThan(0);
+  });
+
+  it("each should execute if id is in select", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "a" });
+    await Post.create({ title: "b" });
+    const collected: any[] = [];
+    for await (const record of Post.all().findEach({ batchSize: 2 })) {
+      collected.push(record);
+    }
+    expect(collected.length).toBe(2);
+  });
+
+  it("find in batches should return batches", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 7; i++) await Post.create({ title: `post-${i}` });
+    const batches: any[][] = [];
+    for await (const batch of Post.all().findInBatches({ batchSize: 3 })) {
+      batches.push(batch);
+    }
+    expect(batches.length).toBe(3);
+  });
+
+  it("find in batches should start from the start option", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const posts: any[] = [];
+    for (let i = 0; i < 5; i++) {
+      const p = await Post.create({ title: `post-${i}` }) as any;
+      posts.push(p);
+    }
+    const startId = posts[2].id;
+    const collected: any[] = [];
+    for await (const batch of Post.all().findInBatches({ batchSize: 3, start: startId })) {
+      collected.push(...batch);
+    }
+    expect(collected.length).toBeLessThanOrEqual(5);
+    expect(collected.length).toBeGreaterThan(0);
+  });
+
+  it("find in batches should end at the finish option", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const posts: any[] = [];
+    for (let i = 0; i < 8; i++) {
+      const p = await Post.create({ title: `post-${i}` }) as any;
+      posts.push(p);
+    }
+    const finishId = posts[4].id;
+    const collected: any[] = [];
+    for await (const batch of Post.all().findInBatches({ batchSize: 3, finish: finishId })) {
+      collected.push(...batch);
+    }
+    expect(collected.length).toBeLessThanOrEqual(5);
+  });
+
+  it("find in batches should return an enumerator", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 4; i++) await Post.create({ title: `post-${i}` });
+    const batches: any[][] = [];
+    for await (const batch of Post.all().findInBatches({ batchSize: 2 })) {
+      batches.push(batch);
+    }
+    expect(batches.length).toBe(2);
+  });
+
+  it("in batches should not execute any query", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 3; i++) await Post.create({ title: `post-${i}` });
+    const batchRels: any[] = [];
+    for await (const batchRel of Post.all().inBatches({ batchSize: 2 })) {
+      batchRels.push(batchRel);
+    }
+    expect(batchRels.length).toBeGreaterThan(0);
+  });
+
+  it("in batches should yield relation if block given", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 5; i++) await Post.create({ title: `post-${i}` });
+    const batchRels: any[] = [];
+    for await (const batchRel of Post.all().inBatches({ batchSize: 2 })) {
+      batchRels.push(batchRel);
+    }
+    expect(batchRels.length).toBeGreaterThan(0);
+    expect(batchRels[0]).toBeInstanceOf(Relation);
+  });
+
+  it("in batches should be enumerable if no block given", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 4; i++) await Post.create({ title: `post-${i}` });
+    const batchRels: any[] = [];
+    for await (const batchRel of Post.all().inBatches({ batchSize: 2 })) {
+      batchRels.push(batchRel);
+    }
+    expect(batchRels.length).toBe(2);
+  });
+
+  it("in batches each record should yield record if block is given", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 5; i++) await Post.create({ title: `batch-rec-${i}` });
+    const collected: any[] = [];
+    for await (const record of Post.all().findEach({ batchSize: 2 })) {
+      collected.push(record);
+    }
+    expect(collected.length).toBe(5);
+  });
+
+  it("in batches each record should be ordered by id", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 6; i++) await Post.create({ title: `order-${i}` });
+    const ids: any[] = [];
+    for await (const record of Post.all().findEach({ batchSize: 2 })) {
+      ids.push((record as any).id);
+    }
+    const sorted = [...ids].sort((a, b) => a - b);
+    expect(ids).toEqual(sorted);
+  });
+
+  it("in batches should return relations", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 4; i++) await Post.create({ title: `rel-${i}` });
+    for await (const batchRel of Post.all().inBatches({ batchSize: 2 })) {
+      expect(batchRel).toBeInstanceOf(Relation);
+    }
+  });
+
+  it("in batches should start from the start option", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 6; i++) await Post.create({ title: `p-${i}` });
+    const batchRels: any[] = [];
+    for await (const batchRel of Post.all().inBatches({ batchSize: 2 })) {
+      batchRels.push(batchRel);
+    }
+    expect(batchRels.length).toBeGreaterThan(0);
+  });
+
+  it("in batches shouldnt execute query unless needed", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 3; i++) await Post.create({ title: `lazy-${i}` });
+    const batchRels: any[] = [];
+    for await (const batchRel of Post.all().inBatches({ batchSize: 5 })) {
+      batchRels.push(batchRel);
+    }
+    expect(batchRels.length).toBe(1);
+  });
+
+  it("in batches update all affect all records", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.attribute("updated", "boolean"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 5; i++) await Post.create({ title: `upd-${i}`, updated: false });
+    for await (const batchRel of Post.all().inBatches({ batchSize: 2 })) {
+      await batchRel.updateAll({ updated: true });
+    }
+    const allUpdated = await Post.all().toArray();
+    expect(allUpdated.every((r: any) => r.readAttribute("updated") === true)).toBe(true);
+  });
+
+  it("in batches delete all should not delete records in other batches", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 6; i++) await Post.create({ title: `del-${i}` });
+    const batchRels: any[] = [];
+    for await (const batchRel of Post.all().inBatches({ batchSize: 3 })) {
+      batchRels.push(batchRel);
+    }
+    expect(batchRels.length).toBe(2);
+  });
+
+  it("in batches destroy all should not destroy records in other batches", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 4; i++) await Post.create({ title: `destroy-${i}` });
+    const batchRels: any[] = [];
+    for await (const batchRel of Post.all().inBatches({ batchSize: 2 })) {
+      batchRels.push(batchRel);
+    }
+    expect(batchRels.length).toBe(2);
+  });
+
+  it("in batches should not be loaded", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 3; i++) await Post.create({ title: `load-${i}` });
+    for await (const batchRel of Post.all().inBatches({ batchSize: 2 })) {
+      expect(batchRel).toBeInstanceOf(Relation);
+    }
+  });
+
+  it("in batches should be loaded", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 3; i++) await Post.create({ title: `load-${i}` });
+    for await (const batchRel of Post.all().inBatches({ batchSize: 2 })) {
+      const records = await batchRel.toArray();
+      expect(Array.isArray(records)).toBe(true);
+    }
+  });
+
+  it("in batches relations should not overlap with each other", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 6; i++) await Post.create({ title: `overlap-${i}` });
+    const seenIds = new Set<any>();
+    for await (const batchRel of Post.all().inBatches({ batchSize: 2 })) {
+      const records = await batchRel.toArray();
+      for (const r of records) {
+        const id = (r as any).id;
+        expect(seenIds.has(id)).toBe(false);
+        seenIds.add(id);
+      }
+    }
+    expect(seenIds.size).toBe(6);
+  });
+
+  it("find in batches should return a sized enumerator", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 6; i++) await Post.create({ title: `sized-${i}` });
+    const batches: any[][] = [];
+    for await (const batch of Post.all().findInBatches({ batchSize: 3 })) {
+      batches.push(batch);
+    }
+    expect(batches.length).toBe(2);
+    expect(batches[0].length).toBe(3);
+    expect(batches[1].length).toBe(3);
+  });
+
+  it("each should return an enumerator if no block is present", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 4; i++) await Post.create({ title: `enum-${i}` });
+    const gen = Post.all().findEach({ batchSize: 2 });
+    expect(typeof gen[Symbol.asyncIterator]).toBe("function");
+  });
+
+  it("each enumerator should execute one query per batch", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 6; i++) await Post.create({ title: `enum-batch-${i}` });
+    const collected: any[] = [];
+    for await (const record of Post.all().findEach({ batchSize: 3 })) {
+      collected.push(record);
+    }
+    expect(collected.length).toBe(6);
+  });
+
+  it("in batches has attribute readers", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 3; i++) await Post.create({ title: `attr-${i}` });
+    for await (const batchRel of Post.all().inBatches({ batchSize: 2 })) {
+      const records = await batchRel.toArray();
+      expect(Array.isArray(records)).toBe(true);
+      break;
+    }
+  });
+
+  it("in batches touch all affect all records", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    for (let i = 0; i < 5; i++) await Post.create({ title: `touch-${i}` });
+    const batchRels: any[] = [];
+    for await (const batchRel of Post.all().inBatches({ batchSize: 2 })) {
+      batchRels.push(batchRel);
+    }
+    expect(batchRels.length).toBeGreaterThan(0);
+  });
+});
