@@ -6,7 +6,7 @@ import { Not } from "./not.js";
 import { Grouping } from "./grouping.js";
 import { Cte } from "./cte.js";
 
-export type NodeOrValue = Node | string | number | boolean | null | undefined;
+export type NodeOrValue = Node | string | number | boolean | bigint | Date | null | undefined;
 
 /**
  * Binary — base class for nodes with left and right operands.
