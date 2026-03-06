@@ -47,3 +47,18 @@ functionality.
 | 700 | [Associations: has_many, has_many :through](700-associations-has-many.md) | ~500 | 60% |
 | 800 | [Associations: eager loading, autosave, nested](800-associations-advanced.md) | ~600 | 70% |
 | 900 | [CI, Publishing, Documentation](900-ci-publishing.md) | — | — |
+| 1000 | [ActiveSupport: Core Extensions & Inflector](1000-activesupport-core.md) | — | — |
+| 1100 | [ActiveSupport: Callbacks & Concern](1100-activesupport-callbacks-concern.md) | — | — |
+| 1200 | [ActiveSupport: Collections & Hash](1200-activesupport-collections-hash.md) | — | — |
+| 1300 | [ActiveSupport: Time, Duration, Numbers](1300-activesupport-time-numbers.md) | — | — |
+| 1400 | [ActiveSupport: Caching, Notifications, Config](1400-activesupport-caching-notifications.md) | — | — |
+
+## Notes on ActiveSupport Phases
+
+Phases 1000–1400 introduce a new `@rails-ts/activesupport` package. Phase 1000
+(Inflector) should ideally be done **early** — it eliminates duplicated
+inflection code across `activemodel` and `activerecord` and is a prerequisite
+for correct table name inference, association key generation, and model naming.
+
+The remaining AS phases (1100–1400) can be done in parallel with the
+ActiveRecord phases above, or deferred until the core AR functionality is solid.
