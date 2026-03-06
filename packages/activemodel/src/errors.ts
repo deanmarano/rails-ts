@@ -1,4 +1,35 @@
 /**
+ * NestedError — wraps an error from an associated model.
+ *
+ * Mirrors: ActiveModel::NestedError
+ */
+export class NestedError {
+  readonly base: unknown;
+  readonly innerError: ErrorDetail;
+  readonly attribute: string;
+
+  constructor(base: unknown, innerError: ErrorDetail, options?: { attribute?: string }) {
+    this.base = base;
+    this.innerError = innerError;
+    this.attribute = options?.attribute ?? innerError.attribute;
+  }
+
+  get message(): string {
+    return this.innerError.message;
+  }
+
+  get fullMessage(): string {
+    if (this.attribute === "base") return this.message;
+    const attr = this.attribute.charAt(0).toUpperCase() + this.attribute.slice(1);
+    return `${attr} ${this.message}`;
+  }
+
+  get type(): string {
+    return this.innerError.type;
+  }
+}
+
+/**
  * Error detail stored in the Errors collection.
  */
 export interface ErrorDetail {
@@ -46,10 +77,15 @@ export class Errors {
   add(
     attribute: string,
     type: string = "invalid",
-    options?: { message?: string } & Record<string, unknown>
+    options?: { message?: string | ((record: any) => string) } & Record<string, unknown>
   ): void {
-    const message = options?.message ?? this.defaultMessage(type, options);
-    this._errors.push({ attribute, type, message, options });
+    let message: string;
+    if (typeof options?.message === "function") {
+      message = options.message(this._base);
+    } else {
+      message = options?.message ?? this.defaultMessage(type, options);
+    }
+    this._errors.push({ attribute, type, message, options: options ? { ...options, message: message } : undefined });
   }
 
   /**
@@ -220,6 +256,7 @@ export class Errors {
    * Mirrors: ActiveModel::Errors#merge!
    */
   merge(other: Errors): void {
+    if (other === this) return;
     this.copy(other);
   }
 
@@ -328,6 +365,18 @@ export class Errors {
    */
   messagesFor(attribute: string): string[] {
     return this.get(attribute);
+  }
+
+  /**
+   * Return a string representation of the errors.
+   *
+   * Mirrors: ActiveModel::Errors#inspect
+   */
+  inspect(): string {
+    const details = this._errors.map(e => {
+      return `#<ActiveModel::Error attribute=${e.attribute}, type=${e.type}, message="${e.message}">`;
+    });
+    return `#<ActiveModel::Errors [${details.join(", ")}]>`;
   }
 
   private defaultMessage(

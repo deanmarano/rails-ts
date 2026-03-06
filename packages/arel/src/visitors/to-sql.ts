@@ -52,8 +52,8 @@ export class ToSql implements NodeVisitor<SQLString> {
     if (node instanceof Nodes.GreaterThanOrEqual) return this.visitBinaryOp(node, ">=");
     if (node instanceof Nodes.LessThan) return this.visitBinaryOp(node, "<");
     if (node instanceof Nodes.LessThanOrEqual) return this.visitBinaryOp(node, "<=");
-    if (node instanceof Nodes.Matches) return this.visitBinaryOp(node, "LIKE");
-    if (node instanceof Nodes.DoesNotMatch) return this.visitBinaryOp(node, "NOT LIKE");
+    if (node instanceof Nodes.Matches) return this.visitMatches(node);
+    if (node instanceof Nodes.DoesNotMatch) return this.visitDoesNotMatch(node);
     if (node instanceof Nodes.In) return this.visitIn(node);
     if (node instanceof Nodes.NotIn) return this.visitNotIn(node);
     if (node instanceof Nodes.Between) return this.visitBetween(node);
@@ -92,6 +92,19 @@ export class ToSql implements NodeVisitor<SQLString> {
     if (node instanceof Nodes.Preceding) return this.visitPreceding(node);
     if (node instanceof Nodes.Following) return this.visitFollowing(node);
     if (node instanceof Nodes.CurrentRow) return this.visitCurrentRow(node);
+
+    // Nulls ordering (must be before generic Unary)
+    if (node instanceof Nodes.NullsFirst) return this.visitNullsFirst(node);
+    if (node instanceof Nodes.NullsLast) return this.visitNullsLast(node);
+
+    // CTE node
+    if (node instanceof Nodes.Cte) return this.visitCte(node);
+
+    // UnaryOperation (must be before InfixOperation check)
+    if (node instanceof Nodes.UnaryOperation) return this.visitUnaryOperation(node);
+
+    // Filter
+    if (node instanceof Nodes.Filter) return this.visitFilter(node);
 
     // Case / Extract / InfixOperation
     if (node instanceof Nodes.Case) return this.visitCase(node);
@@ -158,6 +171,10 @@ export class ToSql implements NodeVisitor<SQLString> {
     if (node.lock) {
       this.collector.append(" ");
       this.visit(node.lock);
+    }
+
+    if ((node as any).comment) {
+      this.visit((node as any).comment);
     }
 
     return this.collector;
@@ -395,18 +412,22 @@ export class ToSql implements NodeVisitor<SQLString> {
       return this.collector;
     }
     this.visitNodeOrValue(node.left);
+    // Duck-type check for SelectManager subquery - visitNodeOrValue wraps it in parens
+    if (node.right && typeof node.right === "object" && !Array.isArray(node.right) && "ast" in (node.right as any) && "toSql" in (node.right as any)) {
+      this.collector.append(" IN ");
+      this.visitNodeOrValue(node.right);
+      return this.collector;
+    }
+    this.collector.append(" IN (");
     if (Array.isArray(node.right)) {
-      this.collector.append(" IN (");
       for (let i = 0; i < node.right.length; i++) {
         if (i > 0) this.collector.append(", ");
         this.visit(node.right[i]);
       }
-      this.collector.append(")");
     } else {
-      this.collector.append(" IN (");
       this.visitNodeOrValue(node.right);
-      this.collector.append(")");
     }
+    this.collector.append(")");
     return this.collector;
   }
 
@@ -821,6 +842,75 @@ export class ToSql implements NodeVisitor<SQLString> {
     return this.collector;
   }
 
+  // -- Matches with ESCAPE --
+
+  private visitMatches(node: Nodes.Matches): SQLString {
+    this.visitNodeOrValue(node.left);
+    this.collector.append(" LIKE ");
+    this.visitNodeOrValue(node.right);
+    if (node.escape) {
+      this.collector.append(` ESCAPE '${node.escape}'`);
+    }
+    return this.collector;
+  }
+
+  private visitDoesNotMatch(node: Nodes.DoesNotMatch): SQLString {
+    this.visitNodeOrValue(node.left);
+    this.collector.append(" NOT LIKE ");
+    this.visitNodeOrValue(node.right);
+    if (node.escape) {
+      this.collector.append(` ESCAPE '${node.escape}'`);
+    }
+    return this.collector;
+  }
+
+  // -- NullsFirst / NullsLast --
+
+  private visitNullsFirst(node: Nodes.NullsFirst): SQLString {
+    if (node.expr instanceof Node) this.visit(node.expr);
+    this.collector.append(" NULLS FIRST");
+    return this.collector;
+  }
+
+  private visitNullsLast(node: Nodes.NullsLast): SQLString {
+    if (node.expr instanceof Node) this.visit(node.expr);
+    this.collector.append(" NULLS LAST");
+    return this.collector;
+  }
+
+  // -- Cte --
+
+  private visitCte(node: Nodes.Cte): SQLString {
+    this.collector.append(`"${node.name}" AS `);
+    if (node.materialized === "materialized") {
+      this.collector.append("MATERIALIZED ");
+    } else if (node.materialized === "not_materialized") {
+      this.collector.append("NOT MATERIALIZED ");
+    }
+    this.collector.append("(");
+    this.visit(node.relation);
+    this.collector.append(")");
+    return this.collector;
+  }
+
+  // -- UnaryOperation --
+
+  private visitUnaryOperation(node: Nodes.UnaryOperation): SQLString {
+    this.collector.append(node.operator);
+    this.visit(node.operand);
+    return this.collector;
+  }
+
+  // -- Filter --
+
+  private visitFilter(node: Nodes.Filter): SQLString {
+    this.visit(node.expression);
+    this.collector.append(" FILTER (WHERE ");
+    this.visit(node.filter);
+    this.collector.append(")");
+    return this.collector;
+  }
+
   // -- Leaf nodes --
 
   private visitDistinct(_node: Nodes.Distinct): SQLString {
@@ -876,7 +966,23 @@ export class ToSql implements NodeVisitor<SQLString> {
   // -- Helpers --
 
   private visitNodeOrValue(v: Nodes.NodeOrValue): SQLString {
-    if (v instanceof Node) return this.visit(v);
+    // Duck-type check for SelectManager (not a Node, but has ast/toSql)
+    if (v !== null && v !== undefined && typeof v === "object" && "ast" in v && "toSql" in v) {
+      this.collector.append("(");
+      this.visit((v as any).ast);
+      this.collector.append(")");
+      return this.collector;
+    }
+    if (v instanceof Node) {
+      // Duck-type check to avoid circular dependency (SelectManager → ToSql → SelectManager)
+      if ("ast" in v && "toSql" in v) {
+        this.collector.append("(");
+        this.visit((v as any).ast);
+        this.collector.append(")");
+        return this.collector;
+      }
+      return this.visit(v);
+    }
     if (v === null || v === undefined) {
       this.collector.append("NULL");
     } else if (typeof v === "string") {
@@ -885,6 +991,16 @@ export class ToSql implements NodeVisitor<SQLString> {
       this.collector.append(String(v));
     } else if (typeof v === "boolean") {
       this.collector.append(v ? "TRUE" : "FALSE");
+    } else if (typeof v === "bigint") {
+      this.collector.append(v.toString());
+    } else if (v instanceof Date) {
+      // Format as 'YYYY-MM-DD'
+      const y = v.getFullYear();
+      const m = String(v.getMonth() + 1).padStart(2, "0");
+      const d = String(v.getDate()).padStart(2, "0");
+      this.collector.append(`'${y}-${m}-${d}'`);
+    } else if (typeof v === "object" && v !== null && "toISOString" in v && typeof (v as any).toISOString === "function") {
+      this.collector.append(`'${(v as any).toISOString()}'`);
     } else {
       this.collector.append(String(v));
     }
@@ -902,6 +1018,16 @@ export class ToSql implements NodeVisitor<SQLString> {
     if (value === null || value === undefined) return "NULL";
     if (typeof value === "number") return String(value);
     if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+    if (typeof value === "bigint") return value.toString();
+    if (value instanceof Date) {
+      const y = value.getFullYear();
+      const m = String(value.getMonth() + 1).padStart(2, "0");
+      const d = String(value.getDate()).padStart(2, "0");
+      return `'${y}-${m}-${d}'`;
+    }
+    if (typeof value === "object" && value !== null && "toISOString" in value && typeof (value as any).toISOString === "function") {
+      return `'${(value as any).toISOString()}'`;
+    }
     const escaped = String(value).replace(/'/g, "''");
     return `'${escaped}'`;
   }

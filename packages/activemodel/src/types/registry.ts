@@ -9,6 +9,9 @@ import {
   DecimalType,
   UuidType,
   JsonType,
+  BigIntegerType,
+  ImmutableStringType,
+  ValueType,
 } from "./type.js";
 
 /**
@@ -29,6 +32,9 @@ class TypeRegistry {
     this.register("decimal", () => new DecimalType());
     this.register("uuid", () => new UuidType());
     this.register("json", () => new JsonType());
+    this.register("big_integer", () => new BigIntegerType());
+    this.register("immutable_string", () => new ImmutableStringType());
+    this.register("value", () => new ValueType());
   }
 
   register(name: string, factory: () => Type): void {

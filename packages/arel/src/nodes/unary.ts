@@ -47,6 +47,14 @@ export class Ascending extends Unary {
   reverse(): Descending {
     return new Descending(this.expr);
   }
+
+  nullsFirst(): NullsFirst {
+    return new NullsFirst(this);
+  }
+
+  nullsLast(): NullsLast {
+    return new NullsLast(this);
+  }
 }
 
 /**
@@ -69,5 +77,37 @@ export class Descending extends Unary {
 
   reverse(): Ascending {
     return new Ascending(this.expr);
+  }
+
+  nullsFirst(): NullsFirst {
+    return new NullsFirst(this);
+  }
+
+  nullsLast(): NullsLast {
+    return new NullsLast(this);
+  }
+}
+
+/**
+ * NullsFirst — ORDER BY ... NULLS FIRST
+ *
+ * Mirrors: Arel::Nodes::NullsFirst
+ */
+export class NullsFirst extends Unary {
+  reverse(): NullsLast {
+    const inner = this.expr as Ascending | Descending;
+    return new NullsLast(inner.reverse());
+  }
+}
+
+/**
+ * NullsLast — ORDER BY ... NULLS LAST
+ *
+ * Mirrors: Arel::Nodes::NullsLast
+ */
+export class NullsLast extends Unary {
+  reverse(): NullsFirst {
+    const inner = this.expr as Ascending | Descending;
+    return new NullsFirst(inner.reverse());
   }
 }

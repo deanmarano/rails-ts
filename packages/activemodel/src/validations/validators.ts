@@ -10,7 +10,7 @@ function isBlank(value: unknown): boolean {
 }
 
 export interface PresenceOptions extends ConditionalOptions {
-  message?: string;
+  message?: string | ((record: any) => string);
 }
 
 export class PresenceValidator implements Validator {
@@ -40,9 +40,9 @@ export class AbsenceValidator implements Validator {
 }
 
 export interface LengthOptions extends ConditionalOptions {
-  minimum?: number;
-  maximum?: number;
-  is?: number;
+  minimum?: number | (() => number);
+  maximum?: number | (() => number);
+  is?: number | (() => number);
   in?: [number, number];
   message?: string;
   tooShort?: string;
@@ -58,8 +58,12 @@ export class LengthValidator implements Validator {
     if (value === null || value === undefined) return;
     const length = typeof value === "string" ? value.length : Array.isArray(value) ? value.length : 0;
 
-    const min = this.options.in ? this.options.in[0] : this.options.minimum;
-    const max = this.options.in ? this.options.in[1] : this.options.maximum;
+    const resolveNum = (v: number | (() => number) | undefined): number | undefined => {
+      if (v === undefined) return undefined;
+      return typeof v === "function" ? v() : v;
+    };
+    const min = this.options.in ? this.options.in[0] : resolveNum(this.options.minimum);
+    const max = this.options.in ? this.options.in[1] : resolveNum(this.options.maximum);
 
     if (min !== undefined && length < min) {
       errors.add(attribute, "too_short", {
@@ -82,14 +86,16 @@ export class LengthValidator implements Validator {
   }
 }
 
+type NumericValue = number | ((record: any) => number) | string;
+
 export interface NumericalityOptions extends ConditionalOptions {
   onlyInteger?: boolean;
-  greaterThan?: number;
-  greaterThanOrEqualTo?: number;
-  lessThan?: number;
-  lessThanOrEqualTo?: number;
-  equalTo?: number;
-  otherThan?: number;
+  greaterThan?: NumericValue;
+  greaterThanOrEqualTo?: NumericValue;
+  lessThan?: NumericValue;
+  lessThanOrEqualTo?: NumericValue;
+  equalTo?: NumericValue;
+  otherThan?: NumericValue;
   in?: [number, number];
   odd?: boolean;
   even?: boolean;
@@ -98,6 +104,17 @@ export interface NumericalityOptions extends ConditionalOptions {
 
 export class NumericalityValidator implements Validator {
   constructor(private options: NumericalityOptions = {}) {}
+
+  private resolveNumeric(val: NumericValue | undefined, record: any): number | undefined {
+    if (val === undefined) return undefined;
+    if (typeof val === "function") return val(record);
+    if (typeof val === "string") {
+      const method = (record as any)[val];
+      if (typeof method === "function") return method.call(record);
+      return Number(method);
+    }
+    return val;
+  }
 
   validate(record: any, attribute: string, value: unknown, errors: Errors): void {
     if (!shouldValidate(record, this.options)) return;
@@ -114,23 +131,29 @@ export class NumericalityValidator implements Validator {
       return;
     }
 
-    if (this.options.greaterThan !== undefined && !(num > this.options.greaterThan)) {
-      errors.add(attribute, "greater_than", { count: this.options.greaterThan });
+    const gt = this.resolveNumeric(this.options.greaterThan, record);
+    if (gt !== undefined && !(num > gt)) {
+      errors.add(attribute, "greater_than", { count: gt });
     }
-    if (this.options.greaterThanOrEqualTo !== undefined && !(num >= this.options.greaterThanOrEqualTo)) {
-      errors.add(attribute, "greater_than_or_equal_to", { count: this.options.greaterThanOrEqualTo });
+    const gte = this.resolveNumeric(this.options.greaterThanOrEqualTo, record);
+    if (gte !== undefined && !(num >= gte)) {
+      errors.add(attribute, "greater_than_or_equal_to", { count: gte });
     }
-    if (this.options.lessThan !== undefined && !(num < this.options.lessThan)) {
-      errors.add(attribute, "less_than", { count: this.options.lessThan });
+    const lt = this.resolveNumeric(this.options.lessThan, record);
+    if (lt !== undefined && !(num < lt)) {
+      errors.add(attribute, "less_than", { count: lt });
     }
-    if (this.options.lessThanOrEqualTo !== undefined && !(num <= this.options.lessThanOrEqualTo)) {
-      errors.add(attribute, "less_than_or_equal_to", { count: this.options.lessThanOrEqualTo });
+    const lte = this.resolveNumeric(this.options.lessThanOrEqualTo, record);
+    if (lte !== undefined && !(num <= lte)) {
+      errors.add(attribute, "less_than_or_equal_to", { count: lte });
     }
-    if (this.options.equalTo !== undefined && num !== this.options.equalTo) {
-      errors.add(attribute, "equal_to", { count: this.options.equalTo });
+    const eq = this.resolveNumeric(this.options.equalTo, record);
+    if (eq !== undefined && num !== eq) {
+      errors.add(attribute, "equal_to", { count: eq });
     }
-    if (this.options.otherThan !== undefined && num === this.options.otherThan) {
-      errors.add(attribute, "other_than", { count: this.options.otherThan });
+    const ot = this.resolveNumeric(this.options.otherThan, record);
+    if (ot !== undefined && num === ot) {
+      errors.add(attribute, "other_than", { count: ot });
     }
     if (this.options.in !== undefined) {
       const [min, max] = this.options.in;
@@ -148,7 +171,7 @@ export class NumericalityValidator implements Validator {
 }
 
 export interface InclusionOptions extends ConditionalOptions {
-  in: unknown[];
+  in: unknown[] | (() => unknown[]);
   allowNil?: boolean;
   allowBlank?: boolean;
   message?: string;
@@ -162,14 +185,15 @@ export class InclusionValidator implements Validator {
     // Rails skips when value is nil by default (allow_nil: true)
     if ((this.options.allowNil !== false) && (value === null || value === undefined)) return;
     if (this.options.allowBlank && isBlank(value)) return;
-    if (!this.options.in.includes(value)) {
+    const list = typeof this.options.in === "function" ? this.options.in() : this.options.in;
+    if (!list.includes(value)) {
       errors.add(attribute, "inclusion", { message: this.options.message });
     }
   }
 }
 
 export interface ExclusionOptions extends ConditionalOptions {
-  in: unknown[];
+  in: unknown[] | (() => unknown[]);
   allowNil?: boolean;
   allowBlank?: boolean;
   message?: string;
@@ -182,7 +206,8 @@ export class ExclusionValidator implements Validator {
     if (!shouldValidate(record, this.options)) return;
     if ((this.options.allowNil !== false) && (value === null || value === undefined)) return;
     if (this.options.allowBlank && isBlank(value)) return;
-    if (this.options.in.includes(value)) {
+    const list = typeof this.options.in === "function" ? this.options.in() : this.options.in;
+    if (list.includes(value)) {
       errors.add(attribute, "exclusion", { message: this.options.message });
     }
   }
@@ -195,7 +220,14 @@ export interface FormatOptions extends ConditionalOptions {
 }
 
 export class FormatValidator implements Validator {
-  constructor(private options: FormatOptions) {}
+  constructor(private options: FormatOptions) {
+    if (options.with && options.with.multiline) {
+      throw new Error("The provided regular expression is using multiline anchors (^ or $), which may present a security risk. Did you mean to use \\A and \\z, or pass the `multiline: true` option?");
+    }
+    if (!options.with && !options.without) {
+      throw new Error("Either :with or :without must be supplied (but not both)");
+    }
+  }
 
   validate(record: any, attribute: string, value: unknown, errors: Errors): void {
     if (!shouldValidate(record, this.options)) return;

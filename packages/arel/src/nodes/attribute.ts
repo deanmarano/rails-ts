@@ -57,20 +57,33 @@ function groupedAll(nodes: Node[]): Grouping {
  *
  * Mirrors: Arel::Attributes::Attribute
  */
+export interface TypeCaster {
+  typeCastForDatabase(value: unknown): unknown;
+}
+
 export class Attribute extends Node {
   readonly relation: Table;
   readonly name: string;
+  readonly caster?: TypeCaster;
 
-  constructor(relation: Table, name: string) {
+  constructor(relation: Table, name: string, caster?: TypeCaster) {
     super();
     this.relation = relation;
     this.name = name;
+    this.caster = caster;
+  }
+
+  private castValue(value: unknown): unknown {
+    if (value instanceof SqlLiteral) return value;
+    if (value instanceof Node) return value;
+    if (this.caster) return this.caster.typeCastForDatabase(value);
+    return value;
   }
 
   // -- Predicates --
 
   eq(other: unknown): Equality {
-    return new Equality(this, buildQuoted(other));
+    return new Equality(this, buildQuoted(this.castValue(other)));
   }
 
   notEq(other: unknown): NotEqual {
@@ -93,29 +106,54 @@ export class Attribute extends Node {
     return new LessThanOrEqual(this, buildQuoted(other));
   }
 
-  matches(pattern: string, _caseSensitive = true): Matches {
-    return new Matches(this, buildQuoted(pattern));
+  matches(pattern: string, _caseSensitive = true, escape: string | null = null): Matches {
+    return new Matches(this, buildQuoted(pattern), escape);
   }
 
-  doesNotMatch(pattern: string, _caseSensitive = true): DoesNotMatch {
-    return new DoesNotMatch(this, buildQuoted(pattern));
+  doesNotMatch(pattern: string, _caseSensitive = true, escape: string | null = null): DoesNotMatch {
+    return new DoesNotMatch(this, buildQuoted(pattern), escape);
   }
 
-  in(values: unknown[]): In {
-    return new In(this, values.map(buildQuoted) as any);
+  in(values: unknown[] | any): In {
+    // Support SelectManager as subquery
+    if (!Array.isArray(values) && values && typeof values === "object" && "ast" in values) {
+      return new In(this, values as any);
+    }
+    return new In(this, (values as unknown[]).map(buildQuoted) as any);
   }
 
   notIn(values: unknown[]): NotIn {
     return new NotIn(this, values.map(buildQuoted) as any);
   }
 
-  between(range: [unknown, unknown]): Between;
-  between(begin: unknown, end: unknown): Between;
-  between(beginOrRange: unknown, end?: unknown): Between {
+  between(range: [unknown, unknown]): Between | LessThanOrEqual;
+  between(begin: unknown, end: unknown): Between | LessThanOrEqual;
+  between(rangeObj: { begin: unknown; end: unknown }): Between | LessThanOrEqual;
+  between(beginOrRange: unknown, end?: unknown): Between | LessThanOrEqual {
+    let beginVal: unknown;
+    let endVal: unknown;
     if (Array.isArray(beginOrRange) && end === undefined) {
-      return new Between(this, new And([buildQuoted(beginOrRange[0]), buildQuoted(beginOrRange[1])]));
+      beginVal = beginOrRange[0];
+      endVal = beginOrRange[1];
+    } else if (
+      typeof beginOrRange === "object" &&
+      beginOrRange !== null &&
+      !Array.isArray(beginOrRange) &&
+      !(beginOrRange instanceof Node) &&
+      "begin" in (beginOrRange as any) &&
+      "end" in (beginOrRange as any) &&
+      end === undefined
+    ) {
+      beginVal = (beginOrRange as any).begin;
+      endVal = (beginOrRange as any).end;
+    } else {
+      beginVal = beginOrRange;
+      endVal = end;
     }
-    return new Between(this, new And([buildQuoted(beginOrRange), buildQuoted(end)]));
+    if (beginVal === -Infinity) {
+      return new LessThanOrEqual(this, buildQuoted(endVal));
+    }
+    return new Between(this, new And([buildQuoted(beginVal), buildQuoted(endVal)]));
   }
 
   notBetween(range: [unknown, unknown]): Not;

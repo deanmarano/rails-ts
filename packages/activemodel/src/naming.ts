@@ -12,10 +12,24 @@ export class ModelName {
   readonly paramKey: string;
   readonly routeKey: string;
   readonly i18nKey: string;
+  readonly namespace: string | null;
 
-  constructor(className: string) {
+  private static _uncountables: Set<string> = new Set(["sheep", "fish", "series", "species", "money", "rice"]);
+
+  static addUncountable(word: string): void {
+    this._uncountables.add(word.toLowerCase());
+  }
+
+  constructor(className: string, options?: { namespace?: string }) {
     this.name = className;
-    const lower = this.underscore(className);
+    this.namespace = options?.namespace ?? null;
+
+    // Handle namespace separator (e.g., "Blog::Post" -> "post")
+    const baseName = className.includes("::")
+      ? className.split("::").pop()!
+      : className;
+
+    const lower = this.underscore(baseName);
     this.singular = lower;
     this.plural = this.pluralize(lower);
     this.element = lower;
@@ -34,6 +48,7 @@ export class ModelName {
   }
 
   private pluralize(str: string): string {
+    if (ModelName._uncountables.has(str)) return str;
     if (str.endsWith("s")) return str + "es";
     if (str.endsWith("y") && !/[aeiou]y$/.test(str)) {
       return str.slice(0, -1) + "ies";

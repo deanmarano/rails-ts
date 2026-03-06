@@ -22,6 +22,8 @@ export {
   On,
   Ascending,
   Descending,
+  NullsFirst,
+  NullsLast,
 } from "./unary.js";
 
 export {
@@ -80,7 +82,14 @@ export { Union, UnionAll, Intersect, Except } from "./set-operations.js";
 export { With, WithRecursive, TableAlias } from "./with.js";
 export { Case } from "./case.js";
 export { Extract } from "./extract.js";
-export { InfixOperation } from "./infix-operation.js";
+export {
+  InfixOperation,
+  BitwiseAnd,
+  BitwiseOr,
+  BitwiseXor,
+  BitwiseShiftLeft,
+  BitwiseShiftRight,
+} from "./infix-operation.js";
 export { BindParam } from "./bind-param.js";
 export { Concat } from "./concat.js";
 export { True, False } from "./true-false.js";
@@ -89,6 +98,9 @@ export { IsDistinctFrom, IsNotDistinctFrom } from "./distinct-from.js";
 export { Cube, Rollup, GroupingSet } from "./grouping-element.js";
 export { Lateral } from "./lateral.js";
 export { Comment } from "./comment.js";
+export { Cte } from "./cte.js";
+export { UnaryOperation } from "./unary-operation.js";
+export { Filter } from "./filter.js";
 
 import { SqlLiteral } from "./sql-literal.js";
 

@@ -48,6 +48,7 @@ interface CustomValidationEntry {
  */
 export class Model {
   // -- Class-level registries --
+  static includeRootInJson: boolean | string = false;
   static _attributeDefinitions: Map<string, AttributeDefinition> = new Map();
   static _validations: ValidationEntry[] = [];
   static _customValidations: CustomValidationEntry[] = [];
@@ -1080,7 +1081,15 @@ export class Model {
   }
 
   asJson(options?: SerializeOptions): Record<string, unknown> {
-    return this.serializableHash(options);
+    const hash = this.serializableHash(options);
+    const ctor = this.constructor as typeof Model;
+    if (ctor.includeRootInJson) {
+      const root = typeof ctor.includeRootInJson === "string"
+        ? ctor.includeRootInJson
+        : ctor.modelName.element;
+      return { [root]: hash };
+    }
+    return hash;
   }
 
   toJson(options?: SerializeOptions): string {
@@ -1193,7 +1202,9 @@ export class Model {
   }
 
   toParam(): string | null {
-    return null;
+    const key = this.toKey();
+    if (!key) return null;
+    return key.map(String).join("-");
   }
 
   toPartialPath(): string {

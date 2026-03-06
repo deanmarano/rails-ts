@@ -1,6 +1,7 @@
 import { Node, NodeVisitor } from "./node.js";
 import { As } from "./binary.js";
 import { SqlLiteral } from "./sql-literal.js";
+import { Cte } from "./cte.js";
 
 /**
  * With — WITH clause for common table expressions.
@@ -40,6 +41,10 @@ export class TableAlias extends Node {
 
   get(columnName: string): Node {
     return new SqlLiteral(`"${this.name}"."${columnName}"`);
+  }
+
+  toCte(): Cte {
+    return new Cte(this.name, this.relation);
   }
 
   accept<T>(visitor: NodeVisitor<T>): T {

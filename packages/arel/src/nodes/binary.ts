@@ -4,6 +4,7 @@ import { And } from "./and.js";
 import { Or } from "./or.js";
 import { Not } from "./not.js";
 import { Grouping } from "./grouping.js";
+import { Cte } from "./cte.js";
 
 export type NodeOrValue = Node | string | number | boolean | null | undefined;
 
@@ -47,7 +48,12 @@ export class Binary extends Node {
 export class Assignment extends Binary {}
 
 /** As: expr AS alias */
-export class As extends Binary {}
+export class As extends Binary {
+  toCte(): Cte {
+    const name = this.right instanceof SqlLiteral ? (this.right as SqlLiteral).value : String(this.right);
+    return new Cte(name, this.left as Node);
+  }
+}
 
 /** Between: expr BETWEEN left AND right */
 export class Between extends Binary {}
@@ -61,8 +67,20 @@ export class LessThan extends Binary {}
 export class LessThanOrEqual extends Binary {}
 
 /** Pattern predicates */
-export class Matches extends Binary {}
-export class DoesNotMatch extends Binary {}
+export class Matches extends Binary {
+  escape: string | null;
+  constructor(left: NodeOrValue, right: NodeOrValue, escape: string | null = null) {
+    super(left, right);
+    this.escape = escape;
+  }
+}
+export class DoesNotMatch extends Binary {
+  escape: string | null;
+  constructor(left: NodeOrValue, right: NodeOrValue, escape: string | null = null) {
+    super(left, right);
+    this.escape = escape;
+  }
+}
 
 /** Set membership */
 export class In extends Binary {}

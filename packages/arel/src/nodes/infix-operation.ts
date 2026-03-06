@@ -27,3 +27,38 @@ export class InfixOperation extends Node {
     return visitor.visit(this);
   }
 }
+
+/** Bitwise AND: left & right */
+export class BitwiseAnd extends InfixOperation {
+  constructor(left: Node, right: Node) {
+    super("&", left, right);
+  }
+}
+
+/** Bitwise OR: left | right */
+export class BitwiseOr extends InfixOperation {
+  constructor(left: Node, right: Node) {
+    super("|", left, right);
+  }
+}
+
+/** Bitwise XOR: left ^ right */
+export class BitwiseXor extends InfixOperation {
+  constructor(left: Node, right: Node) {
+    super("^", left, right);
+  }
+}
+
+/** Bitwise Shift Left: left << right */
+export class BitwiseShiftLeft extends InfixOperation {
+  constructor(left: Node, right: Node) {
+    super("<<", left, right);
+  }
+}
+
+/** Bitwise Shift Right: left >> right */
+export class BitwiseShiftRight extends InfixOperation {
+  constructor(left: Node, right: Node) {
+    super(">>", left, right);
+  }
+}

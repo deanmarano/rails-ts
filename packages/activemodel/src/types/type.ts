@@ -122,6 +122,46 @@ export class UuidType extends Type<string> {
   }
 }
 
+export class BigIntegerType extends Type<bigint> {
+  readonly name = "big_integer";
+
+  cast(value: unknown): bigint | null {
+    if (value === null || value === undefined) return null;
+    try {
+      return BigInt(typeof value === "string" ? value.trim() : value as any);
+    } catch {
+      return null;
+    }
+  }
+
+  serialize(value: unknown): string | null {
+    const cast = this.cast(value);
+    return cast !== null ? cast.toString() : null;
+  }
+}
+
+export class ImmutableStringType extends Type<string> {
+  readonly name = "immutable_string";
+
+  cast(value: unknown): string | null {
+    if (value === null || value === undefined) return null;
+    const str = String(value);
+    return Object.freeze(str) as string;
+  }
+}
+
+export class ValueType extends Type<unknown> {
+  readonly name = "value";
+
+  cast(value: unknown): unknown {
+    return value;
+  }
+
+  equals(other: Type): boolean {
+    return this.constructor === other.constructor;
+  }
+}
+
 export class JsonType extends Type<unknown> {
   readonly name = "json";
 

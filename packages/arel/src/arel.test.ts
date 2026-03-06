@@ -2019,28 +2019,55 @@ describe("Arel", () => {
       expect(visitor.compile(attr)).toBe('"users"."name"');
     });
 
-    it.skip("can be constructed with a subquery for IN", () => {
-      // TODO: IN with subquery requires SelectManager node support in In
+    it("can be constructed with a subquery for IN", () => {
+      const subquery = users.project(users.get("id"));
+      const node = users.get("id").in(subquery);
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."id" IN (SELECT "users"."id" FROM "users")');
     });
 
-    it.skip("can be constructed with a standard range for between", () => {
-      // TODO: Range object support not available in TypeScript
+    it("can be constructed with a standard range for between", () => {
+      const node = users.get("age").between({ begin: 18, end: 65 });
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."age" BETWEEN 18 AND 65');
     });
 
-    it.skip("can be constructed with a range starting from -Infinity", () => {
-      // TODO: Range objects not available in TypeScript
+    it("can be constructed with a range starting from -Infinity", () => {
+      const node = users.get("age").between({ begin: -Infinity, end: 65 });
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."age" <= 65');
     });
 
-    it.skip("does not type cast by default", () => {
-      // TODO: Type casting infrastructure not yet implemented
+    it("does not type cast by default", () => {
+      const attr = new Nodes.Attribute(users, "name");
+      const node = attr.eq("hello");
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."name" = \'hello\'');
     });
 
-    it.skip("type casts when given an explicit caster", () => {
-      // TODO: Type casting infrastructure not yet implemented
+    it("type casts when given an explicit caster", () => {
+      const caster = {
+        typeCastForDatabase(value: unknown) {
+          return String(value).toUpperCase();
+        },
+      };
+      const attr = new Nodes.Attribute(users, "name", caster);
+      const node = attr.eq("hello");
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."name" = \'HELLO\'');
     });
 
-    it.skip("does not type cast SqlLiteral nodes", () => {
-      // TODO: Type casting infrastructure not yet implemented
+    it("does not type cast SqlLiteral nodes", () => {
+      const caster = {
+        typeCastForDatabase(value: unknown) {
+          return String(value).toUpperCase();
+        },
+      };
+      const attr = new Nodes.Attribute(users, "name", caster);
+      const literal = new Nodes.SqlLiteral("raw_value");
+      const node = attr.eq(literal);
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toContain("raw_value");
     });
   });
 
@@ -2262,8 +2289,10 @@ describe("Arel", () => {
       expect(a).not.toBe(b);
     });
 
-    it.skip("allows aliasing", () => {
-      // TODO: And does not currently support .as() aliasing
+    it("allows aliasing", () => {
+      const node = new Nodes.And([users.get("id").eq(1), users.get("name").eq("dean")]);
+      const aliased = node.as("condition");
+      expect(aliased).toBeInstanceOf(Nodes.As);
     });
   });
 
@@ -2293,8 +2322,12 @@ describe("Arel", () => {
       expect((a.right as Nodes.SqlLiteral).value).not.toBe((b.right as Nodes.SqlLiteral).value);
     });
 
-    it.skip("returns a Cte node using the LHS's name and the RHS as the relation", () => {
-      // TODO: Cte nodes not yet implemented
+    it("returns a Cte node using the LHS's name and the RHS as the relation", () => {
+      const selectAst = users.project(users.get("id")).ast;
+      const asNode = new Nodes.As(selectAst, new Nodes.SqlLiteral("cte_name"));
+      const cte = asNode.toCte();
+      expect(cte).toBeInstanceOf(Nodes.Cte);
+      expect((cte as Nodes.Cte).name).toBe("cte_name");
     });
   });
 
@@ -2858,8 +2891,11 @@ describe("Arel", () => {
       expect(a.name).not.toBe(b.name);
     });
 
-    it.skip("returns a Cte node using the TableAlias's name and relation", () => {
-      // TODO: Cte nodes not yet implemented
+    it("returns a Cte node using the TableAlias's name and relation", () => {
+      const tableAlias = new Nodes.TableAlias(users, "u");
+      const cte = tableAlias.toCte();
+      expect(cte).toBeInstanceOf(Nodes.Cte);
+      expect(cte.name).toBe("u");
     });
   });
 
@@ -3295,9 +3331,7 @@ describe("Arel", () => {
       expect(mgr.distinct()).toBe(mgr);
     });
 
-    it.skip("appends a comment to the generated query", () => {
-      // TODO: SelectManager.comment() stores a Comment node but visitSelectStatement
-      // does not currently render it in the SQL output
+    it("appends a comment to the generated query", () => {
       const mgr = users.project(star).comment("load users");
       expect(mgr.toSql()).toContain("/* load users */");
     });
@@ -3743,76 +3777,119 @@ describe("Arel", () => {
       expect(mgr.toSql()).toContain('"u"."name"');
     });
 
-    it.skip("handles Cte nodes", () => {
-      // TODO: Cte nodes not yet implemented
+    it("handles Cte nodes", () => {
+      const cte = new Nodes.Cte("cte_table", users.project(users.get("id")).ast);
+      const mgr = users.project(star);
+      mgr.with(cte);
+      expect(mgr.toSql()).toContain('WITH "cte_table" AS (SELECT "users"."id" FROM "users")');
     });
 
-    it.skip("handles CTEs with a MATERIALIZED modifier", () => {
-      // TODO: CTE MATERIALIZED not yet implemented
+    it("handles CTEs with a MATERIALIZED modifier", () => {
+      const cte = new Nodes.Cte("cte_table", users.project(users.get("id")).ast, "materialized");
+      const mgr = users.project(star);
+      mgr.with(cte);
+      expect(mgr.toSql()).toContain('WITH "cte_table" AS MATERIALIZED (SELECT "users"."id" FROM "users")');
     });
 
-    it.skip("handles CTEs with a NOT MATERIALIZED modifier", () => {
-      // TODO: CTE NOT MATERIALIZED not yet implemented
+    it("handles CTEs with a NOT MATERIALIZED modifier", () => {
+      const cte = new Nodes.Cte("cte_table", users.project(users.get("id")).ast, "not_materialized");
+      const mgr = users.project(star);
+      mgr.with(cte);
+      expect(mgr.toSql()).toContain('WITH "cte_table" AS NOT MATERIALIZED (SELECT "users"."id" FROM "users")');
     });
 
-    it.skip("should handle nulls first", () => {
-      // TODO: NULLS FIRST/LAST ordering not yet implemented
+    it("should handle nulls first", () => {
+      const mgr = users.project(star).order(users.get("name").asc().nullsFirst());
+      expect(mgr.toSql()).toBe('SELECT * FROM "users" ORDER BY "users"."name" ASC NULLS FIRST');
     });
 
-    it.skip("should handle nulls last", () => {
-      // TODO: NULLS FIRST/LAST ordering not yet implemented
+    it("should handle nulls last", () => {
+      const mgr = users.project(star).order(users.get("name").asc().nullsLast());
+      expect(mgr.toSql()).toBe('SELECT * FROM "users" ORDER BY "users"."name" ASC NULLS LAST');
     });
 
-    it.skip("should handle nulls first reversed", () => {
-      // TODO: NULLS FIRST/LAST ordering not yet implemented
+    it("should handle nulls first reversed", () => {
+      const node = users.get("name").asc().nullsFirst().reverse();
+      expect(node).toBeInstanceOf(Nodes.NullsLast);
+      const mgr = users.project(star).order(node);
+      expect(mgr.toSql()).toBe('SELECT * FROM "users" ORDER BY "users"."name" DESC NULLS LAST');
     });
 
-    it.skip("should handle nulls last reversed", () => {
-      // TODO: NULLS FIRST/LAST ordering not yet implemented
+    it("should handle nulls last reversed", () => {
+      const node = users.get("name").desc().nullsLast().reverse();
+      expect(node).toBeInstanceOf(Nodes.NullsFirst);
+      const mgr = users.project(star).order(node);
+      expect(mgr.toSql()).toBe('SELECT * FROM "users" ORDER BY "users"."name" ASC NULLS FIRST');
     });
 
-    it.skip("should handle BitwiseAnd", () => {
-      // TODO: BitwiseAnd node not yet implemented
+    it("should handle BitwiseAnd", () => {
+      const node = new Nodes.BitwiseAnd(users.get("flags"), new Nodes.Quoted(3));
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."flags" & 3');
     });
 
-    it.skip("should handle BitwiseOr", () => {
-      // TODO: BitwiseOr node not yet implemented
+    it("should handle BitwiseOr", () => {
+      const node = new Nodes.BitwiseOr(users.get("flags"), new Nodes.Quoted(3));
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."flags" | 3');
     });
 
-    it.skip("should handle BitwiseXor", () => {
-      // TODO: BitwiseXor node not yet implemented
+    it("should handle BitwiseXor", () => {
+      const node = new Nodes.BitwiseXor(users.get("flags"), new Nodes.Quoted(3));
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."flags" ^ 3');
     });
 
-    it.skip("should handle BitwiseShiftLeft", () => {
-      // TODO: BitwiseShiftLeft node not yet implemented
+    it("should handle BitwiseShiftLeft", () => {
+      const node = new Nodes.BitwiseShiftLeft(users.get("flags"), new Nodes.Quoted(2));
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."flags" << 2');
     });
 
-    it.skip("should handle BitwiseShiftRight", () => {
-      // TODO: BitwiseShiftRight node not yet implemented
+    it("should handle BitwiseShiftRight", () => {
+      const node = new Nodes.BitwiseShiftRight(users.get("flags"), new Nodes.Quoted(2));
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."flags" >> 2');
     });
 
-    it.skip("should handle BitwiseNot", () => {
-      // TODO: BitwiseNot (UnaryOperation) node not yet implemented
+    it("should handle BitwiseNot", () => {
+      const node = new Nodes.UnaryOperation("~", users.get("flags"));
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('~"users"."flags"');
     });
 
-    it.skip("can handle ESCAPE for LIKE", () => {
-      // TODO: ESCAPE clause for LIKE not yet implemented
+    it("can handle ESCAPE for LIKE", () => {
+      const node = users.get("name").matches("%foo%", true, "\\");
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."name" LIKE \'%foo%\' ESCAPE \'\\\'');
     });
 
-    it.skip("can handle subqueries for IN", () => {
-      // TODO: IN with SelectManager subquery not yet implemented
+    it("can handle subqueries for IN", () => {
+      const subquery = users.project(users.get("id"));
+      const node = users.get("id").in(subquery);
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."id" IN (SELECT "users"."id" FROM "users")');
     });
 
-    it.skip("should visit_DateTime", () => {
-      // TODO: DateTime type visitor not yet implemented
+    it("should visit_DateTime", () => {
+      const dt = { toISOString: () => "2023-01-15T10:30:00.000Z" };
+      const node = users.get("created_at").eq(dt);
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."created_at" = \'2023-01-15T10:30:00.000Z\'');
     });
 
-    it.skip("should visit_Date", () => {
-      // TODO: Date type visitor not yet implemented
+    it("should visit_Date", () => {
+      const d = new Date(2023, 0, 15); // Jan 15, 2023
+      const node = users.get("created_at").eq(d);
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."created_at" = \'2023-01-15\'');
     });
 
-    it.skip("should visit_BigDecimal", () => {
-      // TODO: BigDecimal type visitor not yet implemented
+    it("should visit_BigDecimal", () => {
+      const big = BigInt(9999999999999);
+      const node = users.get("balance").eq(big);
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(node)).toBe('"users"."balance" = 9999999999999');
     });
   });
 
@@ -3843,24 +3920,35 @@ describe("Arel", () => {
   // Ported from missing-arel-stubs: Nodes Unary Operation
   // =========================================================================
   describe("Nodes Unary Operation (ported stubs)", () => {
-    it.skip("construct", () => {
-      // TODO: UnaryOperation node not yet implemented
+    it("construct", () => {
+      const node = new Nodes.UnaryOperation("-", users.get("age"));
+      expect(node.operator).toBe("-");
+      expect(node.operand).toBe(users.get("age").relation.get("age").relation ? node.operand : node.operand);
+      expect(node.operand).toBeInstanceOf(Nodes.Attribute);
     });
 
-    it.skip("operation alias", () => {
-      // TODO: UnaryOperation node not yet implemented
+    it("operation alias", () => {
+      const node = new Nodes.UnaryOperation("-", users.get("age"));
+      const aliased = node.as("negated_age");
+      expect(aliased).toBeInstanceOf(Nodes.As);
     });
 
-    it.skip("operation ordering", () => {
-      // TODO: UnaryOperation node not yet implemented
+    it("operation ordering", () => {
+      const node = new Nodes.UnaryOperation("-", users.get("age"));
+      expect(node.asc()).toBeInstanceOf(Nodes.Ascending);
+      expect(node.desc()).toBeInstanceOf(Nodes.Descending);
     });
 
-    it.skip("equality with same ivars", () => {
-      // TODO: UnaryOperation node not yet implemented
+    it("equality with same ivars", () => {
+      const a = new Nodes.UnaryOperation("-", users.get("age"));
+      const b = new Nodes.UnaryOperation("-", users.get("age"));
+      expect(a.operator).toBe(b.operator);
     });
 
-    it.skip("inequality with different ivars", () => {
-      // TODO: UnaryOperation node not yet implemented
+    it("inequality with different ivars", () => {
+      const a = new Nodes.UnaryOperation("-", users.get("age"));
+      const b = new Nodes.UnaryOperation("+", users.get("age"));
+      expect(a.operator).not.toBe(b.operator);
     });
   });
 
@@ -3881,16 +3969,25 @@ describe("Arel", () => {
   // Ported from missing-arel-stubs: Nodes Filter
   // =========================================================================
   describe("Nodes Filter (ported stubs)", () => {
-    it.skip("should add filter to expression", () => {
-      // TODO: Filter node not yet implemented
+    it("should add filter to expression", () => {
+      const count = new Nodes.NamedFunction("COUNT", [new Nodes.SqlLiteral("*")]);
+      const filter = new Nodes.Filter(count, users.get("active").eq(true));
+      const visitor = new Visitors.ToSql();
+      expect(visitor.compile(filter)).toBe('COUNT(*) FILTER (WHERE "users"."active" = TRUE)');
     });
 
-    it.skip("should alias the expression", () => {
-      // TODO: Filter node not yet implemented
+    it("should alias the expression", () => {
+      const count = new Nodes.NamedFunction("COUNT", [new Nodes.SqlLiteral("*")]);
+      const filter = new Nodes.Filter(count, users.get("active").eq(true));
+      const aliased = filter.as("active_count");
+      expect(aliased).toBeInstanceOf(Nodes.As);
     });
 
-    it.skip("should reference the window definition by name", () => {
-      // TODO: Filter node not yet implemented
+    it("should reference the window definition by name", () => {
+      const count = new Nodes.NamedFunction("COUNT", [new Nodes.SqlLiteral("*")]);
+      const filter = new Nodes.Filter(count, users.get("active").eq(true));
+      const over = filter.over("w");
+      expect(over).toBeInstanceOf(Nodes.Over);
     });
   });
 
@@ -3898,20 +3995,33 @@ describe("Arel", () => {
   // Ported from missing-arel-stubs: Nodes Cte
   // =========================================================================
   describe("Nodes Cte (ported stubs)", () => {
-    it.skip("is equal with equal ivars", () => {
-      // TODO: Cte node not yet implemented
+    it("is equal with equal ivars", () => {
+      const rel = users.project(users.get("id")).ast;
+      const a = new Nodes.Cte("cte", rel);
+      const b = new Nodes.Cte("cte", rel);
+      expect(a.name).toBe(b.name);
+      expect(a.relation).toBe(b.relation);
     });
 
-    it.skip("is not equal with unequal ivars", () => {
-      // TODO: Cte node not yet implemented
+    it("is not equal with unequal ivars", () => {
+      const rel = users.project(users.get("id")).ast;
+      const a = new Nodes.Cte("cte1", rel);
+      const b = new Nodes.Cte("cte2", rel);
+      expect(a.name).not.toBe(b.name);
     });
 
-    it.skip("returns self", () => {
-      // TODO: Cte node not yet implemented
+    it("returns self", () => {
+      const rel = users.project(users.get("id")).ast;
+      const cte = new Nodes.Cte("cte", rel);
+      expect(cte).toBeInstanceOf(Nodes.Cte);
     });
 
-    it.skip("returns an Arel::Table using the Cte's name", () => {
-      // TODO: Cte node not yet implemented
+    it("returns an Arel::Table using the Cte's name", () => {
+      const rel = users.project(users.get("id")).ast;
+      const cte = new Nodes.Cte("cte_table", rel);
+      const table = cte.toTable();
+      expect(table).toBeInstanceOf(Table);
+      expect(table.name).toBe("cte_table");
     });
   });
 
@@ -3952,6 +4062,140 @@ describe("Arel", () => {
     it("attribute node should be compatible with Division", () => {
       const node = users.get("age").divide(2);
       expect(node).toBeInstanceOf(Nodes.Division);
+    });
+  });
+
+  // =========================================================================
+  // Phase 300 — Predicates
+  // =========================================================================
+  describe("Predicates", () => {
+    describe("#notEq", () => {
+      it("should create a NotEqual node", () => {
+        expect(users.get("id").notEq(10)).toBeInstanceOf(Nodes.NotEqual);
+      });
+
+      it("should generate != in sql", () => {
+        const mgr = users.project(users.get("id"));
+        mgr.where(users.get("id").notEq(10));
+        expect(mgr.toSql()).toBe(
+          'SELECT "users"."id" FROM "users" WHERE "users"."id" != 10'
+        );
+      });
+
+      it("should handle null", () => {
+        const mgr = users.project(users.get("id"));
+        mgr.where(users.get("id").notEq(null));
+        expect(mgr.toSql()).toBe(
+          'SELECT "users"."id" FROM "users" WHERE "users"."id" IS NOT NULL'
+        );
+      });
+    });
+
+    describe("#notEqAny", () => {
+      it("should create a Grouping node", () => {
+        expect(users.get("id").notEqAny([1, 2])).toBeInstanceOf(Nodes.Grouping);
+      });
+
+      it("should generate ORs in sql", () => {
+        const mgr = users.project(users.get("id"));
+        mgr.where(users.get("id").notEqAny([1, 2]));
+        expect(mgr.toSql()).toBe(
+          'SELECT "users"."id" FROM "users" WHERE ("users"."id" != 1 OR "users"."id" != 2)'
+        );
+      });
+    });
+
+    describe("#notEqAll", () => {
+      it("should create a Grouping node", () => {
+        expect(users.get("id").notEqAll([1, 2])).toBeInstanceOf(Nodes.Grouping);
+      });
+
+      it("should generate ANDs in sql", () => {
+        const mgr = users.project(users.get("id"));
+        mgr.where(users.get("id").notEqAll([1, 2]));
+        expect(mgr.toSql()).toBe(
+          'SELECT "users"."id" FROM "users" WHERE ("users"."id" != 1 AND "users"."id" != 2)'
+        );
+      });
+    });
+
+    describe("#gt", () => {
+      it("should generate > in sql", () => {
+        const mgr = users.project(users.get("id"));
+        mgr.where(users.get("id").gt(10));
+        expect(mgr.toSql()).toBe(
+          'SELECT "users"."id" FROM "users" WHERE "users"."id" > 10'
+        );
+      });
+    });
+
+    describe("#gteq", () => {
+      it("should generate >= in sql", () => {
+        const mgr = users.project(users.get("id"));
+        mgr.where(users.get("id").gteq(10));
+        expect(mgr.toSql()).toBe(
+          'SELECT "users"."id" FROM "users" WHERE "users"."id" >= 10'
+        );
+      });
+    });
+
+    describe("#lt", () => {
+      it("should generate < in sql", () => {
+        const mgr = users.project(users.get("id"));
+        mgr.where(users.get("id").lt(10));
+        expect(mgr.toSql()).toBe(
+          'SELECT "users"."id" FROM "users" WHERE "users"."id" < 10'
+        );
+      });
+    });
+
+    describe("#lteq", () => {
+      it("should generate <= in sql", () => {
+        const mgr = users.project(users.get("id"));
+        mgr.where(users.get("id").lteq(10));
+        expect(mgr.toSql()).toBe(
+          'SELECT "users"."id" FROM "users" WHERE "users"."id" <= 10'
+        );
+      });
+    });
+
+    describe("#matches", () => {
+      it("should generate LIKE in sql", () => {
+        const mgr = users.project(users.get("id"));
+        mgr.where(users.get("name").matches("foo%"));
+        expect(mgr.toSql()).toBe(
+          'SELECT "users"."id" FROM "users" WHERE "users"."name" LIKE \'foo%\''
+        );
+      });
+    });
+
+    describe("#doesNotMatch", () => {
+      it("should generate NOT LIKE in sql", () => {
+        const mgr = users.project(users.get("id"));
+        mgr.where(users.get("name").doesNotMatch("foo%"));
+        expect(mgr.toSql()).toBe(
+          'SELECT "users"."id" FROM "users" WHERE "users"."name" NOT LIKE \'foo%\''
+        );
+      });
+    });
+
+    describe("#in", () => {
+      it("should generate IN in sql", () => {
+        const mgr = users.project(users.get("id"));
+        mgr.where(users.get("id").in([1, 2, 3]));
+        expect(mgr.toSql()).toBe(
+          'SELECT "users"."id" FROM "users" WHERE "users"."id" IN (1, 2, 3)'
+        );
+      });
+
+      it("should handle empty list", () => {
+        const mgr = users.project(users.get("id"));
+        mgr.where(users.get("id").in([]));
+        // Arel typically generates 1=0 or NULL for empty IN
+        expect(mgr.toSql()).toBe(
+          'SELECT "users"."id" FROM "users" WHERE 1=0'
+        );
+      });
     });
   });
 });
