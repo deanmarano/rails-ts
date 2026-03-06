@@ -54,8 +54,25 @@ query.toSql();
 
 ## Project Status
 
-This project is in early development, starting with the Arel package. See the
-[roadmap](docs/ROADMAP.md) for what's planned and what's done.
+This project is actively developed. We measure progress by comparing our API surface and test suite against the original Ruby on Rails source code.
+
+### API Coverage (Methods)
+| Package | Progress | Matched / Total |
+|---------|----------|-----------------|
+| `arel` | 100% | 152 / 152 |
+| `activemodel` | 100% | 54 / 54 |
+| `activerecord` | 99.6% | 224 / 225 |
+| **Total** | **99.8%** | **430 / 431** |
+
+### Test Parity (Behavior)
+| Package | Progress | Matched / Total |
+|---------|----------|-----------------|
+| `arel` | 100% | 592 / 592 |
+| `activemodel` | 98.3% | 758 / 771 |
+| `activerecord` | 13.7% | 742 / 5428 |
+| **Total** | **30.8%** | **2092 / 6791** |
+
+See the [roadmap](docs/ROADMAP.md) for detailed phase information.
 
 ## Development
 
