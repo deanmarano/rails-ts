@@ -125,6 +125,22 @@ export class HashWithIndifferentAccess<V = unknown> {
   }
 
   /**
+   * Return a plain object with all string keys (Rails' stringify_keys).
+   * Returns a new HashWithIndifferentAccess since all keys are already strings.
+   */
+  stringifyKeys(): HashWithIndifferentAccess<V> {
+    return new HashWithIndifferentAccess<V>(this.toHash());
+  }
+
+  /**
+   * Return a plain object with all string keys (Rails' symbolize_keys).
+   * In TS all keys are already strings; returns a plain object.
+   */
+  symbolizeKeys(): AnyObject {
+    return this.toHash();
+  }
+
+  /**
    * Convert back to a plain object.
    */
   toHash(): AnyObject {

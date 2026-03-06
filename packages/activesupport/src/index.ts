@@ -25,6 +25,15 @@ export {
   squish,
   truncate,
   truncateWords,
+  stripHeredoc,
+  downcaseFirst,
+  upcaseFirst,
+  at,
+  first,
+  last,
+  from,
+  to,
+  indent,
 } from "./string-utils.js";
 
 export {
@@ -36,6 +45,14 @@ export {
   deepCamelizeKeys,
   deepUnderscoreKeys,
   extractOptions,
+  stringifyKeys,
+  deepStringifyKeys,
+  symbolizeKeys,
+  deepSymbolizeKeys,
+  reverseMerge,
+  assertValidKeys,
+  deepTransformValues,
+  extractKeys,
 } from "./hash-utils.js";
 
 export {

@@ -125,6 +125,105 @@ export function extractOptions<T>(args: T[]): [T[], AnyObject] {
   return [args, {}];
 }
 
+/**
+ * Convert all keys to strings (Rails' stringify_keys).
+ */
+export function stringifyKeys<T extends AnyObject>(obj: T): Record<string, T[keyof T]> {
+  const result: Record<string, T[keyof T]> = {};
+  for (const key of Object.keys(obj)) {
+    result[String(key)] = obj[key];
+  }
+  return result;
+}
+
+/**
+ * Recursively convert all keys to strings (Rails' deep_stringify_keys).
+ */
+export function deepStringifyKeys(obj: unknown): unknown {
+  return deepTransformKeys(obj, (key) => String(key));
+}
+
+/**
+ * Convert all keys to symbols — in TypeScript we use strings, so this is
+ * equivalent to stringifyKeys but mirrors Rails' symbolize_keys semantics.
+ */
+export function symbolizeKeys<T extends AnyObject>(obj: T): Record<string, T[keyof T]> {
+  return stringifyKeys(obj);
+}
+
+/**
+ * Recursively convert all keys to symbols (strings in TS).
+ */
+export function deepSymbolizeKeys(obj: unknown): unknown {
+  return deepStringifyKeys(obj);
+}
+
+/**
+ * Merge defaults into obj without overwriting existing keys (Rails' reverse_merge).
+ */
+export function reverseMerge<T extends AnyObject>(obj: T, defaults: AnyObject): T {
+  const result = { ...obj } as AnyObject;
+  for (const key of Object.keys(defaults)) {
+    if (!(key in result)) {
+      result[key] = defaults[key];
+    }
+  }
+  return result as T;
+}
+
+/**
+ * Assert that all keys in obj are within the allowed set of validKeys.
+ * Throws ArgumentError if any key is invalid (Rails' assert_valid_keys).
+ */
+export function assertValidKeys(obj: AnyObject, validKeys: string[]): void {
+  const validSet = new Set(validKeys);
+  for (const key of Object.keys(obj)) {
+    if (!validSet.has(key)) {
+      throw new Error(
+        `Unknown key: ${key}. Valid keys are: ${validKeys.join(", ")}`
+      );
+    }
+  }
+}
+
+/**
+ * Recursively transform all values using the provided function.
+ */
+export function deepTransformValues(
+  obj: unknown,
+  fn: (value: unknown) => unknown
+): unknown {
+  if (Array.isArray(obj)) {
+    return obj.map((item) => deepTransformValues(item, fn));
+  }
+  if (obj !== null && typeof obj === "object" && isPlainObject(obj)) {
+    const result: AnyObject = {};
+    for (const key of Object.keys(obj as AnyObject)) {
+      result[key] = deepTransformValues((obj as AnyObject)[key], fn);
+    }
+    return result;
+  }
+  return fn(obj);
+}
+
+/**
+ * Extract the specified keys from obj, removing them in-place and returning
+ * them as a new object (Rails' extract!).
+ */
+export function extractKeys<T extends AnyObject>(
+  obj: T,
+  ...keys: string[]
+): Partial<T> {
+  const result: Partial<T> = {};
+  for (const key of keys) {
+    if (key in obj) {
+      result[key as keyof T] = obj[key as keyof T];
+      delete obj[key as keyof T];
+    }
+  }
+  return result;
+}
+
 function isPlainObject(value: unknown): value is AnyObject {
   if (value === null || value === undefined) return false;
   if (typeof value !== "object") return false;

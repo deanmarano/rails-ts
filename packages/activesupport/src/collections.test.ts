@@ -8,6 +8,14 @@ import {
   deepCamelizeKeys,
   deepUnderscoreKeys,
   extractOptions,
+  stringifyKeys,
+  deepStringifyKeys,
+  symbolizeKeys,
+  deepSymbolizeKeys,
+  reverseMerge,
+  assertValidKeys,
+  deepTransformValues,
+  extractKeys,
   wrap,
   inGroupsOf,
   toSentence,
@@ -124,6 +132,167 @@ describe("deepUnderscoreKeys", () => {
     expect(deepUnderscoreKeys({ fooBar: { bazQux: 1 } })).toEqual({
       foo_bar: { baz_qux: 1 },
     });
+  });
+});
+
+describe("symbolizeKeys", () => {
+  it("converts all keys to strings (identity in TS)", () => {
+    expect(symbolizeKeys({ a: 1, b: 2 })).toEqual({ a: 1, b: 2 });
+  });
+
+  it("does not mutate the original", () => {
+    const obj = { a: 1, b: 2 };
+    symbolizeKeys(obj);
+    expect(obj).toEqual({ a: 1, b: 2 });
+  });
+});
+
+describe("deepSymbolizeKeys", () => {
+  it("recursively converts all keys to strings", () => {
+    expect(deepSymbolizeKeys({ a: { b: { c: 3 } } })).toEqual({
+      a: { b: { c: 3 } },
+    });
+  });
+
+  it("handles arrays of objects", () => {
+    expect(deepSymbolizeKeys({ a: [{ b: 2 }, { c: 3 }, 4] })).toEqual({
+      a: [{ b: 2 }, { c: 3 }, 4],
+    });
+  });
+});
+
+describe("stringifyKeys", () => {
+  it("converts all keys to strings", () => {
+    expect(stringifyKeys({ a: 1, b: 2 })).toEqual({ a: 1, b: 2 });
+  });
+
+  it("does not mutate the original", () => {
+    const obj = { a: 1, b: 2 };
+    stringifyKeys(obj);
+    expect(obj).toEqual({ a: 1, b: 2 });
+  });
+});
+
+describe("deepStringifyKeys", () => {
+  it("recursively converts all keys to strings", () => {
+    expect(deepStringifyKeys({ a: { b: { c: 3 } } })).toEqual({
+      a: { b: { c: 3 } },
+    });
+  });
+
+  it("handles arrays of objects", () => {
+    expect(deepStringifyKeys({ a: [{ b: 2 }, { c: 3 }, 4] })).toEqual({
+      a: [{ b: 2 }, { c: 3 }, 4],
+    });
+  });
+});
+
+describe("reverseMerge", () => {
+  it("fills in missing keys from defaults", () => {
+    expect(reverseMerge({ a: 1, b: 2 }, { b: 99, c: 10, d: 0 })).toEqual({
+      a: 1,
+      b: 2,
+      c: 10,
+      d: 0,
+    });
+  });
+
+  it("does not overwrite existing keys", () => {
+    expect(reverseMerge({ a: 1 }, { a: 99, b: 2 })).toEqual({ a: 1, b: 2 });
+  });
+
+  it("does not mutate the original", () => {
+    const obj = { a: 1 };
+    reverseMerge(obj, { b: 2 });
+    expect(obj).toEqual({ a: 1 });
+  });
+
+  it("returns new hash with defaults applied", () => {
+    const defaults = { d: 0, a: "x", b: "y", c: 10 };
+    const options = { a: 1, b: 2 };
+    const expected = { d: 0, a: 1, b: 2, c: 10 };
+    expect(reverseMerge(options, defaults)).toEqual(expected);
+  });
+});
+
+describe("assertValidKeys", () => {
+  it("passes when all keys are valid", () => {
+    expect(() =>
+      assertValidKeys({ failure: "stuff", funny: "business" }, [
+        "failure",
+        "funny",
+      ])
+    ).not.toThrow();
+  });
+
+  it("passes when not all valid keys are present", () => {
+    expect(() =>
+      assertValidKeys({ failure: "stuff" }, ["failure", "funny", "sunny"])
+    ).not.toThrow();
+  });
+
+  it("throws on unknown key", () => {
+    expect(() =>
+      assertValidKeys({ failore: "stuff", funny: "business" }, [
+        "failure",
+        "funny",
+      ])
+    ).toThrow(/Unknown key: failore/);
+  });
+
+  it("includes valid keys in error message", () => {
+    expect(() =>
+      assertValidKeys({ failore: "stuff" }, ["failure"])
+    ).toThrow(/Valid keys are: failure/);
+  });
+});
+
+describe("deepTransformValues", () => {
+  it("transforms flat values", () => {
+    expect(
+      deepTransformValues({ a: 1, b: 2 }, (v) => String(v))
+    ).toEqual({ a: "1", b: "2" });
+  });
+
+  it("transforms values recursively", () => {
+    expect(
+      deepTransformValues({ a: { b: { c: 3 } } }, (v) => String(v))
+    ).toEqual({ a: { b: { c: "3" } } });
+  });
+
+  it("transforms values in arrays", () => {
+    expect(
+      deepTransformValues({ a: [{ b: 2 }, { c: 3 }, 4] }, (v) => String(v))
+    ).toEqual({ a: [{ b: "2" }, { c: "3" }, "4"] });
+  });
+
+  it("does not mutate the original", () => {
+    const obj = { a: { b: 1 } };
+    deepTransformValues(obj, (v) => String(v));
+    expect(obj).toEqual({ a: { b: 1 } });
+  });
+});
+
+describe("extractKeys", () => {
+  it("extracts specified keys and removes them from original", () => {
+    const original: Record<string, number> = { a: 1, b: 2, c: 3, d: 4 };
+    const extracted = extractKeys(original, "a", "b");
+    expect(extracted).toEqual({ a: 1, b: 2 });
+    expect(original).toEqual({ c: 3, d: 4 });
+  });
+
+  it("ignores keys not in original", () => {
+    const original: Record<string, unknown> = { a: 1, b: 2 };
+    const extracted = extractKeys(original, "a", "x");
+    expect(extracted).toEqual({ a: 1 });
+    expect(original).toEqual({ b: 2 });
+  });
+
+  it("handles nil values", () => {
+    const original: Record<string, unknown> = { a: null, b: null };
+    const extracted = extractKeys(original, "a", "x");
+    expect(extracted).toEqual({ a: null });
+    expect(original).toEqual({ b: null });
   });
 });
 
@@ -424,5 +593,17 @@ describe("HashWithIndifferentAccess", () => {
     expect([...h.keys()]).toEqual(["x"]);
     expect([...h.values()]).toEqual([10]);
     expect([...h.entries()]).toEqual([["x", 10]]);
+  });
+
+  it("symbolizeKeys returns plain object with string keys", () => {
+    const h = new HashWithIndifferentAccess({ a: 1, b: 2 });
+    expect(h.symbolizeKeys()).toEqual({ a: 1, b: 2 });
+  });
+
+  it("stringifyKeys returns a new HashWithIndifferentAccess", () => {
+    const h = new HashWithIndifferentAccess({ a: 1, b: 2 });
+    const stringified = h.stringifyKeys();
+    expect(stringified).toBeInstanceOf(HashWithIndifferentAccess);
+    expect(stringified.toHash()).toEqual({ a: 1, b: 2 });
   });
 });
