@@ -78,7 +78,7 @@ describe("Persistence (Rails-guided)", () => {
 
   // -- save --
 
-  it("save on destroyed record raises error", async () => {
+  it("save destroyed object", async () => {
     const p = await Post.create({ title: "Hello", body: "World" });
     await p.destroy();
     await expect(p.save()).rejects.toThrow("Cannot save a destroyed");
@@ -104,7 +104,7 @@ describe("Persistence (Rails-guided)", () => {
 
   // -- create / create! --
 
-  it("create returns record even if validation fails", async () => {
+  it("returns object even if validations failed", async () => {
     class Required extends Base {
       static {
         this.attribute("name", "string");
@@ -172,7 +172,7 @@ describe("Persistence (Rails-guided)", () => {
 
   // -- destroy / destroy! / delete --
 
-  it("destroy returns self", async () => {
+  it("destroy", async () => {
     const p = await Post.create({ title: "Test", body: "Body" });
     const result = await p.destroy();
     expect(result).toBe(p);
@@ -192,7 +192,7 @@ describe("Persistence (Rails-guided)", () => {
     expect(result).toBe(p);
   });
 
-  it("delete removes the record without running callbacks", async () => {
+  it("delete doesnt run callbacks", async () => {
     const log: string[] = [];
 
     class Tracked extends Base {
@@ -240,7 +240,7 @@ describe("Persistence (Rails-guided)", () => {
     expect(log).toEqual(["before_destroy", "after_destroy"]);
   });
 
-  it("class-level delete removes by ID without callbacks", async () => {
+  it("class level delete", async () => {
     const p = await Post.create({ title: "Test", body: "Body" });
     const affected = await Post.delete(p.id);
     expect(affected).toBe(1);
@@ -263,7 +263,7 @@ describe("Persistence (Rails-guided)", () => {
 
   // -- reload --
 
-  it("reload throws when record no longer exists", async () => {
+  it("find via reload", async () => {
     const p = await Post.create({ title: "Hello", body: "World" });
     await Post.delete(p.id);
     await expect(p.reload()).rejects.toThrow("not found");
@@ -560,7 +560,7 @@ describe("Relation (Rails-guided)", () => {
 
   // -- deleteAll / destroyAll --
 
-  it("deleteAll returns count of deleted records", async () => {
+  it("delete all", async () => {
     const count = await Product.where({ category: "fruit" }).deleteAll();
     expect(count).toBe(3);
     expect(await Product.all().count()).toBe(1);
@@ -600,7 +600,7 @@ describe("Relation (Rails-guided)", () => {
 
   // -- updateAll returns count --
 
-  it("updateAll returns count of updated records", async () => {
+  it("update all", async () => {
     const count = await Product.where({ category: "fruit" }).updateAll({
       price: 99,
     });
@@ -776,7 +776,7 @@ describe("Callbacks (Rails-guided)", () => {
     expect(log).not.toContain("before_update");
   });
 
-  it("before_save returning false halts create", async () => {
+  it("before save throwing abort", async () => {
     class Guarded extends Base {
       static {
         this.attribute("name", "string");
@@ -935,7 +935,7 @@ describe("Callbacks (Rails-guided)", () => {
     expect(log).toEqual(["first", "second", "third"]);
   });
 
-  it("delete bypasses all callbacks", async () => {
+  it("delete", async () => {
     const log: string[] = [];
 
     class Tracked extends Base {
@@ -1113,14 +1113,14 @@ describe("Transactions (Rails-guided)", () => {
     Account.adapter = adapter;
   });
 
-  it("successful transaction commits", async () => {
+  it("successful", async () => {
     await transaction(Account, async () => {
       await Account.create({ name: "Alice", balance: 100 });
     });
     expect(await Account.all().count()).toBe(1);
   });
 
-  it("exception causes rollback", async () => {
+  it("failing on exception", async () => {
     try {
       await transaction(Account, async () => {
         await Account.create({ name: "Alice", balance: 100 });
@@ -1132,7 +1132,7 @@ describe("Transactions (Rails-guided)", () => {
     // MemoryAdapter doesn't truly rollback, but pattern is correct
   });
 
-  it("afterCommit fires only on successful commit", async () => {
+  it("call after commit after transaction commits", async () => {
     const log: string[] = [];
 
     await transaction(Account, async (tx) => {
@@ -1184,7 +1184,7 @@ describe("Transactions (Rails-guided)", () => {
     expect(log).toEqual([]);
   });
 
-  it("nested savepoint: inner error does not abort outer", async () => {
+  it("force savepoint in nested transaction", async () => {
     await transaction(Account, async () => {
       await Account.create({ name: "Outer", balance: 100 });
 
@@ -1309,7 +1309,7 @@ describe("update_column / update_columns (Rails-guided)", () => {
     Topic.adapter = adapter;
   });
 
-  it("update_column updates a single attribute", async () => {
+  it("update column", async () => {
     const topic = await Topic.create({ title: "Original" });
     await topic.updateColumn("title", "Updated");
     expect(topic.readAttribute("title")).toBe("Updated");
@@ -1338,7 +1338,7 @@ describe("update_column / update_columns (Rails-guided)", () => {
     expect(v.readAttribute("title")).toBe("");
   });
 
-  it("update_column does not run callbacks", async () => {
+  it("update column should not use setter method", async () => {
     const log: string[] = [];
 
     class Tracked extends Base {
@@ -1359,7 +1359,7 @@ describe("update_column / update_columns (Rails-guided)", () => {
     expect(log).toEqual([]);
   });
 
-  it("update_columns updates multiple attributes at once", async () => {
+  it("update columns", async () => {
     const topic = await Topic.create({ title: "Original", content: "Body", approved: false });
     await topic.updateColumns({ title: "New Title", approved: true });
 
@@ -1368,7 +1368,7 @@ describe("update_column / update_columns (Rails-guided)", () => {
     expect(topic.readAttribute("content")).toBe("Body"); // unchanged
   });
 
-  it("update_columns on a new record raises", async () => {
+  it("update columns should raise exception if new record", async () => {
     const topic = new Topic({ title: "New" });
     await expect(topic.updateColumns({ title: "Changed" })).rejects.toThrow(
       "Cannot update columns on a new or destroyed record"
@@ -1383,7 +1383,7 @@ describe("update_column / update_columns (Rails-guided)", () => {
     );
   });
 
-  it("update_column clears dirty tracking", async () => {
+  it("update column should not leave the object dirty", async () => {
     const topic = await Topic.create({ title: "Original" });
     topic.writeAttribute("title", "Dirty");
     expect(topic.changed).toBe(true);
@@ -1493,7 +1493,7 @@ describe("find_each / find_in_batches (Rails-guided)", () => {
     Record.adapter = adapter;
   });
 
-  it("find_in_batches yields correct number of batches", async () => {
+  it("find in batches should return batches", async () => {
     for (let i = 0; i < 10; i++) {
       await Record.create({ value: i });
     }
@@ -1587,7 +1587,7 @@ describe("Scopes (Rails-guided)", () => {
     );
   });
 
-  it("scope returns matching records", async () => {
+  it("scopes with options limit finds to those matching the criteria specified", async () => {
     await Post.create({ title: "Published", status: "published" });
     await Post.create({ title: "Draft", status: "draft" });
     await Post.create({ title: "Another Published", status: "published" });
@@ -1604,7 +1604,7 @@ describe("Scopes (Rails-guided)", () => {
     expect(result).toHaveLength(1);
   });
 
-  it("scopes can be chained", async () => {
+  it("scopes are composable", async () => {
     await Post.create({ title: "Pub A1", status: "published", author_id: 1 });
     await Post.create({ title: "Pub A2", status: "published", author_id: 2 });
     await Post.create({ title: "Draft A1", status: "draft", author_id: 1 });
@@ -1683,7 +1683,7 @@ describe("Calculations (Rails-guided)", () => {
     await Account.create({ firm_id: 2, credit_limit: 100 });
   });
 
-  it("sum computes the total", async () => {
+  it("should sum field", async () => {
     expect(await Account.all().sum("credit_limit")).toBe(210);
   });
 
@@ -1691,15 +1691,15 @@ describe("Calculations (Rails-guided)", () => {
     expect(await Account.where({ firm_id: 1 }).sum("credit_limit")).toBe(110);
   });
 
-  it("average computes the mean", async () => {
+  it("should average field", async () => {
     expect(await Account.all().average("credit_limit")).toBe(70);
   });
 
-  it("minimum returns the smallest value", async () => {
+  it("should get minimum of field", async () => {
     expect(await Account.all().minimum("credit_limit")).toBe(50);
   });
 
-  it("maximum returns the largest value", async () => {
+  it("should get maximum of field", async () => {
     expect(await Account.all().maximum("credit_limit")).toBe(100);
   });
 
@@ -1824,7 +1824,7 @@ describe("touch (Rails-guided)", () => {
     Topic.adapter = adapter;
   });
 
-  it("touch updates updated_at", async () => {
+  it("touching a record updates its timestamp", async () => {
     const topic = await Topic.create({ title: "Test" });
     const before = topic.readAttribute("updated_at") as Date;
 
@@ -1834,7 +1834,7 @@ describe("touch (Rails-guided)", () => {
     expect(after.getTime()).toBeGreaterThanOrEqual(before.getTime());
   });
 
-  it("touch with extra attributes", async () => {
+  it("touching an attribute updates it", async () => {
     const topic = await Topic.create({ title: "Test" });
 
     await topic.touch("replied_at");
@@ -2037,7 +2037,7 @@ describe("Persistence edge cases (Rails-guided)", () => {
   });
 
   // Rails: test_save_with_no_changes
-  it("save on unchanged record is a no-op", async () => {
+  it("update does not run sql if record has not changed", async () => {
     const user = await User.create({ name: "Alice" });
     // Save again with no changes — should succeed without error
     const result = await user.save();
@@ -2100,7 +2100,7 @@ describe("Persistence edge cases (Rails-guided)", () => {
   });
 
   // Rails: test_created_at_not_overwritten_on_update
-  it("created_at is not changed on subsequent saves", async () => {
+  it("saving a unchanged record doesnt update its timestamp", async () => {
     const user = await User.create({ name: "Alice" });
     const createdAt = user.readAttribute("created_at");
 
@@ -2151,7 +2151,7 @@ describe("Finders edge cases (Rails-guided)", () => {
   });
 
   // Rails: test_find_raises_record_not_found
-  it("find with nonexistent id raises", async () => {
+  it("find raises record not found exception", async () => {
     await expect(User.find(9999)).rejects.toThrow();
   });
 
@@ -2165,14 +2165,14 @@ describe("Finders edge cases (Rails-guided)", () => {
   });
 
   // Rails: test_find_by_returns_nil
-  it("findBy returns null when no match", async () => {
+  it("find_by returns nil if the record is missing", async () => {
     await User.create({ name: "Alice" });
     const found = await User.findBy({ name: "Nobody" });
     expect(found).toBeNull();
   });
 
   // Rails: test_find_by_bang_raises
-  it("findByBang raises when no match", async () => {
+  it("find_by! raises RecordNotFound if the record is missing", async () => {
     await expect(User.findByBang({ name: "Nobody" })).rejects.toThrow();
   });
 
@@ -2391,7 +2391,7 @@ describe("Bulk operations (Rails-guided)", () => {
   });
 
   // Rails: test_update_all
-  it("updateAll updates matching records in bulk", async () => {
+  it("update all", async () => {
     class Post extends Base {
       static {
         this.attribute("title", "string");
@@ -2434,7 +2434,7 @@ describe("Bulk operations (Rails-guided)", () => {
   });
 
   // Rails: test_delete_all
-  it("deleteAll removes records without callbacks", async () => {
+  it("delete all", async () => {
     const log: string[] = [];
 
     class Post extends Base {
@@ -3021,7 +3021,7 @@ describe("Rails-guided: New Features", () => {
   });
 
   // Rails: test_increment
-  it("increment changes attribute in memory by 1", () => {
+  it("increment attribute", () => {
     class Counter extends Base {
       static { this.attribute("hits", "integer", { default: 0 }); this.adapter = adapter; }
     }
@@ -3033,7 +3033,7 @@ describe("Rails-guided: New Features", () => {
   });
 
   // Rails: test_decrement
-  it("decrement changes attribute in memory by -1", () => {
+  it("decrement attribute", () => {
     class Counter extends Base {
       static { this.attribute("stock", "integer", { default: 10 }); this.adapter = adapter; }
     }
@@ -3340,7 +3340,7 @@ describe("Rails-guided: New Features", () => {
   });
 
   // Rails: test_validates_uniqueness_of
-  it("validates uniqueness prevents duplicate", async () => {
+  it("validate uniqueness", async () => {
     class Email extends Base {
       static {
         this.attribute("address", "string");
@@ -3355,7 +3355,7 @@ describe("Rails-guided: New Features", () => {
   });
 
   // Rails: test_validates_uniqueness_with_scope
-  it("validates uniqueness with scope", async () => {
+  it("validate uniqueness with scope", async () => {
     class Permission extends Base {
       static {
         this.attribute("user_id", "integer");
@@ -3497,7 +3497,7 @@ describe("Enum (Rails-guided)", () => {
   });
 
   // Rails: test "query by enum scope"
-  it("provides scopes for each value", async () => {
+  it("find via scope", async () => {
     class Conversation extends Base {
       static { this.attribute("id", "integer"); this.attribute("status", "integer"); this.adapter = adapter; }
     }
@@ -3515,7 +3515,7 @@ describe("Enum (Rails-guided)", () => {
   });
 
   // Rails: test "enum predicate methods"
-  it("provides predicate methods", () => {
+  it("query state by predicate", () => {
     class Conversation extends Base {
       static { this.attribute("id", "integer"); this.attribute("status", "integer"); this.adapter = adapter; }
     }
@@ -3527,7 +3527,7 @@ describe("Enum (Rails-guided)", () => {
   });
 
   // Rails: test "enum bang methods (setters)"
-  it("provides setter methods that change the value", () => {
+  it("update by setter", () => {
     class Conversation extends Base {
       static { this.attribute("id", "integer"); this.attribute("status", "integer"); this.adapter = adapter; }
     }
@@ -3579,7 +3579,7 @@ describe("STI (Rails-guided)", () => {
   });
 
   // Rails: test "save sets the type column"
-  it("automatically sets the type column on create", async () => {
+  it("inheritance save", async () => {
     class Company extends Base {
       static { this._tableName = "companies"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("type", "string"); this.adapter = adapter; }
     }
@@ -3594,7 +3594,7 @@ describe("STI (Rails-guided)", () => {
   });
 
   // Rails: test "find returns correct subclass"
-  it("returns instances of the correct subclass from base queries", async () => {
+  it("inheritance find", async () => {
     class Company extends Base {
       static { this._tableName = "companies"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("type", "string"); this.adapter = adapter; }
     }
@@ -3618,7 +3618,7 @@ describe("STI (Rails-guided)", () => {
   });
 
   // Rails: test "subclass query only returns subclass records"
-  it("subclass queries auto-filter by type", async () => {
+  it("inheritance condition", async () => {
     class Company extends Base {
       static { this._tableName = "companies"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("type", "string"); this.adapter = adapter; }
     }
@@ -3821,7 +3821,7 @@ describe("Store (Rails-guided)", () => {
   });
 
   // Rails: test "reading store attributes through accessors"
-  it("reads stored attributes through accessors", () => {
+  it("reading store attributes through accessors", () => {
     class User extends Base {
       static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("settings", "json"); this.adapter = adapter; }
     }
@@ -3833,7 +3833,7 @@ describe("Store (Rails-guided)", () => {
   });
 
   // Rails: test "writing store attributes through accessors"
-  it("writes stored attributes through accessors", () => {
+  it("writing store attributes through accessors", () => {
     class User extends Base {
       static { this._tableName = "users"; this.attribute("id", "integer"); this.attribute("settings", "json"); this.adapter = adapter; }
     }
@@ -3877,7 +3877,7 @@ describe("Counter Cache (Rails-guided)", () => {
   });
 
   // Rails: test "increment counter cache on create"
-  it("increments the counter cache on create", async () => {
+  it("increment counter", async () => {
     class Topic extends Base {
       static { this._tableName = "topics"; this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("replies_count", "integer", { default: 0 }); this.adapter = adapter; }
     }
@@ -3952,7 +3952,7 @@ describe("Optimistic Locking (Rails-guided)", () => {
   });
 
   // Rails: test "lock_version is incremented on save"
-  it("increments lock_version on each update", async () => {
+  it("lock existing", async () => {
     class Person extends Base {
       static { this._tableName = "people"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("lock_version", "integer", { default: 0 }); this.adapter = adapter; }
     }
@@ -3965,7 +3965,7 @@ describe("Optimistic Locking (Rails-guided)", () => {
   });
 
   // Rails: test "stale object raises"
-  it("raises StaleObjectError when lock_version is stale", async () => {
+  it("lock exception record", async () => {
     class Person extends Base {
       static { this._tableName = "people"; this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("lock_version", "integer", { default: 0 }); this.adapter = adapter; }
     }
@@ -3991,7 +3991,7 @@ describe("Readonly (Rails-guided)", () => {
   });
 
   // Rails: test "readonly record cannot be saved"
-  it("raises on save for readonly records", async () => {
+  it("cant save readonly record", async () => {
     class Post extends Base {
       static { this._tableName = "posts"; this.attribute("id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
     }
@@ -4034,7 +4034,7 @@ describe("Validation Contexts (Rails-guided)", () => {
   });
 
   // Rails: test "validation on: :create"
-  it("runs create-only validations only on new records", async () => {
+  it("valid uses create context when new", async () => {
     class User extends Base {
       static {
         this._tableName = "users";
@@ -4060,7 +4060,7 @@ describe("Validation Contexts (Rails-guided)", () => {
   });
 
   // Rails: test "validation on: :update"
-  it("runs update-only validations only on persisted records", async () => {
+  it("valid uses update context when persisted", async () => {
     class User extends Base {
       static {
         this._tableName = "users";
@@ -4298,7 +4298,7 @@ describe("insertAll / upsertAll (Rails-guided)", () => {
   });
 
   // Rails: test "insert_all inserts multiple records"
-  it("insert_all inserts multiple records without callbacks", async () => {
+  it("insert all", async () => {
     const log: string[] = [];
     class Book extends Base {
       static { this._tableName = "books"; this.attribute("id", "integer"); this.attribute("title", "string"); this.attribute("author", "string"); this.adapter = adapter; }
@@ -4506,7 +4506,7 @@ describe("Conditional Callbacks (Rails-guided)", () => {
   });
 
   // Rails: test "halt callback chain with false"
-  it("returning false from before_save halts the chain", async () => {
+  it("before save throwing abort", async () => {
     class Immutable extends Base {
       static {
         this._tableName = "immutables";
@@ -4543,7 +4543,7 @@ describe("Reflection (Rails-guided)", () => {
   });
 
   // Rails: test "columns"
-  it("columns returns metadata about all attributes", () => {
+  it("columns", () => {
     class Person extends Base {
       static {
         this._tableName = "people";
@@ -4561,7 +4561,7 @@ describe("Reflection (Rails-guided)", () => {
   });
 
   // Rails: test "column_names"
-  it("columnNames returns array of attribute name strings", () => {
+  it("read attribute names", () => {
     class Person extends Base {
       static {
         this._tableName = "people";

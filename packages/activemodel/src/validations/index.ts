@@ -1,4 +1,5 @@
-export { Validator, ConditionalOptions, shouldValidate } from "./validator.js";
+export type { Validator, ConditionalOptions } from "./validator.js";
+export { shouldValidate } from "./validator.js";
 export {
   PresenceValidator,
   AbsenceValidator,

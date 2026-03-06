@@ -3,6 +3,7 @@ import { UpdateStatement } from "../nodes/update-statement.js";
 import { Assignment } from "../nodes/binary.js";
 import { Quoted } from "../nodes/quoted.js";
 import { Limit } from "../nodes/unary.js";
+import { SqlLiteral } from "../nodes/sql-literal.js";
 import { Table } from "../table.js";
 import { ToSql } from "../visitors/to-sql.js";
 
@@ -77,6 +78,33 @@ export class UpdateManager {
    */
   key(keyNode: Node): this {
     this.ast.key = keyNode;
+    return this;
+  }
+
+  /**
+   * Add GROUP BY.
+   *
+   * Mirrors: Arel::UpdateManager#group
+   */
+  group(column: Node | string, ...rest: (Node | string)[]): this {
+    const columns = [column, ...rest];
+    for (const c of columns) {
+      if (typeof c === "string") {
+        this.ast.groups.push(new SqlLiteral(c));
+      } else {
+        this.ast.groups.push(c);
+      }
+    }
+    return this;
+  }
+
+  /**
+   * Add HAVING.
+   *
+   * Mirrors: Arel::UpdateManager#having
+   */
+  having(condition: Node): this {
+    this.ast.havings.push(condition);
     return this;
   }
 

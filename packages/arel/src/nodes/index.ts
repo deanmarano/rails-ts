@@ -1,4 +1,5 @@
-export { Node, NodeVisitor } from "./node.js";
+export { Node } from "./node.js";
+export type { NodeVisitor } from "./node.js";
 export { And } from "./and.js";
 export { Or } from "./or.js";
 export { Not } from "./not.js";
@@ -42,8 +43,8 @@ export {
   Subtraction,
   Multiplication,
   Division,
-  NodeOrValue,
 } from "./binary.js";
+export type { NodeOrValue } from "./binary.js";
 
 export { JoinSource } from "./join-source.js";
 export {

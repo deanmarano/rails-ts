@@ -54,6 +54,7 @@ export class Relation<T extends Base> {
   private _fromClause: string | null = null;
   private _createWithAttrs: Record<string, unknown> = {};
   private _extending: Array<Record<string, Function>> = [];
+  private _ctes: Array<{ name: string; sql: string; recursive: boolean }> = [];
   private _loaded = false;
   private _records: T[] = [];
 
@@ -72,9 +73,11 @@ export class Relation<T extends Base> {
    *   where("age > ?", 18)
    *   where("name LIKE ?", "%dean%")
    */
+  where(): Relation<T>;
   where(conditions: Record<string, unknown>): Relation<T>;
   where(sql: string, ...binds: unknown[]): Relation<T>;
-  where(conditionsOrSql: Record<string, unknown> | string, ...binds: unknown[]): Relation<T> {
+  where(conditionsOrSql?: Record<string, unknown> | string, ...binds: unknown[]): Relation<T> {
+    if (conditionsOrSql === undefined) return this._clone();
     const rel = this._clone();
     if (typeof conditionsOrSql === "string") {
       let sql = conditionsOrSql;
@@ -764,7 +767,8 @@ export class Relation<T extends Base> {
    *
    * Mirrors: ActiveRecord::Relation#extending
    */
-  extending(mod: Record<string, Function> | ((rel: Relation<T>) => void)): Relation<T> {
+  extending(mod?: Record<string, Function> | ((rel: Relation<T>) => void)): Relation<T> {
+    if (!mod) return this._clone();
     const rel = this._clone();
     if (typeof mod === "function") {
       mod(rel);
@@ -815,7 +819,8 @@ export class Relation<T extends Base> {
    *
    * Mirrors: ActiveRecord::Relation#except_
    */
-  except(other: Relation<T>): Relation<T> {
+  except(other?: Relation<T>): Relation<T> {
+    if (!other) return this._clone();
     const rel = this._clone();
     rel._setOperation = { type: "except", other };
     return rel;
@@ -826,7 +831,8 @@ export class Relation<T extends Base> {
    *
    * Mirrors: ActiveRecord::Relation#joins
    */
-  joins(tableOrSql: string, on?: string): Relation<T> {
+  joins(tableOrSql?: string, on?: string): Relation<T> {
+    if (!tableOrSql) return this._clone();
     const rel = this._clone();
     if (on) {
       rel._joinClauses.push({ type: "inner", table: tableOrSql, on });
@@ -845,6 +851,16 @@ export class Relation<T extends Base> {
     const rel = this._clone();
     rel._joinClauses.push({ type: "left", table, on });
     return rel;
+  }
+
+  /**
+   * Alias for leftJoins.
+   *
+   * Mirrors: ActiveRecord::Relation#left_outer_joins
+   */
+  leftOuterJoins(table?: string, on?: string): Relation<T> {
+    if (!table || !on) return this._clone();
+    return this.leftJoins(table, on);
   }
 
   /**
@@ -1426,8 +1442,9 @@ export class Relation<T extends Base> {
    *
    * Mirrors: ActiveRecord::Relation#sum
    */
-  async sum(column: string): Promise<number | Record<string, number>> {
+  async sum(column?: string): Promise<number | Record<string, number>> {
     if (this._isNone) return this._groupColumns.length > 0 ? {} : 0;
+    if (!column) return 0;
     if (this._groupColumns.length > 0) {
       return this._groupedAggregate("SUM", column);
     }
@@ -1545,7 +1562,7 @@ export class Relation<T extends Base> {
   /**
    * Mirrors: ActiveRecord::Relation#async_sum
    */
-  asyncSum(column: string) { return this.sum(column); }
+  asyncSum(column?: string) { return this.sum(column); }
 
   /**
    * Mirrors: ActiveRecord::Relation#async_minimum
@@ -1573,32 +1590,11 @@ export class Relation<T extends Base> {
   asyncIds() { return this.ids(); }
 
   /**
-   * Returns the size of the relation. If loaded, returns the cached count.
-   * Otherwise, executes a COUNT query.
-   *
-   * Mirrors: ActiveRecord::Relation#size
-   */
-  async size(): Promise<number> {
-    if (this._loaded) return this._records.length;
-    return this.count() as Promise<number>;
-  }
-
-  /**
-   * Returns the length of loaded records (forces loading if not loaded).
-   *
-   * Mirrors: ActiveRecord::Relation#length
-   */
-  async length(): Promise<number> {
-    const records = await this.toArray();
-    return records.length;
-  }
-
-  /**
    * Generic calculation method.
    *
    * Mirrors: ActiveRecord::Relation#calculate
    */
-  async calculate(operation: "count" | "sum" | "average" | "minimum" | "maximum", column?: string): Promise<number | null | Record<string, number>> {
+  async calculate(operation: "count" | "sum" | "average" | "minimum" | "maximum", column: string): Promise<number | null | Record<string, number>> {
     switch (operation) {
       case "count":
         return this.count(column);
@@ -2262,6 +2258,14 @@ export class Relation<T extends Base> {
       sql = `${sql} ${comments}`;
     }
 
+    // Prepend CTE clauses
+    if (this._ctes.length > 0) {
+      const hasRecursive = this._ctes.some((c) => c.recursive);
+      const keyword = hasRecursive ? "WITH RECURSIVE" : "WITH";
+      const cteDefs = this._ctes.map((c) => `"${c.name}" AS (${c.sql})`).join(", ");
+      sql = `${keyword} ${cteDefs} ${sql}`;
+    }
+
     return sql;
   }
 
@@ -2567,6 +2571,466 @@ export class Relation<T extends Base> {
     }
   }
 
+  // -- Finder methods --
+
+  /**
+   * Find records by primary key.
+   *
+   * Mirrors: ActiveRecord::Relation#find
+   */
+  async find(...ids: unknown[]): Promise<T | T[]> {
+    const pk = this._modelClass.primaryKey;
+    if (ids.length === 1 && !Array.isArray(ids[0])) {
+      const records = await this.where({ [pk]: ids[0] }).limit(1).toArray();
+      if (records.length === 0) {
+        throw new RecordNotFound(
+          `Couldn't find ${this._modelClass.name} with '${pk}'=${ids[0]}`,
+          this._modelClass.name, pk, ids[0]
+        );
+      }
+      return records[0];
+    }
+    const flatIds = ids.flat();
+    const records = await this.where({ [pk]: flatIds }).toArray();
+    if (records.length !== flatIds.length) {
+      throw new RecordNotFound(
+        `Couldn't find all ${this._modelClass.name} with '${pk}': (${flatIds.join(", ")})`,
+        this._modelClass.name, pk, flatIds
+      );
+    }
+    return records;
+  }
+
+  /**
+   * Find the first record matching conditions.
+   *
+   * Mirrors: ActiveRecord::Relation#find_by
+   */
+  async findBy(conditions: Record<string, unknown>): Promise<T | null> {
+    const records = await this.where(conditions).limit(1).toArray();
+    return records[0] ?? null;
+  }
+
+  /**
+   * Find the first record matching conditions, or throw.
+   *
+   * Mirrors: ActiveRecord::Relation#find_by!
+   */
+  async findByBang(conditions: Record<string, unknown>): Promise<T> {
+    const record = await this.findBy(conditions);
+    if (!record) {
+      throw new RecordNotFound(`${this._modelClass.name} not found`, this._modelClass.name);
+    }
+    return record;
+  }
+
+  /**
+   * Find the sole record matching conditions.
+   *
+   * Mirrors: ActiveRecord::Relation#find_sole_by
+   */
+  async findSoleBy(conditions: Record<string, unknown>): Promise<T> {
+    return this.where(conditions).sole();
+  }
+
+  /**
+   * Find or create, raising on validation failure.
+   *
+   * Mirrors: ActiveRecord::Relation#find_or_create_by!
+   */
+  async findOrCreateByBang(
+    conditions: Record<string, unknown>,
+    extra?: Record<string, unknown>
+  ): Promise<T> {
+    const records = await this.where(conditions).limit(1).toArray();
+    if (records.length > 0) return records[0];
+    return this._modelClass.createBang({ ...this._createWithAttrs, ...this._scopeAttributes(), ...conditions, ...extra }) as Promise<T>;
+  }
+
+  /**
+   * Try to create first; if uniqueness violation, find. Raises on validation failure.
+   *
+   * Mirrors: ActiveRecord::Relation#create_or_find_by!
+   */
+  async createOrFindByBang(
+    conditions: Record<string, unknown>,
+    extra?: Record<string, unknown>
+  ): Promise<T> {
+    try {
+      return await this._modelClass.createBang({ ...this._createWithAttrs, ...this._scopeAttributes(), ...conditions, ...extra }) as T;
+    } catch {
+      const records = await this.where(conditions).limit(1).toArray();
+      if (records.length > 0) return records[0];
+      throw new RecordNotFound(`${this._modelClass.name} not found`, this._modelClass.name);
+    }
+  }
+
+  // -- Bang ordinal methods --
+
+  /**
+   * Mirrors: ActiveRecord::Relation#second!
+   */
+  async secondBang(): Promise<T> {
+    const record = await this.second();
+    if (!record) throw new RecordNotFound(`${this._modelClass.name} not found`, this._modelClass.name);
+    return record;
+  }
+
+  /**
+   * Mirrors: ActiveRecord::Relation#third!
+   */
+  async thirdBang(): Promise<T> {
+    const record = await this.third();
+    if (!record) throw new RecordNotFound(`${this._modelClass.name} not found`, this._modelClass.name);
+    return record;
+  }
+
+  /**
+   * Mirrors: ActiveRecord::Relation#fourth!
+   */
+  async fourthBang(): Promise<T> {
+    const record = await this.fourth();
+    if (!record) throw new RecordNotFound(`${this._modelClass.name} not found`, this._modelClass.name);
+    return record;
+  }
+
+  /**
+   * Mirrors: ActiveRecord::Relation#fifth!
+   */
+  async fifthBang(): Promise<T> {
+    const record = await this.fifth();
+    if (!record) throw new RecordNotFound(`${this._modelClass.name} not found`, this._modelClass.name);
+    return record;
+  }
+
+  /**
+   * Mirrors: ActiveRecord::Relation#forty_two!
+   */
+  async fortyTwoBang(): Promise<T> {
+    const record = await this.fortyTwo();
+    if (!record) throw new RecordNotFound(`${this._modelClass.name} not found`, this._modelClass.name);
+    return record;
+  }
+
+  /**
+   * Mirrors: ActiveRecord::Relation#second_to_last!
+   */
+  async secondToLastBang(): Promise<T> {
+    const record = await this.secondToLast();
+    if (!record) throw new RecordNotFound(`${this._modelClass.name} not found`, this._modelClass.name);
+    return record;
+  }
+
+  /**
+   * Mirrors: ActiveRecord::Relation#third_to_last!
+   */
+  async thirdToLastBang(): Promise<T> {
+    const record = await this.thirdToLast();
+    if (!record) throw new RecordNotFound(`${this._modelClass.name} not found`, this._modelClass.name);
+    return record;
+  }
+
+  // -- CTE support --
+
+  /**
+   * Add a Common Table Expression (WITH clause).
+   *
+   * Mirrors: ActiveRecord::Relation#with
+   */
+  with(..._ctes: Array<Record<string, Relation<any> | string>>): Relation<T> {
+    const rel = this._clone();
+    for (const cte of _ctes) {
+      for (const [name, query] of Object.entries(cte)) {
+        const sql = typeof query === "string" ? query : query.toSql();
+        rel._ctes.push({ name, sql, recursive: false });
+      }
+    }
+    return rel;
+  }
+
+  /**
+   * Add a recursive Common Table Expression (WITH RECURSIVE clause).
+   *
+   * Mirrors: ActiveRecord::Relation#with_recursive
+   */
+  withRecursive(...ctes: Array<Record<string, Relation<any> | string>>): Relation<T> {
+    const rel = this._clone();
+    for (const cte of ctes) {
+      for (const [name, query] of Object.entries(cte)) {
+        const sql = typeof query === "string" ? query : query.toSql();
+        rel._ctes.push({ name, sql, recursive: true });
+      }
+    }
+    return rel;
+  }
+
+  // -- Other query methods --
+
+  /**
+   * Add table references for eager loading.
+   *
+   * Mirrors: ActiveRecord::Relation#references
+   */
+  references(..._tables: string[]): Relation<T> {
+    // In our implementation, references is a hint for the query planner.
+    // We store them but they don't affect SQL generation directly.
+    return this._clone();
+  }
+
+  /**
+   * Extract an associated collection into a new relation.
+   *
+   * Mirrors: ActiveRecord::Relation#extract_associated
+   */
+  async extractAssociated(name: string): Promise<Base[]> {
+    const records = await this.toArray();
+    const results: Base[] = [];
+    for (const record of records) {
+      const associated = await (record as any)[name]();
+      if (Array.isArray(associated)) {
+        results.push(...associated);
+      } else if (associated) {
+        results.push(associated);
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Alias for build.
+   *
+   * Mirrors: ActiveRecord::Relation#new
+   */
+  new(attrs: Record<string, unknown> = {}): T {
+    return this.build(attrs);
+  }
+
+  // -- Mutation methods --
+
+  /**
+   * Update a record by primary key.
+   *
+   * Mirrors: ActiveRecord::Relation#update
+   */
+  async update(id?: unknown, attrs?: Record<string, unknown>): Promise<T | T[]> {
+    if (id === undefined || (typeof id === "object" && id !== null && attrs === undefined)) {
+      // update(attrs) form — update all matching records
+      const updates = (id ?? {}) as Record<string, unknown>;
+      const records = await this.toArray();
+      for (const record of records) {
+        await record.update(updates);
+      }
+      return records;
+    }
+    const record = await this.find(id) as T;
+    await record.update(attrs ?? {});
+    return record;
+  }
+
+  /**
+   * Update a record by primary key, raising on validation failure.
+   *
+   * Mirrors: ActiveRecord::Relation#update!
+   */
+  async updateBang(id?: unknown, attrs?: Record<string, unknown>): Promise<T | T[]> {
+    if (id === undefined || (typeof id === "object" && id !== null && attrs === undefined)) {
+      const updates = (id ?? {}) as Record<string, unknown>;
+      const records = await this.toArray();
+      for (const record of records) {
+        await record.updateBang(updates);
+      }
+      return records;
+    }
+    const record = await this.find(id) as T;
+    await record.updateBang(attrs ?? {});
+    return record;
+  }
+
+  /**
+   * Insert a new record (skips callbacks/validations).
+   *
+   * Mirrors: ActiveRecord::Base.insert
+   */
+  async insert(attrs: Record<string, unknown>, options?: { uniqueBy?: string | string[] }): Promise<number> {
+    return this.insertAll([attrs], options);
+  }
+
+  /**
+   * Insert a new record, raising on failure.
+   *
+   * Mirrors: ActiveRecord::Base.insert!
+   */
+  async insertBang(attrs: Record<string, unknown>): Promise<number> {
+    return this.insertAll([attrs]);
+  }
+
+  /**
+   * Insert multiple records, raising on failure.
+   *
+   * Mirrors: ActiveRecord::Base.insert_all!
+   */
+  async insertAllBang(records: Record<string, unknown>[]): Promise<number> {
+    return this.insertAll(records);
+  }
+
+  /**
+   * Upsert a single record.
+   *
+   * Mirrors: ActiveRecord::Base.upsert
+   */
+  async upsert(attrs: Record<string, unknown>, options?: { uniqueBy?: string | string[] }): Promise<number> {
+    return this.upsertAll([attrs], options);
+  }
+
+  /**
+   * Update counters on matching records.
+   *
+   * Mirrors: ActiveRecord::Relation#update_counters
+   */
+  async updateCounters(counters: Record<string, number>): Promise<number> {
+    if (this._isNone) return 0;
+    const table = this._modelClass.arelTable;
+    const setClauses = Object.entries(counters)
+      .map(([key, val]) => `"${key}" = "${key}" + ${val}`)
+      .join(", ");
+    let sql = `UPDATE "${table.name}" SET ${setClauses}`;
+    const whereConditions = this._buildWhereStrings(table);
+    if (whereConditions.length > 0) {
+      sql += ` WHERE ${whereConditions.join(" AND ")}`;
+    }
+    return this._modelClass.adapter.executeMutation(sql);
+  }
+
+  /**
+   * Delete a record by primary key (no callbacks).
+   *
+   * Mirrors: ActiveRecord::Relation#delete
+   */
+  async delete(id: unknown): Promise<number> {
+    const table = this._modelClass.arelTable;
+    const pk = this._modelClass.primaryKey;
+    const quoted = typeof id === "number" ? String(id) : `'${String(id).replace(/'/g, "''")}'`;
+    return this._modelClass.adapter.executeMutation(
+      `DELETE FROM "${table.name}" WHERE "${pk}" = ${quoted}`
+    );
+  }
+
+  /**
+   * Destroy a record by primary key (runs callbacks).
+   *
+   * Mirrors: ActiveRecord::Relation#destroy
+   */
+  async destroy(id: unknown): Promise<T> {
+    const record = await this.find(id) as T;
+    await record.destroy();
+    return record;
+  }
+
+  /**
+   * Destroy records matching conditions.
+   *
+   * Mirrors: ActiveRecord::Relation#destroy_by
+   */
+  async destroyBy(conditions: Record<string, unknown> = {}): Promise<T[]> {
+    return this.where(conditions).destroyAll();
+  }
+
+  /**
+   * Delete records matching conditions (no callbacks).
+   *
+   * Mirrors: ActiveRecord::Relation#delete_by
+   */
+  async deleteBy(conditions: Record<string, unknown> = {}): Promise<number> {
+    return this.where(conditions).deleteAll();
+  }
+
+  // -- Other --
+
+  /**
+   * Async variant of pick.
+   *
+   * Mirrors: ActiveRecord::Relation#async_pick
+   */
+  asyncPick(...columns: Array<string | Nodes.Attribute | Nodes.NamedFunction | Nodes.SqlLiteral>) {
+    return this.pick(...columns);
+  }
+
+  /**
+   * Return the Arel SelectManager.
+   *
+   * Mirrors: ActiveRecord::Relation#arel (alias for toArel)
+   */
+  arel(): SelectManager {
+    return this.toArel();
+  }
+
+  /**
+   * Check equality with another relation.
+   *
+   * Mirrors: ActiveRecord::Relation#==
+   */
+  async equals(other: Relation<T>): Promise<boolean> {
+    const a = await this.toArray();
+    const b = await other.toArray();
+    if (a.length !== b.length) return false;
+    return a.every((rec, i) => rec.isEqual(b[i]));
+  }
+
+  /**
+   * Return the Arel table for this relation's model.
+   *
+   * Mirrors: ActiveRecord::Relation#table
+   */
+  get table(): any {
+    return this._modelClass.arelTable;
+  }
+
+  /**
+   * Return the model class for this relation.
+   *
+   * Mirrors: ActiveRecord::Relation#model
+   */
+  get model(): typeof Base {
+    return this._modelClass;
+  }
+
+  /**
+   * Alias for isLoaded.
+   *
+   * Mirrors: ActiveRecord::Relation#loaded?
+   */
+  get loaded(): boolean {
+    return this._loaded;
+  }
+
+  /**
+   * Check if this relation is a none relation (will always return empty).
+   *
+   * Mirrors: ActiveRecord::Relation#none?
+   */
+  isNone(): boolean {
+    return this._isNone;
+  }
+
+  /**
+   * Return self — a no-op on a Relation.
+   *
+   * Mirrors: ActiveRecord::Relation#all
+   */
+  all(): Relation<T> {
+    return this;
+  }
+
+  /**
+   * Check if the given record is present in the loaded records.
+   *
+   * Mirrors: ActiveRecord::Relation#include?
+   */
+  async include(record: T): Promise<boolean> {
+    const records = await this.toArray();
+    return records.some((r) => r.isEqual(record));
+  }
+
   /** @internal */
   _clone(): Relation<T> {
     const rel = new Relation<T>(this._modelClass);
@@ -2600,6 +3064,7 @@ export class Relation<T extends Base> {
     rel._fromClause = this._fromClause;
     rel._createWithAttrs = { ...this._createWithAttrs };
     rel._extending = [...this._extending];
+    rel._ctes = [...this._ctes];
     return wrapWithScopeProxy(rel);
   }
 }

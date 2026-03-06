@@ -9,6 +9,8 @@ export class DeleteStatement extends Node {
   relation: Node | null;
   wheres: Node[];
   orders: Node[];
+  groups: Node[];
+  havings: Node[];
   limit: Node | null;
 
   constructor() {
@@ -16,6 +18,8 @@ export class DeleteStatement extends Node {
     this.relation = null;
     this.wheres = [];
     this.orders = [];
+    this.groups = [];
+    this.havings = [];
     this.limit = null;
   }
 

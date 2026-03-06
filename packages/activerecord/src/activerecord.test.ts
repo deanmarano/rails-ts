@@ -23,7 +23,7 @@ describe("ActiveRecord", () => {
   describe("Base", () => {
     // -- Table name inference --
     describe("table name inference", () => {
-      it("infers table name from class name", () => {
+      it("table name guesses", () => {
         class User extends Base {}
         expect(User.tableName).toBe("users");
       });
@@ -38,7 +38,7 @@ describe("ActiveRecord", () => {
         expect(Category.tableName).toBe("categories");
       });
 
-      it("allows overriding table name", () => {
+      it("switching between table name", () => {
         class User extends Base {
           static {
             this.tableName = "people";
@@ -76,7 +76,7 @@ describe("ActiveRecord", () => {
 
     // -- Record state --
     describe("record state", () => {
-      it("new record starts as new_record", () => {
+      it("new record returns boolean", () => {
         class User extends Base {
           static {
             this.attribute("name", "string");
@@ -88,7 +88,7 @@ describe("ActiveRecord", () => {
         expect(u.isDestroyed()).toBe(false);
       });
 
-      it("is persisted after save", async () => {
+      it("persisted returns boolean", async () => {
         const adapter = freshAdapter();
         class User extends Base {
           static {
@@ -102,7 +102,7 @@ describe("ActiveRecord", () => {
         expect(u.isPersisted()).toBe(true);
       });
 
-      it("is destroyed after destroy", async () => {
+      it("destroyed returns boolean", async () => {
         const adapter = freshAdapter();
         class User extends Base {
           static {
@@ -133,7 +133,7 @@ describe("ActiveRecord", () => {
         Post.adapter = adapter;
       });
 
-      it("save inserts a new record", async () => {
+      it("save valid record", async () => {
         const p = new Post({ title: "Hello", body: "World" });
         const result = await p.save();
         expect(result).toBe(true);
@@ -150,7 +150,7 @@ describe("ActiveRecord", () => {
         expect(found.readAttribute("title")).toBe("Updated");
       });
 
-      it("save returns false on validation failure", async () => {
+      it("save invalid record", async () => {
         class Required extends Base {
           static {
             this.attribute("name", "string");
@@ -176,20 +176,20 @@ describe("ActiveRecord", () => {
         await expect(r.saveBang()).rejects.toThrow("Validation failed");
       });
 
-      it("create saves and returns the record", async () => {
+      it("create", async () => {
         const p = await Post.create({ title: "Test", body: "Content" });
         expect(p.isPersisted()).toBe(true);
         expect(p.id).toBe(1);
       });
 
-      it("update changes attributes and saves", async () => {
+      it("update object", async () => {
         const p = await Post.create({ title: "Old", body: "Content" });
         await p.update({ title: "New" });
         const found = await Post.find(p.id);
         expect(found.readAttribute("title")).toBe("New");
       });
 
-      it("destroy removes the record", async () => {
+      it("destroy", async () => {
         const p = await Post.create({ title: "Hello", body: "World" });
         const id = p.id;
         await p.destroy();
@@ -228,11 +228,11 @@ describe("ActiveRecord", () => {
         expect(found.readAttribute("name")).toBe("Alice");
       });
 
-      it("find throws when not found", async () => {
+      it("find raises record not found exception", async () => {
         await expect(User.find(999)).rejects.toThrow("not found");
       });
 
-      it("findBy returns first match", async () => {
+      it("find_by with hash conditions returns the first matching record", async () => {
         await User.create({ name: "Alice", email: "alice@test.com" });
         await User.create({ name: "Bob", email: "bob@test.com" });
         const found = await User.findBy({ name: "Bob" });
@@ -240,12 +240,12 @@ describe("ActiveRecord", () => {
         expect(found!.readAttribute("email")).toBe("bob@test.com");
       });
 
-      it("findBy returns null when no match", async () => {
+      it("find_by returns nil if the record is missing", async () => {
         const found = await User.findBy({ name: "Nobody" });
         expect(found).toBeNull();
       });
 
-      it("findByBang throws when no match", async () => {
+      it("find_by! raises RecordNotFound if the record is missing", async () => {
         await expect(User.findByBang({ name: "Nobody" })).rejects.toThrow(
           "not found"
         );
@@ -279,7 +279,7 @@ describe("ActiveRecord", () => {
 
     // -- Reload --
     describe("reload", () => {
-      it("reloads attributes from database", async () => {
+      it("reload", async () => {
         const adapter = freshAdapter();
         class User extends Base {
           static {
@@ -359,7 +359,7 @@ describe("ActiveRecord", () => {
         expect(log).toContain("before_destroy");
       });
 
-      it("before_save returning false halts save", async () => {
+      it("before save throwing abort", async () => {
         const adapter = freshAdapter();
 
         class Guarded extends Base {
@@ -485,7 +485,7 @@ describe("ActiveRecord", () => {
       ).toBe(false);
     });
 
-    it("none returns empty results", async () => {
+    it("none", async () => {
       const items = await Item.all().none().toArray();
       expect(items).toHaveLength(0);
       expect(await Item.all().none().count()).toBe(0);
@@ -501,13 +501,13 @@ describe("ActiveRecord", () => {
       expect(ids).toEqual([1, 2, 3]);
     });
 
-    it("updateAll updates all matching records", async () => {
+    it("update all", async () => {
       await Item.all().where({ category: "fruit" }).updateAll({ price: 10 });
       const apple = await Item.find(1);
       expect(apple.readAttribute("price")).toBe(10);
     });
 
-    it("deleteAll removes all matching records", async () => {
+    it("delete all", async () => {
       await Item.all().where({ category: "fruit" }).deleteAll();
       const remaining = await Item.all().toArray();
       expect(remaining).toHaveLength(1);
@@ -764,7 +764,7 @@ describe("ActiveRecord", () => {
       Account.adapter = adapter;
     });
 
-    it("commits on success", async () => {
+    it("successful", async () => {
       await transaction(Account, async () => {
         await Account.create({ name: "Alice", balance: 100 });
         await Account.create({ name: "Bob", balance: 200 });
@@ -787,7 +787,7 @@ describe("ActiveRecord", () => {
       expect(log).toEqual(["committed"]);
     });
 
-    it("rolls back on error", async () => {
+    it("failing on exception", async () => {
       try {
         await transaction(Account, async () => {
           await Account.create({ name: "Alice", balance: 100 });
@@ -818,7 +818,7 @@ describe("ActiveRecord", () => {
       expect(log).toEqual(["rolled_back"]);
     });
 
-    it("nested savepoint catches inner errors", async () => {
+    it("force savepoint in nested transaction", async () => {
       await transaction(Account, async () => {
         await Account.create({ name: "Alice", balance: 100 });
 
@@ -1205,7 +1205,7 @@ describe("ActiveRecord", () => {
   // Untested surface area — Callbacks (extended)
   // =========================================================================
   describe("Callbacks (extended)", () => {
-    it("runs before_update only on existing records", async () => {
+    it("update", async () => {
       const adapter = freshAdapter();
       const log: string[] = [];
 
@@ -1251,7 +1251,7 @@ describe("ActiveRecord", () => {
       expect(log).not.toContain("after_create");
     });
 
-    it("after_destroy runs on destroy", async () => {
+    it("destroy", async () => {
       const adapter = freshAdapter();
       const log: string[] = [];
 
@@ -1360,7 +1360,7 @@ describe("ActiveRecord", () => {
       await expect(u.updateBang({ name: "" })).rejects.toThrow("Validation failed");
     });
 
-    it("save on destroyed record throws", async () => {
+    it("save destroyed object", async () => {
       const adapter = freshAdapter();
       class User extends Base {
         static {
@@ -1373,7 +1373,7 @@ describe("ActiveRecord", () => {
       await expect(u.save()).rejects.toThrow("destroyed");
     });
 
-    it("instance delete skips callbacks", async () => {
+    it("delete doesnt run callbacks", async () => {
       const adapter = freshAdapter();
       const log: string[] = [];
 
@@ -1390,7 +1390,7 @@ describe("ActiveRecord", () => {
       expect(log).not.toContain("before_destroy");
     });
 
-    it("static delete by ID", async () => {
+    it("class level delete", async () => {
       const adapter = freshAdapter();
       class User extends Base {
         static {
@@ -1472,7 +1472,7 @@ describe("ActiveRecord", () => {
       expect((post.readAttribute("updated_at") as Date).toISOString()).toBe(explicit.toISOString());
     });
 
-    it("auto-sets updated_at on update but not created_at", async () => {
+    it("saving a changed record updates its timestamp", async () => {
       const adapter = freshAdapter();
       class Post extends Base {
         static {
@@ -1513,7 +1513,7 @@ describe("ActiveRecord", () => {
   // updateColumn / updateColumns
   // =========================================================================
   describe("updateColumn / updateColumns", () => {
-    it("updates a single column without callbacks", async () => {
+    it("update column", async () => {
       const adapter = freshAdapter();
       const log: string[] = [];
 
@@ -1535,7 +1535,7 @@ describe("ActiveRecord", () => {
       expect(log).toHaveLength(0); // No callbacks fired
     });
 
-    it("updates multiple columns without validations", async () => {
+    it("update columns", async () => {
       const adapter = freshAdapter();
 
       class User extends Base {
@@ -1573,7 +1573,7 @@ describe("ActiveRecord", () => {
       expect(reloaded.readAttribute("name")).toBe("Bob");
     });
 
-    it("throws on new record", async () => {
+    it("update column should raise exception if new record", async () => {
       const adapter = freshAdapter();
 
       class User extends Base {
@@ -1589,7 +1589,7 @@ describe("ActiveRecord", () => {
       );
     });
 
-    it("resets dirty tracking", async () => {
+    it("update column should not leave the object dirty", async () => {
       const adapter = freshAdapter();
 
       class User extends Base {
@@ -1653,7 +1653,7 @@ describe("ActiveRecord", () => {
   // findEach / findInBatches
   // =========================================================================
   describe("findEach / findInBatches", () => {
-    it("findInBatches yields batches of records", async () => {
+    it("find in batches should return batches", async () => {
       const adapter = freshAdapter();
 
       class User extends Base {
@@ -1836,7 +1836,7 @@ describe("ActiveRecord", () => {
   // Aggregations
   // =========================================================================
   describe("Aggregations", () => {
-    it("sum returns the sum of a column", async () => {
+    it("should sum field", async () => {
       const adapter = freshAdapter();
 
       class Order extends Base {
@@ -1853,7 +1853,7 @@ describe("ActiveRecord", () => {
       expect(await Order.all().sum("amount")).toBe(60);
     });
 
-    it("average returns the average of a column", async () => {
+    it("should average field", async () => {
       const adapter = freshAdapter();
 
       class Order extends Base {
@@ -1870,7 +1870,7 @@ describe("ActiveRecord", () => {
       expect(await Order.all().average("amount")).toBe(20);
     });
 
-    it("minimum returns the min value", async () => {
+    it("should get minimum of field", async () => {
       const adapter = freshAdapter();
 
       class Order extends Base {
@@ -1887,7 +1887,7 @@ describe("ActiveRecord", () => {
       expect(await Order.all().minimum("amount")).toBe(5);
     });
 
-    it("maximum returns the max value", async () => {
+    it("should get maximum of field", async () => {
       const adapter = freshAdapter();
 
       class Order extends Base {
@@ -1904,7 +1904,7 @@ describe("ActiveRecord", () => {
       expect(await Order.all().maximum("amount")).toBe(30);
     });
 
-    it("sum with where clause", async () => {
+    it("should sum field with conditions", async () => {
       const adapter = freshAdapter();
 
       class Order extends Base {
@@ -1922,7 +1922,7 @@ describe("ActiveRecord", () => {
       expect(await Order.where({ status: "paid" }).sum("amount")).toBe(40);
     });
 
-    it("sum on none relation returns 0", async () => {
+    it("no queries for empty relation on sum", async () => {
       const adapter = freshAdapter();
 
       class Order extends Base {
@@ -1935,7 +1935,7 @@ describe("ActiveRecord", () => {
       expect(await Order.all().none().sum("amount")).toBe(0);
     });
 
-    it("average on none relation returns null", async () => {
+    it("no queries for empty relation on average", async () => {
       const adapter = freshAdapter();
 
       class Order extends Base {
@@ -1948,7 +1948,7 @@ describe("ActiveRecord", () => {
       expect(await Order.all().none().average("amount")).toBeNull();
     });
 
-    it("count with column name ignores nulls", async () => {
+    it("count with column parameter", async () => {
       const adapter = freshAdapter();
 
       class User extends Base {
@@ -2127,7 +2127,7 @@ describe("ActiveRecord", () => {
   // touch
   // =========================================================================
   describe("touch", () => {
-    it("updates updated_at timestamp", async () => {
+    it("touching a record updates its timestamp", async () => {
       const adapter = freshAdapter();
 
       class Post extends Base {
@@ -2148,7 +2148,7 @@ describe("ActiveRecord", () => {
       expect(newUpdatedAt.getTime()).toBeGreaterThanOrEqual(originalUpdatedAt.getTime());
     });
 
-    it("touch with named timestamp", async () => {
+    it("touching an attribute updates it", async () => {
       const adapter = freshAdapter();
 
       class Post extends Base {
@@ -2664,7 +2664,7 @@ describe("ActiveRecord", () => {
       expect(log).toHaveLength(0);
     });
 
-    it("updateAll does not auto-update updated_at", async () => {
+    it("update column should not modify updated at", async () => {
       const adapter = freshAdapter();
 
       class Post extends Base {
@@ -2761,7 +2761,7 @@ describe("ActiveRecord", () => {
   // Edge cases — Persistence
   // =========================================================================
   describe("Persistence edge cases", () => {
-    it("save on unchanged record is a no-op", async () => {
+    it("update does not run sql if record has not changed", async () => {
       const adapter = freshAdapter();
 
       class User extends Base {
@@ -2914,7 +2914,7 @@ describe("ActiveRecord", () => {
   // Edge cases — Aggregations
   // =========================================================================
   describe("Aggregation edge cases", () => {
-    it("minimum on empty table returns null", async () => {
+    it("no queries for empty relation on minimum", async () => {
       const adapter = freshAdapter();
 
       class Order extends Base {
@@ -2927,7 +2927,7 @@ describe("ActiveRecord", () => {
       expect(await Order.all().minimum("amount")).toBeNull();
     });
 
-    it("maximum on empty table returns null", async () => {
+    it("no queries for empty relation on maximum", async () => {
       const adapter = freshAdapter();
 
       class Order extends Base {
@@ -2968,7 +2968,7 @@ describe("ActiveRecord", () => {
       expect(await Order.all().none().maximum("amount")).toBeNull();
     });
 
-    it("sum with where condition", async () => {
+    it("should sum scoped field with conditions", async () => {
       const adapter = freshAdapter();
 
       class Order extends Base {
@@ -3210,7 +3210,7 @@ describe("ActiveRecord", () => {
   // Batch 1D — increment/decrement/toggle
   // =========================================================================
   describe("Base: increment/decrement/toggle", () => {
-    it("increment modifies attribute in memory", () => {
+    it("increment attribute", () => {
       class Counter extends Base {
         static { this.attribute("count", "integer", { default: 0 }); this.adapter = freshAdapter(); }
       }
@@ -3219,7 +3219,7 @@ describe("ActiveRecord", () => {
       expect(c.readAttribute("count")).toBe(1);
     });
 
-    it("increment with custom amount", () => {
+    it("increment attribute by", () => {
       class Counter extends Base {
         static { this.attribute("count", "integer", { default: 5 }); this.adapter = freshAdapter(); }
       }
@@ -3228,7 +3228,7 @@ describe("ActiveRecord", () => {
       expect(c.readAttribute("count")).toBe(8);
     });
 
-    it("decrement modifies attribute in memory", () => {
+    it("decrement attribute", () => {
       class Counter extends Base {
         static { this.attribute("count", "integer", { default: 10 }); this.adapter = freshAdapter(); }
       }
@@ -3237,7 +3237,7 @@ describe("ActiveRecord", () => {
       expect(c.readAttribute("count")).toBe(9);
     });
 
-    it("decrement with custom amount", () => {
+    it("decrement attribute by", () => {
       class Counter extends Base {
         static { this.attribute("count", "integer", { default: 10 }); this.adapter = freshAdapter(); }
       }
@@ -3905,7 +3905,7 @@ describe("ActiveRecord", () => {
       expect(log).toContain("committed");
     });
 
-    it("fires afterCommit inside transaction on commit", async () => {
+    it("call after commit after transaction commits", async () => {
       const adapter = freshAdapter();
       const log: string[] = [];
 
@@ -3928,7 +3928,7 @@ describe("ActiveRecord", () => {
   // Batch 6C — UniquenessValidator
   // =========================================================================
   describe("UniquenessValidator", () => {
-    it("validates uniqueness of an attribute", async () => {
+    it("validate uniqueness", async () => {
       const adapter = freshAdapter();
 
       class Email extends Base {
@@ -3965,7 +3965,7 @@ describe("ActiveRecord", () => {
       expect(saved).toBe(true);
     });
 
-    it("validates with scope", async () => {
+    it("validate uniqueness with scope", async () => {
       const adapter = freshAdapter();
 
       class Membership extends Base {
@@ -4116,7 +4116,7 @@ describe("ActiveRecord", () => {
       adapter = freshAdapter();
     });
 
-    it("defines scopes for each enum value", async () => {
+    it("find via scope", async () => {
       class Post extends Base {
         static _tableName = "posts";
       }
@@ -4139,7 +4139,7 @@ describe("ActiveRecord", () => {
       expect(published[0].readAttribute("title")).toBe("B");
     });
 
-    it("defines predicate methods", () => {
+    it("query state by predicate", () => {
       class Post extends Base {
         static _tableName = "posts";
       }
@@ -4154,7 +4154,7 @@ describe("ActiveRecord", () => {
       expect((post as any).isArchived()).toBe(false);
     });
 
-    it("defines setter methods", () => {
+    it("update by setter", () => {
       class Post extends Base {
         static _tableName = "posts";
       }
@@ -4218,7 +4218,7 @@ describe("ActiveRecord", () => {
       expect(Truck.tableName).toBe("vehicles");
     });
 
-    it("auto-sets the type column on save", async () => {
+    it("inheritance save", async () => {
       class Vehicle extends Base {
         static _tableName = "vehicles";
       }
@@ -4236,7 +4236,7 @@ describe("ActiveRecord", () => {
       expect(car.readAttribute("type")).toBe("Car");
     });
 
-    it("subclass queries filter by type", async () => {
+    it("inheritance condition", async () => {
       class Vehicle extends Base {
         static _tableName = "vehicles";
       }
@@ -4270,7 +4270,7 @@ describe("ActiveRecord", () => {
       expect(all).toHaveLength(3);
     });
 
-    it("instantiates the correct subclass from base queries", async () => {
+    it("inheritance find", async () => {
       class Vehicle extends Base {
         static _tableName = "vehicles";
       }
@@ -4533,7 +4533,7 @@ describe("ActiveRecord", () => {
       adapter = freshAdapter();
     });
 
-    it("reads and writes individual store accessors", () => {
+    it("reading store attributes through accessors", () => {
       class User extends Base {
         static _tableName = "users";
       }
@@ -4601,7 +4601,7 @@ describe("ActiveRecord", () => {
       adapter = freshAdapter();
     });
 
-    it("increments counter on create and decrements on destroy", async () => {
+    it("increment counter", async () => {
       class Post extends Base {
         static _tableName = "posts";
       }
@@ -4714,7 +4714,7 @@ describe("ActiveRecord", () => {
       adapter = freshAdapter();
     });
 
-    it("increments lock_version on update", async () => {
+    it("lock existing", async () => {
       class Post extends Base {
         static _tableName = "posts";
       }
@@ -4733,7 +4733,7 @@ describe("ActiveRecord", () => {
       expect(post.readAttribute("lock_version")).toBe(2);
     });
 
-    it("raises StaleObjectError on version mismatch", async () => {
+    it("lock exception record", async () => {
       class Post extends Base {
         static _tableName = "posts";
       }
@@ -4763,7 +4763,7 @@ describe("ActiveRecord", () => {
       adapter = freshAdapter();
     });
 
-    it("prevents saving a readonly record", async () => {
+    it("cant save readonly record", async () => {
       class Post extends Base {
         static _tableName = "posts";
       }
@@ -4795,7 +4795,7 @@ describe("ActiveRecord", () => {
 
   // -- Validation Contexts --
   describe("validation contexts", () => {
-    it("on: create only runs for new records", async () => {
+    it("valid uses create context when new", async () => {
       class User extends Base {
         static _tableName = "users";
       }
@@ -4822,7 +4822,7 @@ describe("ActiveRecord", () => {
       expect(saved3).toBe(true);
     });
 
-    it("on: update only runs for existing records", async () => {
+    it("valid uses update context when persisted", async () => {
       class User extends Base {
         static _tableName = "users";
       }
@@ -4985,7 +4985,7 @@ describe("ActiveRecord", () => {
     let adapter: MemoryAdapter;
     beforeEach(() => { adapter = freshAdapter(); });
 
-    it("inserts multiple records in bulk", async () => {
+    it("insert all", async () => {
       class Product extends Base { static _tableName = "products"; }
       Product.attribute("id", "integer");
       Product.attribute("name", "string");
@@ -8300,7 +8300,7 @@ describe("ActiveRecord", () => {
   });
 
   describe("table_name_prefix and table_name_suffix", () => {
-    it("applies prefix to inferred table name", () => {
+    it("table name guesses with prefixes and suffixes", () => {
       class User extends Base {
         static { this.tableNamePrefix = "app_"; }
       }
@@ -9913,6 +9913,2673 @@ describe("ActiveRecord", () => {
         names.push(user.readAttribute("name") as string);
       }
       expect(names.sort()).toEqual(["Alice", "Bob"]);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Persistence (from persistence_test.rb)
+  // =========================================================================
+  describe("Persistence (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("save valid record returns true", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      const p = new Post({ title: "Hello" });
+      expect(await p.save()).toBe(true);
+      expect(p.isPersisted()).toBe(true);
+    });
+
+    it("save invalid record returns false", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.validates("title", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      const p = new Post();
+      expect(await p.save()).toBe(false);
+      expect(p.isNewRecord()).toBe(true);
+    });
+
+    it("save! throws RecordInvalid on validation failure", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.validates("title", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      const p = new Post();
+      await expect(p.saveBang()).rejects.toThrow("Validation failed");
+    });
+
+    it("create returns persisted object", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ title: "Test" });
+      expect(p.isPersisted()).toBe(true);
+      expect(p.id).toBeDefined();
+    });
+
+    it("create! throws on validation failure", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.validates("title", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      await expect(Post.createBang({})).rejects.toThrow("Validation failed");
+    });
+
+    it("returns object even if validations failed", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.validates("title", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      const p = await Post.create({});
+      expect(p).toBeInstanceOf(Post);
+      expect(p.isNewRecord()).toBe(true);
+      expect(p.errors.get("title")).toContain("can't be blank");
+    });
+
+    it("update attribute", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ title: "Old" });
+      await p.update({ title: "New" });
+      const found = await Post.find(p.id);
+      expect(found.readAttribute("title")).toBe("New");
+    });
+
+    it("update! throws on validation failure", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.validates("title", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      const p = await Post.create({ title: "Hello" });
+      await expect(p.updateBang({ title: "" })).rejects.toThrow("Validation failed");
+    });
+
+    it("destroy removes record from database", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ title: "Hello" });
+      const id = p.id;
+      await p.destroy();
+      expect(p.isDestroyed()).toBe(true);
+      await expect(Post.find(id)).rejects.toThrow("not found");
+    });
+
+    it("delete removes without callbacks", async () => {
+      const log: string[] = [];
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.adapter = adapter;
+          this.beforeDestroy(() => { log.push("before_destroy"); });
+        }
+      }
+      const p = await Post.create({ title: "Hello" });
+      await p.delete();
+      expect(p.isDestroyed()).toBe(true);
+      expect(log).toHaveLength(0);
+    });
+
+    it("delete all removes all records", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      await Post.create({ title: "A" });
+      await Post.create({ title: "B" });
+      await Post.all().deleteAll();
+      expect(await Post.all().count()).toBe(0);
+    });
+
+    it("increment attribute", async () => {
+      class Post extends Base {
+        static { this.attribute("views", "integer"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ views: 5 });
+      p.increment("views");
+      expect(p.readAttribute("views")).toBe(6);
+    });
+
+    it("increment attribute by amount", async () => {
+      class Post extends Base {
+        static { this.attribute("views", "integer"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ views: 5 });
+      p.increment("views", 3);
+      expect(p.readAttribute("views")).toBe(8);
+    });
+
+    it("increment nil attribute starts from 0", async () => {
+      class Post extends Base {
+        static { this.attribute("views", "integer"); this.adapter = adapter; }
+      }
+      const p = await Post.create({});
+      p.increment("views");
+      expect(p.readAttribute("views")).toBe(1);
+    });
+
+    it("decrement attribute", async () => {
+      class Post extends Base {
+        static { this.attribute("views", "integer"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ views: 5 });
+      p.decrement("views");
+      expect(p.readAttribute("views")).toBe(4);
+    });
+
+    it("toggle boolean attribute", async () => {
+      class Post extends Base {
+        static { this.attribute("published", "boolean"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ published: false });
+      p.toggle("published");
+      expect(p.readAttribute("published")).toBe(true);
+      p.toggle("published");
+      expect(p.readAttribute("published")).toBe(false);
+    });
+
+    it("becomes transforms to another class", async () => {
+      class Animal extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      class Dog extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const animal = await Animal.create({ name: "Rex" });
+      const dog = animal.becomes(Dog);
+      expect(dog).toBeInstanceOf(Dog);
+      expect(dog.readAttribute("name")).toBe("Rex");
+    });
+
+    it("save destroyed object raises", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ title: "Hello" });
+      await p.destroy();
+      await expect(p.save()).rejects.toThrow("destroyed");
+    });
+
+    it("destroy many by class method", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      await Post.create({ title: "A" });
+      await Post.create({ title: "B" });
+      const destroyed = await Post.destroyAll();
+      expect(destroyed).toHaveLength(2);
+      expect(await Post.all().count()).toBe(0);
+    });
+
+    it("class level delete by id", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      await Post.create({ title: "A" });
+      await Post.delete(1);
+      await expect(Post.find(1)).rejects.toThrow("not found");
+    });
+
+    it("class level update by id", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ title: "Old" });
+      const updated = await Post.update(p.id, { title: "New" });
+      expect(updated.readAttribute("title")).toBe("New");
+    });
+
+    it("reload clears local changes", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ title: "Original" });
+      p.writeAttribute("title", "Changed");
+      await p.reload();
+      expect(p.readAttribute("title")).toBe("Original");
+    });
+
+    it("update does not run sql if record has not changed", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ title: "Hello" });
+      expect(await p.save()).toBe(true);
+      expect(p.isPersisted()).toBe(true);
+    });
+
+    it("assignAttributes does not persist changes", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ title: "Old" });
+      p.assignAttributes({ title: "New" });
+      expect(p.readAttribute("title")).toBe("New");
+      const found = await Post.find(p.id);
+      expect(found.readAttribute("title")).toBe("Old");
+    });
+
+    it("updateColumn skips callbacks and validations", async () => {
+      const log: string[] = [];
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.validates("title", { presence: true });
+          this.adapter = adapter;
+          this.beforeSave(() => { log.push("before_save"); });
+        }
+      }
+      const p = await Post.create({ title: "Hello" });
+      log.length = 0;
+      await p.updateColumn("title", "");
+      expect(p.readAttribute("title")).toBe("");
+      expect(log).toHaveLength(0);
+    });
+
+    it("updateColumns skips callbacks", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.attribute("body", "string"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ title: "Old", body: "content" });
+      await p.updateColumns({ title: "New", body: "updated" });
+      const found = await Post.find(p.id);
+      expect(found.readAttribute("title")).toBe("New");
+      expect(found.readAttribute("body")).toBe("updated");
+    });
+
+    it("updateColumn raises on new record", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      const p = new Post({ title: "Hello" });
+      await expect(p.updateColumn("title", "Changed")).rejects.toThrow();
+    });
+
+    it("updateColumn clears dirty state", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ title: "Hello" });
+      await p.updateColumn("title", "Changed");
+      expect(p.changed).toBe(false);
+    });
+
+    it("destroyBang delegates to destroy", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      const p = await Post.create({ title: "Hello" });
+      const result = await p.destroyBang();
+      expect(result.isDestroyed()).toBe(true);
+    });
+
+    it("dup creates an unsaved copy", async () => {
+      class Post extends Base {
+        static { this.attribute("title", "string"); this.adapter = adapter; }
+      }
+      const original = await Post.create({ title: "Original" });
+      const copy = original.dup();
+      expect(copy.isNewRecord()).toBe(true);
+      expect(copy.id).toBeNull();
+      expect(copy.readAttribute("title")).toBe("Original");
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Finders (from finder_test.rb)
+  // =========================================================================
+  describe("Finders (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+
+    class User extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("email", "string");
+        this.attribute("age", "integer");
+      }
+    }
+
+    beforeEach(async () => {
+      adapter = freshAdapter();
+      User.adapter = adapter;
+      await User.create({ name: "Alice", email: "alice@test.com", age: 25 });
+      await User.create({ name: "Bob", email: "bob@test.com", age: 30 });
+      await User.create({ name: "Charlie", email: "charlie@test.com", age: 35 });
+    });
+
+    it("find by primary key", async () => {
+      const found = await User.find(1);
+      expect(found.readAttribute("name")).toBe("Alice");
+    });
+
+    it("find with multiple IDs", async () => {
+      const found = await User.find([1, 3]);
+      expect(found).toHaveLength(2);
+      expect(found[0].readAttribute("name")).toBe("Alice");
+      expect(found[1].readAttribute("name")).toBe("Charlie");
+    });
+
+    it("find with empty array returns empty", async () => {
+      const found = await User.find([]);
+      expect(found).toEqual([]);
+    });
+
+    it("find raises RecordNotFound for missing ID", async () => {
+      await expect(User.find(999)).rejects.toThrow("not found");
+    });
+
+    it("find with missing IDs throws", async () => {
+      await expect(User.find([1, 999])).rejects.toThrow("not found");
+    });
+
+    it("findBy returns matching record", async () => {
+      const found = await User.findBy({ name: "Bob" });
+      expect(found).not.toBeNull();
+      expect(found!.readAttribute("email")).toBe("bob@test.com");
+    });
+
+    it("findBy returns null when no match", async () => {
+      const found = await User.findBy({ name: "Nobody" });
+      expect(found).toBeNull();
+    });
+
+    it("findBy! raises when no match", async () => {
+      await expect(User.findByBang({ name: "Nobody" })).rejects.toThrow("not found");
+    });
+
+    it("findBy with multiple conditions", async () => {
+      const found = await User.findBy({ name: "Alice", age: 25 });
+      expect(found).not.toBeNull();
+      expect(found!.readAttribute("email")).toBe("alice@test.com");
+    });
+
+    it("findBy with no match on combined conditions", async () => {
+      const found = await User.findBy({ name: "Alice", age: 999 });
+      expect(found).toBeNull();
+    });
+
+    it("exists returns true for matching records", async () => {
+      expect(await User.all().exists()).toBe(true);
+    });
+
+    it("exists returns false when no records match", async () => {
+      expect(await User.where({ name: "Nobody" }).exists()).toBe(false);
+    });
+
+    it("exists with conditions hash", async () => {
+      expect(await User.all().exists({ name: "Alice" })).toBe(true);
+      expect(await User.all().exists({ name: "Nobody" })).toBe(false);
+    });
+
+    it("exists with primary key value", async () => {
+      expect(await User.all().exists(1)).toBe(true);
+      expect(await User.all().exists(999)).toBe(false);
+    });
+
+    it("first returns the first record", async () => {
+      const user = await User.all().first();
+      expect(user).not.toBeNull();
+      expect(user!.readAttribute("name")).toBe("Alice");
+    });
+
+    it("first returns null on empty", async () => {
+      const empty = await User.where({ name: "Nobody" }).first();
+      expect(empty).toBeNull();
+    });
+
+    it("first! throws on empty", async () => {
+      await expect(User.where({ name: "Nobody" }).firstBang()).rejects.toThrow("not found");
+    });
+
+    it("last returns the last record", async () => {
+      const user = await User.all().last();
+      expect(user).not.toBeNull();
+      expect(user!.readAttribute("name")).toBe("Charlie");
+    });
+
+    it("last returns null on empty", async () => {
+      const empty = await User.where({ name: "Nobody" }).last();
+      expect(empty).toBeNull();
+    });
+
+    it("last! throws on empty", async () => {
+      await expect(User.where({ name: "Nobody" }).lastBang()).rejects.toThrow("not found");
+    });
+
+    it("second returns the second record", async () => {
+      const user = await User.all().second();
+      expect(user).not.toBeNull();
+      expect(user!.readAttribute("name")).toBe("Bob");
+    });
+
+    it("third returns the third record", async () => {
+      const user = await User.all().third();
+      expect(user).not.toBeNull();
+      expect(user!.readAttribute("name")).toBe("Charlie");
+    });
+
+    it("second returns null when not enough records", async () => {
+      const noSecond = await User.where({ name: "Alice" }).second();
+      expect(noSecond).toBeNull();
+    });
+
+    it("findOrCreateBy returns existing record", async () => {
+      const existing = await User.findOrCreateBy({ name: "Alice" });
+      expect(existing.id).toBe(1);
+    });
+
+    it("findOrCreateBy creates when not found", async () => {
+      const created = await User.findOrCreateBy({ name: "NewUser" }, { email: "new@test.com" });
+      expect(created.isPersisted()).toBe(true);
+      expect(created.readAttribute("name")).toBe("NewUser");
+      expect(created.readAttribute("email")).toBe("new@test.com");
+    });
+
+    it("findOrInitializeBy returns existing record", async () => {
+      const existing = await User.findOrInitializeBy({ name: "Alice" });
+      expect(existing.isPersisted()).toBe(true);
+      expect(existing.id).toBe(1);
+    });
+
+    it("findOrInitializeBy returns unsaved when not found", async () => {
+      const initialized = await User.findOrInitializeBy({ name: "NewUser" }, { email: "new@test.com" });
+      expect(initialized.isNewRecord()).toBe(true);
+      expect(initialized.readAttribute("name")).toBe("NewUser");
+    });
+
+    it("sole returns the only record", async () => {
+      const sole = await User.where({ name: "Alice" }).sole();
+      expect(sole.readAttribute("name")).toBe("Alice");
+    });
+
+    it("sole raises when multiple records", async () => {
+      await expect(User.all().sole()).rejects.toThrow();
+    });
+
+    it("sole raises when no records", async () => {
+      await expect(User.where({ name: "Nobody" }).sole()).rejects.toThrow("not found");
+    });
+
+    it("take returns a single record", async () => {
+      const user = await User.all().take();
+      expect(user).not.toBeNull();
+    });
+
+    it("take returns null on empty relation", async () => {
+      const empty = await User.where({ name: "Nobody" }).take();
+      expect(empty).toBeNull();
+    });
+
+    it("pick returns a single column value", async () => {
+      const name = await User.all().order({ name: "asc" }).pick("name");
+      expect(name).toBe("Alice");
+    });
+
+    it("pick returns array for multiple columns", async () => {
+      const result = await User.all().order({ name: "asc" }).pick("name", "age");
+      expect(result).toEqual(["Alice", 25]);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Dirty tracking (from dirty_test.rb)
+  // =========================================================================
+  describe("Dirty (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("attribute changes", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice" });
+      expect(u.changed).toBe(false);
+      u.writeAttribute("name", "Bob");
+      expect(u.changed).toBe(true);
+      expect(u.changedAttributes).toContain("name");
+    });
+
+    it("object should be changed if any attribute is changed", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.attribute("email", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice", email: "a@b.com" });
+      u.writeAttribute("email", "new@b.com");
+      expect(u.changed).toBe(true);
+      expect(u.changedAttributes).toContain("email");
+      expect(u.changedAttributes).not.toContain("name");
+    });
+
+    it("reverted changes are not dirty", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice" });
+      u.writeAttribute("name", "Bob");
+      expect(u.changed).toBe(true);
+      u.writeAttribute("name", "Alice");
+      expect(u.changed).toBe(false);
+    });
+
+    it("reload should clear changed attributes", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice" });
+      u.writeAttribute("name", "Changed");
+      expect(u.changed).toBe(true);
+      await u.reload();
+      expect(u.changed).toBe(false);
+    });
+
+    it("changed attributes should be preserved if save failure", async () => {
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      const u = await User.create({ name: "Alice" });
+      u.writeAttribute("name", "");
+      const result = await u.save();
+      expect(result).toBe(false);
+      expect(u.changed).toBe(true);
+    });
+
+    it("savedChanges tracks changes from the last save", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice" });
+      u.writeAttribute("name", "Bob");
+      await u.save();
+      expect(u.savedChanges).toHaveProperty("name");
+      expect(u.savedChanges.name[1]).toBe("Bob");
+    });
+
+    it("savedChangeToAttribute returns true for changed attr", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice" });
+      u.writeAttribute("name", "Bob");
+      await u.save();
+      expect(u.savedChangeToAttribute("name")).toBe(true);
+      expect(u.savedChangeToAttribute("id")).toBe(false);
+    });
+
+    it("previouslyNewRecord returns true after first save", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = new User({ name: "Alice" });
+      expect(u.isPreviouslyNewRecord()).toBe(false);
+      await u.save();
+      expect(u.isPreviouslyNewRecord()).toBe(true);
+    });
+
+    it("previouslyNewRecord returns false after subsequent saves", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice" });
+      expect(u.isPreviouslyNewRecord()).toBe(true);
+      await u.update({ name: "Bob" });
+      expect(u.isPreviouslyNewRecord()).toBe(false);
+    });
+
+    it("hasChangesToSave returns true when dirty", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice" });
+      expect(u.hasChangesToSave).toBe(false);
+      u.writeAttribute("name", "Bob");
+      expect(u.hasChangesToSave).toBe(true);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Callbacks (from callbacks_test.rb)
+  // =========================================================================
+  describe("Callbacks (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("create callback order", async () => {
+      const log: string[] = [];
+      class Tracked extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.beforeSave(() => { log.push("before_save"); });
+          this.beforeCreate(() => { log.push("before_create"); });
+          this.afterCreate(() => { log.push("after_create"); });
+          this.afterSave(() => { log.push("after_save"); });
+        }
+      }
+      await Tracked.create({ name: "test" });
+      expect(log).toEqual(["before_save", "before_create", "after_create", "after_save"]);
+    });
+
+    it("update callback order", async () => {
+      const log: string[] = [];
+      class Tracked extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.beforeSave(() => { log.push("before_save"); });
+          this.beforeUpdate(() => { log.push("before_update"); });
+          this.afterUpdate(() => { log.push("after_update"); });
+          this.afterSave(() => { log.push("after_save"); });
+        }
+      }
+      const t = await Tracked.create({ name: "test" });
+      log.length = 0;
+      await t.update({ name: "updated" });
+      expect(log).toEqual(["before_save", "before_update", "after_update", "after_save"]);
+    });
+
+    it("destroy callbacks", async () => {
+      const log: string[] = [];
+      class Tracked extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.beforeDestroy(() => { log.push("before_destroy"); });
+          this.afterDestroy(() => { log.push("after_destroy"); });
+        }
+      }
+      const t = await Tracked.create({ name: "test" });
+      await t.destroy();
+      expect(log).toEqual(["before_destroy", "after_destroy"]);
+    });
+
+    it("delete does not run callbacks", async () => {
+      const log: string[] = [];
+      class Tracked extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.beforeDestroy(() => { log.push("before_destroy"); });
+          this.afterDestroy(() => { log.push("after_destroy"); });
+        }
+      }
+      const t = await Tracked.create({ name: "test" });
+      await t.delete();
+      expect(t.isDestroyed()).toBe(true);
+      expect(log).toHaveLength(0);
+    });
+
+    it("before_create throwing abort prevents creation", async () => {
+      class Guarded extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.beforeCreate(() => false);
+        }
+      }
+      const g = new Guarded({ name: "test" });
+      const result = await g.save();
+      expect(result).toBe(false);
+      expect(g.isNewRecord()).toBe(true);
+    });
+
+    it("before_save throwing abort prevents save", async () => {
+      class Guarded extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.beforeSave(() => false);
+        }
+      }
+      const g = new Guarded({ name: "test" });
+      const result = await g.save();
+      expect(result).toBe(false);
+    });
+
+    it("before_update throwing abort prevents update", async () => {
+      class Guarded extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.beforeUpdate(() => false);
+        }
+      }
+      const g = await Guarded.create({ name: "test" });
+      g.writeAttribute("name", "updated");
+      const result = await g.save();
+      expect(result).toBe(false);
+    });
+
+    it("before_destroy callback runs during destroy", async () => {
+      const log: string[] = [];
+      class Guarded extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.beforeDestroy(() => { log.push("before_destroy_ran"); });
+        }
+      }
+      const g = await Guarded.create({ name: "test" });
+      await g.destroy();
+      expect(log).toContain("before_destroy_ran");
+      expect(g.isDestroyed()).toBe(true);
+    });
+
+    it("after_initialize runs when new record created", async () => {
+      const log: string[] = [];
+      class Tracked extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.afterInitialize(() => { log.push("after_initialize"); });
+        }
+      }
+      new Tracked({ name: "test" });
+      expect(log).toContain("after_initialize");
+    });
+
+    it("after_find runs when record is found", async () => {
+      const log: string[] = [];
+      class Tracked extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.afterFind(() => { log.push("after_find"); });
+        }
+      }
+      await Tracked.create({ name: "test" });
+      log.length = 0;
+      await Tracked.find(1);
+      expect(log).toContain("after_find");
+    });
+
+    it("around_save wraps the action", () => {
+      const log: string[] = [];
+      class Tracked extends Base {
+        static {
+          this.attribute("name", "string");
+          this.aroundSave((_r, proceed) => {
+            log.push("around_before");
+            proceed();
+            log.push("around_after");
+          });
+        }
+      }
+      const t = new Tracked({ name: "test" });
+      t.runCallbacks("save", () => { log.push("action"); });
+      expect(log).toEqual(["around_before", "action", "around_after"]);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Calculations (from calculations_test.rb)
+  // =========================================================================
+  describe("Calculations (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+
+    class Order extends Base {
+      static {
+        this.attribute("amount", "integer");
+        this.attribute("status", "string");
+        this.attribute("customer_id", "integer");
+      }
+    }
+
+    beforeEach(async () => {
+      adapter = freshAdapter();
+      Order.adapter = adapter;
+      await Order.create({ amount: 10, status: "paid", customer_id: 1 });
+      await Order.create({ amount: 20, status: "pending", customer_id: 1 });
+      await Order.create({ amount: 30, status: "paid", customer_id: 2 });
+      await Order.create({ amount: 5, status: "refunded", customer_id: 2 });
+    });
+
+    it("should sum field", async () => {
+      expect(await Order.all().sum("amount")).toBe(65);
+    });
+
+    it("should average field", async () => {
+      expect(await Order.all().average("amount")).toBeCloseTo(16.25);
+    });
+
+    it("should return nil as average on empty", async () => {
+      expect(await Order.where({ status: "cancelled" }).average("amount")).toBeNull();
+    });
+
+    it("should get maximum of field", async () => {
+      expect(await Order.all().maximum("amount")).toBe(30);
+    });
+
+    it("should get minimum of field", async () => {
+      expect(await Order.all().minimum("amount")).toBe(5);
+    });
+
+    it("count returns total", async () => {
+      expect(await Order.all().count()).toBe(4);
+    });
+
+    it("count with column excludes nulls", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.attribute("email", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A", email: "a@b.com" });
+      await Item.create({ name: "B" });
+      expect(await Item.all().count("email")).toBe(1);
+    });
+
+    it("count returns total regardless of limit (SQL semantics)", async () => {
+      // In MemoryAdapter, count() returns the total count of matching records,
+      // consistent with Rails' COUNT(*) which operates on the full result set
+      expect(await Order.all().limit(2).count()).toBe(4);
+    });
+
+    it("sum with where conditions", async () => {
+      expect(await Order.where({ status: "paid" }).sum("amount")).toBe(40);
+    });
+
+    it("minimum with where conditions", async () => {
+      expect(await Order.where({ status: "paid" }).minimum("amount")).toBe(10);
+    });
+
+    it("maximum with where conditions", async () => {
+      expect(await Order.where({ status: "paid" }).maximum("amount")).toBe(30);
+    });
+
+    it("sum on none() returns 0", async () => {
+      expect(await Order.all().none().sum("amount")).toBe(0);
+    });
+
+    it("average on none() returns null", async () => {
+      expect(await Order.all().none().average("amount")).toBeNull();
+    });
+
+    it("minimum on none() returns null", async () => {
+      expect(await Order.all().none().minimum("amount")).toBeNull();
+    });
+
+    it("maximum on none() returns null", async () => {
+      expect(await Order.all().none().maximum("amount")).toBeNull();
+    });
+
+    it("calculate delegates to correct method", async () => {
+      expect(await Order.all().calculate("count")).toBe(4);
+      expect(await Order.all().calculate("sum", "amount")).toBe(65);
+      expect(await Order.all().calculate("minimum", "amount")).toBe(5);
+      expect(await Order.all().calculate("maximum", "amount")).toBe(30);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Null Relation (from null_relation_test.rb)
+  // =========================================================================
+  describe("Null Relation (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("none returns empty for all terminal methods", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+
+      expect(await Item.all().none().toArray()).toEqual([]);
+      expect(await Item.all().none().count()).toBe(0);
+      expect(await Item.all().none().first()).toBeNull();
+      expect(await Item.all().none().last()).toBeNull();
+      expect(await Item.all().none().exists()).toBe(false);
+      expect(await Item.all().none().pluck("name")).toEqual([]);
+      expect(await Item.all().none().sum("id")).toBe(0);
+      expect(await Item.all().none().average("id")).toBeNull();
+      expect(await Item.all().none().minimum("id")).toBeNull();
+      expect(await Item.all().none().maximum("id")).toBeNull();
+    });
+
+    it("none is chainable", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      const result = await Item.all().none().where({ name: "A" }).toArray();
+      expect(result).toEqual([]);
+    });
+
+    it("none updateAll returns 0", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      expect(await Item.all().none().updateAll({ name: "B" })).toBe(0);
+    });
+
+    it("none deleteAll returns 0", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      expect(await Item.all().none().deleteAll()).toBe(0);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Relation Where (from relation/where_test.rb)
+  // =========================================================================
+  describe("Relation Where (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+
+    class User extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("email", "string");
+        this.attribute("age", "integer");
+        this.attribute("active", "boolean");
+      }
+    }
+
+    beforeEach(async () => {
+      adapter = freshAdapter();
+      User.adapter = adapter;
+      await User.create({ name: "Alice", email: "alice@test.com", age: 25, active: true });
+      await User.create({ name: "Bob", email: "bob@test.com", age: 30, active: false });
+      await User.create({ name: "Charlie", email: null, age: 35, active: true });
+    });
+
+    it("where with hash conditions", async () => {
+      const result = await User.where({ name: "Alice" }).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Alice");
+    });
+
+    it("where with multiple conditions", async () => {
+      const result = await User.where({ active: true, name: "Alice" }).toArray();
+      expect(result).toHaveLength(1);
+    });
+
+    it("where with null generates IS NULL", async () => {
+      const result = await User.where({ email: null }).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Charlie");
+    });
+
+    it("where with array generates IN", async () => {
+      const result = await User.where({ name: ["Alice", "Charlie"] }).toArray();
+      expect(result).toHaveLength(2);
+    });
+
+    it("where with empty array returns no results", async () => {
+      const result = await User.where({ name: [] }).toArray();
+      expect(result).toHaveLength(0);
+    });
+
+    it("whereNot excludes matching records", async () => {
+      const result = await User.all().whereNot({ name: "Alice" }).toArray();
+      expect(result).toHaveLength(2);
+      expect(result.every(r => r.readAttribute("name") !== "Alice")).toBe(true);
+    });
+
+    it("whereNot with null generates IS NOT NULL", async () => {
+      const result = await User.all().whereNot({ email: null }).toArray();
+      expect(result).toHaveLength(2);
+    });
+
+    it("whereNot with array generates NOT IN", async () => {
+      const result = await User.all().whereNot({ name: ["Alice", "Bob"] }).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Charlie");
+    });
+
+    it("where with Range generates BETWEEN", async () => {
+      const result = await User.where({ age: new Range(25, 30) }).toArray();
+      expect(result).toHaveLength(2);
+    });
+
+    it("chaining multiple where clauses", async () => {
+      const result = await User.where({ active: true }).where({ name: "Alice" }).toArray();
+      expect(result).toHaveLength(1);
+    });
+
+    it("chaining multiple whereNot clauses", async () => {
+      const result = await User.all().whereNot({ name: "Alice" }).whereNot({ name: "Bob" }).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Charlie");
+    });
+
+    it("rewhere replaces existing where conditions for same key", async () => {
+      const result = await User.where({ name: "Alice" }).rewhere({ name: "Bob" }).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Bob");
+    });
+
+    it("where with raw SQL string", async () => {
+      const result = await User.where("age > ?", 28).toArray();
+      expect(result).toHaveLength(2);
+    });
+
+    it("where with named bind parameters", async () => {
+      const result = await User.where("age > :min AND age < :max", { min: 26, max: 34 }).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Bob");
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Relation Or (from relation/or_test.rb)
+  // =========================================================================
+  describe("Relation Or (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+
+    class User extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("age", "integer");
+      }
+    }
+
+    beforeEach(async () => {
+      adapter = freshAdapter();
+      User.adapter = adapter;
+      await User.create({ name: "Alice", age: 25 });
+      await User.create({ name: "Bob", age: 30 });
+      await User.create({ name: "Charlie", age: 35 });
+    });
+
+    it("or with relation", async () => {
+      const result = await User.where({ name: "Alice" }).or(User.where({ name: "Charlie" })).toArray();
+      expect(result).toHaveLength(2);
+      const names = result.map((r: Base) => r.readAttribute("name"));
+      expect(names).toContain("Alice");
+      expect(names).toContain("Charlie");
+    });
+
+    it("or generates correct SQL", () => {
+      const sql = User.where({ name: "Alice" }).or(User.where({ age: 30 })).toSql();
+      expect(sql).toContain("OR");
+    });
+
+    it("or with count", async () => {
+      const count = await User.where({ age: 25 }).or(User.where({ age: 35 })).count();
+      expect(count).toBe(2);
+    });
+
+    it("triple or chains", async () => {
+      const result = await User.where({ name: "Alice" })
+        .or(User.where({ name: "Bob" }))
+        .or(User.where({ name: "Charlie" }))
+        .toArray();
+      expect(result).toHaveLength(3);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Relation And (from relation/and_test.rb)
+  // =========================================================================
+  describe("Relation And (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("and merges where conditions", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.attribute("active", "boolean"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice", active: true });
+      await User.create({ name: "Bob", active: false });
+      await User.create({ name: "Charlie", active: true });
+
+      const result = await User.where({ active: true }).and(User.where({ name: "Alice" })).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Alice");
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Relation Order (from relation/order_test.rb)
+  // =========================================================================
+  describe("Relation Order (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+
+    class Item extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("price", "integer");
+      }
+    }
+
+    beforeEach(async () => {
+      adapter = freshAdapter();
+      Item.adapter = adapter;
+      await Item.create({ name: "Charlie", price: 30 });
+      await Item.create({ name: "Alice", price: 10 });
+      await Item.create({ name: "Bob", price: 20 });
+    });
+
+    it("order asc", async () => {
+      const result = await Item.all().order({ name: "asc" }).toArray();
+      expect(result[0].readAttribute("name")).toBe("Alice");
+      expect(result[2].readAttribute("name")).toBe("Charlie");
+    });
+
+    it("order desc", async () => {
+      const result = await Item.all().order({ name: "desc" }).toArray();
+      expect(result[0].readAttribute("name")).toBe("Charlie");
+      expect(result[2].readAttribute("name")).toBe("Alice");
+    });
+
+    it("order by string column name", async () => {
+      const result = await Item.all().order("name").toArray();
+      expect(result[0].readAttribute("name")).toBe("Alice");
+    });
+
+    it("reorder replaces existing order", async () => {
+      const result = await Item.all().order({ name: "asc" }).reorder({ name: "desc" }).toArray();
+      expect(result[0].readAttribute("name")).toBe("Charlie");
+    });
+
+    it("reverseOrder flips direction", async () => {
+      const result = await Item.all().order({ price: "asc" }).reverseOrder().toArray();
+      expect(result[0].readAttribute("price")).toBe(30);
+    });
+
+    it("multiple order columns", async () => {
+      const sql = Item.all().order({ name: "asc" }, { price: "desc" }).toSql();
+      expect(sql).toContain("name");
+      expect(sql).toContain("price");
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Relation Select (from relation/select_test.rb)
+  // =========================================================================
+  describe("Relation Select (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("select specific columns in SQL", () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.attribute("email", "string"); this.adapter = adapter; }
+      }
+      const sql = User.all().select("name").toSql();
+      expect(sql).toContain('"name"');
+      expect(sql).not.toContain("*");
+    });
+
+    it("select block form filters loaded records", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Apple" });
+      await User.create({ name: "Banana" });
+      await User.create({ name: "Avocado" });
+      const result = await User.all().select(
+        (r: any) => (r.readAttribute("name") as string).startsWith("A")
+      );
+      expect(result).toHaveLength(2);
+    });
+
+    it("reselect replaces previous select", () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.attribute("email", "string"); this.adapter = adapter; }
+      }
+      const sql = User.all().select("name").reselect("email").toSql();
+      expect(sql).toContain('"email"');
+      expect(sql).not.toContain('"name"');
+    });
+
+    it("distinct generates DISTINCT SQL", () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const sql = User.all().distinct().toSql();
+      expect(sql).toContain("DISTINCT");
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Relation Delete All / Update All (from relation/delete_all_test.rb, update_all_test.rb)
+  // =========================================================================
+  describe("Relation Delete All / Update All (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("delete all removes all matching records", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.attribute("active", "boolean"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A", active: true });
+      await Item.create({ name: "B", active: false });
+      await Item.create({ name: "C", active: true });
+
+      const count = await Item.where({ active: true }).deleteAll();
+      expect(count).toBe(2);
+      expect(await Item.all().count()).toBe(1);
+    });
+
+    it("destroy all runs callbacks", async () => {
+      const log: string[] = [];
+      class Item extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.afterDestroy((r: any) => { log.push(r.readAttribute("name")); });
+        }
+      }
+      await Item.create({ name: "A" });
+      await Item.create({ name: "B" });
+      const destroyed = await Item.all().destroyAll();
+      expect(destroyed).toHaveLength(2);
+      expect(log).toContain("A");
+      expect(log).toContain("B");
+    });
+
+    it("deleteAll does not run callbacks", async () => {
+      const log: string[] = [];
+      class Item extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.beforeDestroy(() => { log.push("destroyed"); });
+        }
+      }
+      await Item.create({ name: "A" });
+      await Item.all().deleteAll();
+      expect(log).toHaveLength(0);
+    });
+
+    it("updateAll does not run callbacks", async () => {
+      const log: string[] = [];
+      class Item extends Base {
+        static {
+          this.attribute("name", "string");
+          this.adapter = adapter;
+          this.beforeSave(() => { log.push("saved"); });
+        }
+      }
+      await Item.create({ name: "A" });
+      log.length = 0;
+      await Item.all().updateAll({ name: "B" });
+      expect(log).toHaveLength(0);
+    });
+
+    it("updateAll returns count", async () => {
+      class Item extends Base {
+        static { this.attribute("active", "boolean"); this.adapter = adapter; }
+      }
+      await Item.create({ active: true });
+      await Item.create({ active: false });
+      const count = await Item.where({ active: true }).updateAll({ active: false });
+      expect(count).toBe(1);
+    });
+
+    it("deleteAll on empty table returns 0", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      expect(await Item.all().deleteAll()).toBe(0);
+    });
+
+    it("destroyBy destroys matching records with callbacks", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      await Item.create({ name: "B" });
+      await Item.create({ name: "A" });
+      const destroyed = await Item.destroyBy({ name: "A" });
+      expect(destroyed).toHaveLength(2);
+      expect(await Item.all().count()).toBe(1);
+    });
+
+    it("deleteBy deletes matching records without callbacks", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      await Item.create({ name: "B" });
+      const count = await Item.deleteBy({ name: "A" });
+      expect(count).toBe(1);
+    });
+
+    it("static updateAll updates all records", async () => {
+      class Item extends Base {
+        static { this.attribute("status", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ status: "old" });
+      await Item.create({ status: "old" });
+      await Item.updateAll({ status: "new" });
+      const items = await Item.all().toArray();
+      expect(items.every(i => i.readAttribute("status") === "new")).toBe(true);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Batches (from batches_test.rb)
+  // =========================================================================
+  describe("Batches (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("find_in_batches returns batches", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      for (let i = 0; i < 7; i++) await User.create({ name: `User ${i}` });
+
+      const batchSizes: number[] = [];
+      for await (const batch of User.all().findInBatches({ batchSize: 3 })) {
+        batchSizes.push(batch.length);
+      }
+      expect(batchSizes).toEqual([3, 3, 1]);
+    });
+
+    it("findEach yields individual records", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      for (let i = 0; i < 5; i++) await User.create({ name: `User ${i}` });
+
+      const names: string[] = [];
+      for await (const record of User.all().findEach({ batchSize: 2 })) {
+        names.push(record.readAttribute("name") as string);
+      }
+      expect(names).toHaveLength(5);
+    });
+
+    it("findInBatches with where clause", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.attribute("active", "boolean"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Active1", active: true });
+      await User.create({ name: "Inactive", active: false });
+      await User.create({ name: "Active2", active: true });
+
+      const records: any[] = [];
+      for await (const record of User.where({ active: true }).findEach({ batchSize: 10 })) {
+        records.push(record);
+      }
+      expect(records).toHaveLength(2);
+    });
+
+    it("findInBatches with batch size of 1", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "A" });
+      await User.create({ name: "B" });
+
+      const batchSizes: number[] = [];
+      for await (const batch of User.all().findInBatches({ batchSize: 1 })) {
+        batchSizes.push(batch.length);
+      }
+      expect(batchSizes).toEqual([1, 1]);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Scopes (from scoping/named_test.rb, scoping/default_test.rb)
+  // =========================================================================
+  describe("Scopes (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("named scope filters records", async () => {
+      class Product extends Base {
+        static {
+          this.attribute("name", "string");
+          this.attribute("price", "integer");
+          this.attribute("active", "boolean");
+          this.adapter = adapter;
+          this.scope("cheap", (rel: any) => rel.where("price < ?", 10));
+          this.scope("active", (rel: any) => rel.where({ active: true }));
+        }
+      }
+      await Product.create({ name: "Widget", price: 5, active: true });
+      await Product.create({ name: "Gadget", price: 50, active: true });
+      await Product.create({ name: "Thing", price: 3, active: false });
+
+      const cheap = await (Product as any).cheap().toArray();
+      expect(cheap).toHaveLength(2);
+    });
+
+    it("scopes are chainable", async () => {
+      class Product extends Base {
+        static {
+          this.attribute("price", "integer");
+          this.attribute("active", "boolean");
+          this.adapter = adapter;
+          this.scope("cheap", (rel: any) => rel.where("price < ?", 10));
+          this.scope("active", (rel: any) => rel.where({ active: true }));
+        }
+      }
+      await Product.create({ price: 5, active: true });
+      await Product.create({ price: 50, active: true });
+      await Product.create({ price: 3, active: false });
+
+      const result = await (Product as any).cheap().active().toArray();
+      expect(result).toHaveLength(1);
+    });
+
+    it("scope with arguments", async () => {
+      class Product extends Base {
+        static {
+          this.attribute("price", "integer");
+          this.adapter = adapter;
+          this.scope("cheaperThan", (rel: any, price: number) => rel.where("price < ?", price));
+        }
+      }
+      await Product.create({ price: 5 });
+      await Product.create({ price: 50 });
+
+      const result = await (Product as any).cheaperThan(10).toArray();
+      expect(result).toHaveLength(1);
+    });
+
+    it("default_scope is applied to all queries", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("published", "boolean");
+          this.adapter = adapter;
+          this.defaultScope((rel: any) => rel.where({ published: true }));
+        }
+      }
+      await Post.create({ title: "Pub", published: true });
+      await Post.create({ title: "Draft", published: false });
+
+      expect(await Post.all().count()).toBe(1);
+    });
+
+    it("unscoped bypasses default_scope", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("published", "boolean");
+          this.adapter = adapter;
+          this.defaultScope((rel: any) => rel.where({ published: true }));
+        }
+      }
+      await Post.create({ title: "Pub", published: true });
+      await Post.create({ title: "Draft", published: false });
+
+      expect(await Post.unscoped().count()).toBe(2);
+    });
+
+    it("default_scope applies to exists", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("published", "boolean");
+          this.adapter = adapter;
+          this.defaultScope((rel: any) => rel.where({ published: true }));
+        }
+      }
+      await Post.create({ published: false });
+      expect(await Post.all().exists()).toBe(false);
+      expect(await Post.unscoped().exists()).toBe(true);
+    });
+
+    it("default_scope applies to pluck", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("published", "boolean");
+          this.adapter = adapter;
+          this.defaultScope((rel: any) => rel.where({ published: true }));
+        }
+      }
+      await Post.create({ title: "Pub", published: true });
+      await Post.create({ title: "Draft", published: false });
+
+      expect(await Post.all().pluck("title")).toEqual(["Pub"]);
+    });
+
+    it("unscoped then where applies user conditions only", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("published", "boolean");
+          this.adapter = adapter;
+          this.defaultScope((rel: any) => rel.where({ published: true }));
+        }
+      }
+      await Post.create({ title: "Pub", published: true });
+      await Post.create({ title: "Draft", published: false });
+
+      const result = await Post.unscoped().where({ title: "Draft" }).toArray();
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Timestamps (from timestamp_test.rb)
+  // =========================================================================
+  describe("Timestamps (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("sets created_at and updated_at on create", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("created_at", "datetime");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+      const before = new Date();
+      const post = await Post.create({ title: "Hello" });
+      const after = new Date();
+
+      const createdAt = post.readAttribute("created_at") as Date;
+      expect(createdAt).toBeInstanceOf(Date);
+      expect(createdAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
+      expect(createdAt.getTime()).toBeLessThanOrEqual(after.getTime());
+    });
+
+    it("does not overwrite explicit timestamps on create", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("created_at", "datetime");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+      const explicit = new Date("2020-01-01T00:00:00Z");
+      const post = await Post.create({ title: "Old", created_at: explicit, updated_at: explicit });
+      expect((post.readAttribute("created_at") as Date).toISOString()).toBe(explicit.toISOString());
+    });
+
+    it("updates updated_at on save", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("created_at", "datetime");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+      const post = await Post.create({ title: "Hello" });
+      const originalCreatedAt = (post.readAttribute("created_at") as Date).getTime();
+
+      post.writeAttribute("title", "Updated");
+      await post.save();
+
+      const updatedAt = post.readAttribute("updated_at") as Date;
+      expect(updatedAt).toBeInstanceOf(Date);
+      expect((post.readAttribute("created_at") as Date).getTime()).toBe(originalCreatedAt);
+    });
+
+    it("created_at never overwritten on subsequent saves", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("created_at", "datetime");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+      const post = await Post.create({ title: "Hello" });
+      const original = (post.readAttribute("created_at") as Date).getTime();
+
+      post.writeAttribute("title", "v2");
+      await post.save();
+      post.writeAttribute("title", "v3");
+      await post.save();
+
+      expect((post.readAttribute("created_at") as Date).getTime()).toBe(original);
+    });
+
+    it("touch updates updated_at", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+      const post = await Post.create({ title: "Hello" });
+      const original = (post.readAttribute("updated_at") as Date).getTime();
+      await post.touch();
+      const newTime = (post.readAttribute("updated_at") as Date).getTime();
+      expect(newTime).toBeGreaterThanOrEqual(original);
+    });
+
+    it("touch skips callbacks", async () => {
+      const log: string[] = [];
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+          this.beforeSave(() => { log.push("before_save"); });
+        }
+      }
+      const post = await Post.create({ title: "Hello" });
+      log.length = 0;
+      await post.touch();
+      expect(log).toHaveLength(0);
+    });
+
+    it("touch returns false on new record", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+      const post = new Post({});
+      expect(await post.touch()).toBe(false);
+    });
+
+    it("updateColumn does not update updated_at", async () => {
+      class Post extends Base {
+        static {
+          this.attribute("title", "string");
+          this.attribute("updated_at", "datetime");
+          this.adapter = adapter;
+        }
+      }
+      const post = await Post.create({ title: "Hello" });
+      const original = (post.readAttribute("updated_at") as Date).getTime();
+      await post.updateColumn("title", "Changed");
+      expect((post.readAttribute("updated_at") as Date).getTime()).toBe(original);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Associations (from associations tests)
+  // =========================================================================
+  describe("Associations (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+
+    class Author extends Base {
+      static { this.attribute("name", "string"); }
+    }
+    class Book extends Base {
+      static { this.attribute("title", "string"); this.attribute("author_id", "integer"); }
+    }
+    class Profile extends Base {
+      static { this.attribute("bio", "string"); this.attribute("author_id", "integer"); }
+    }
+
+    beforeEach(() => {
+      adapter = freshAdapter();
+      Author.adapter = adapter;
+      Book.adapter = adapter;
+      Profile.adapter = adapter;
+      registerModel(Author);
+      registerModel(Book);
+      registerModel(Profile);
+    });
+
+    it("belongs_to loads parent", async () => {
+      const author = await Author.create({ name: "J.K." });
+      const book = await Book.create({ title: "Harry Potter", author_id: author.id });
+      const loaded = await loadBelongsTo(book, "author", {});
+      expect(loaded).not.toBeNull();
+      expect(loaded!.readAttribute("name")).toBe("J.K.");
+    });
+
+    it("belongs_to returns null when FK is null", async () => {
+      const book = await Book.create({ title: "Orphan", author_id: null });
+      const loaded = await loadBelongsTo(book, "author", {});
+      expect(loaded).toBeNull();
+    });
+
+    it("has_one loads child", async () => {
+      const author = await Author.create({ name: "Dean" });
+      await Profile.create({ bio: "Developer", author_id: author.id });
+      const loaded = await loadHasOne(author, "profile", {});
+      expect(loaded).not.toBeNull();
+      expect(loaded!.readAttribute("bio")).toBe("Developer");
+    });
+
+    it("has_many loads all children", async () => {
+      const author = await Author.create({ name: "Dean" });
+      await Book.create({ title: "Book 1", author_id: author.id });
+      await Book.create({ title: "Book 2", author_id: author.id });
+      await Book.create({ title: "Other", author_id: 999 });
+      const books = await loadHasMany(author, "books", {});
+      expect(books).toHaveLength(2);
+    });
+
+    it("has_many with custom foreignKey", async () => {
+      class Article extends Base {
+        static { this.attribute("title", "string"); this.attribute("writer_id", "integer"); this.adapter = adapter; }
+      }
+      registerModel(Article);
+      const author = await Author.create({ name: "Custom" });
+      await Article.create({ title: "Test", writer_id: author.id });
+      const articles = await loadHasMany(author, "articles", { foreignKey: "writer_id" });
+      expect(articles).toHaveLength(1);
+    });
+
+    it("has_many returns empty when no children", async () => {
+      const author = await Author.create({ name: "Lonely" });
+      const books = await loadHasMany(author, "books", {});
+      expect(books).toHaveLength(0);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Validations on ActiveRecord (from validations_test.rb)
+  // =========================================================================
+  describe("Validations (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("validates before save", async () => {
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      const u = new User();
+      expect(await u.save()).toBe(false);
+      expect(u.errors.get("name")).toContain("can't be blank");
+    });
+
+    it("create with invalid data returns unpersisted record", async () => {
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      const u = await User.create({});
+      expect(u.isNewRecord()).toBe(true);
+      expect(u.errors.size).toBeGreaterThan(0);
+    });
+
+    it("create! throws RecordInvalid", async () => {
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      await expect(User.createBang({})).rejects.toThrow("Validation failed");
+    });
+
+    it("update with invalid data returns false", async () => {
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      const u = await User.create({ name: "Alice" });
+      const result = await u.update({ name: "" });
+      expect(result).toBe(false);
+    });
+
+    it("isValid returns true for valid record", async () => {
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      const u = new User({ name: "Alice" });
+      expect(u.isValid()).toBe(true);
+    });
+
+    it("isValid returns false for invalid record", () => {
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      const u = new User();
+      expect(u.isValid()).toBe(false);
+    });
+
+    it("errors are cleared on valid save", async () => {
+      class User extends Base {
+        static {
+          this.attribute("name", "string");
+          this.validates("name", { presence: true });
+          this.adapter = adapter;
+        }
+      }
+      const u = new User();
+      await u.save(); // fails
+      expect(u.errors.size).toBeGreaterThan(0);
+      u.writeAttribute("name", "Alice");
+      await u.save(); // succeeds
+      expect(u.errors.size).toBe(0);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Excluding / Without (from excluding_test.rb)
+  // =========================================================================
+  describe("Excluding (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("excluding removes specific records", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const a = await Item.create({ name: "A" });
+      await Item.create({ name: "B" });
+      await Item.create({ name: "C" });
+
+      const result = await Item.all().excluding(a).toArray();
+      expect(result).toHaveLength(2);
+      expect(result.every((r: any) => r.readAttribute("name") !== "A")).toBe(true);
+    });
+
+    it("without is an alias for excluding", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const a = await Item.create({ name: "A" });
+      await Item.create({ name: "B" });
+
+      const result = await Item.all().without(a).toArray();
+      expect(result).toHaveLength(1);
+    });
+
+    it("excluding multiple records", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const a = await Item.create({ name: "A" });
+      const b = await Item.create({ name: "B" });
+      await Item.create({ name: "C" });
+
+      const result = await Item.all().excluding(a, b).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("C");
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Relation state methods (from relation_test.rb)
+  // =========================================================================
+  describe("Relation State (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("isLoaded is false before loading", () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      expect(Item.all().isLoaded).toBe(false);
+    });
+
+    it("isLoaded is true after toArray", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      const rel = Item.all();
+      await rel.toArray();
+      expect(rel.isLoaded).toBe(true);
+    });
+
+    it("reset clears loaded state", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      const rel = Item.all();
+      await rel.toArray();
+      rel.reset();
+      expect(rel.isLoaded).toBe(false);
+    });
+
+    it("size returns record count", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      await Item.create({ name: "B" });
+      expect(await Item.all().size()).toBe(2);
+    });
+
+    it("isEmpty returns true on empty table", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      expect(await Item.all().isEmpty()).toBe(true);
+    });
+
+    it("isEmpty returns false with records", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      expect(await Item.all().isEmpty()).toBe(false);
+    });
+
+    it("isAny returns true when records exist", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      expect(await Item.all().isAny()).toBe(true);
+    });
+
+    it("isMany returns false with single record", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      expect(await Item.all().isMany()).toBe(false);
+    });
+
+    it("isMany returns true with multiple records", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      await Item.create({ name: "B" });
+      expect(await Item.all().isMany()).toBe(true);
+    });
+
+    it("length returns count after loading", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      await Item.create({ name: "B" });
+      await Item.create({ name: "C" });
+      expect(await Item.all().length()).toBe(3);
+    });
+
+    it("load eagerly loads and returns relation", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      const rel = Item.all();
+      const result = await rel.load();
+      expect(result).toBe(rel);
+      expect(rel.isLoaded).toBe(true);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Base class features (from base_test.rb)
+  // =========================================================================
+  describe("Base features (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("table name guesses", () => {
+      class User extends Base {}
+      expect(User.tableName).toBe("users");
+    });
+
+    it("handles CamelCase class names", () => {
+      class BlogPost extends Base {}
+      expect(BlogPost.tableName).toBe("blog_posts");
+    });
+
+    it("custom table name", () => {
+      class User extends Base { static { this.tableName = "people"; } }
+      expect(User.tableName).toBe("people");
+    });
+
+    it("primary key defaults to id", () => {
+      class User extends Base {}
+      expect(User.primaryKey).toBe("id");
+    });
+
+    it("custom primary key", () => {
+      class User extends Base { static { this.primaryKey = "uuid"; } }
+      expect(User.primaryKey).toBe("uuid");
+    });
+
+    it("new record state", () => {
+      class User extends Base { static { this.attribute("name", "string"); } }
+      const u = new User({ name: "test" });
+      expect(u.isNewRecord()).toBe(true);
+      expect(u.isPersisted()).toBe(false);
+      expect(u.isDestroyed()).toBe(false);
+    });
+
+    it("persisted state after save", async () => {
+      class User extends Base { static { this.attribute("name", "string"); this.adapter = adapter; } }
+      const u = await User.create({ name: "test" });
+      expect(u.isNewRecord()).toBe(false);
+      expect(u.isPersisted()).toBe(true);
+    });
+
+    it("destroyed state", async () => {
+      class User extends Base { static { this.attribute("name", "string"); this.adapter = adapter; } }
+      const u = await User.create({ name: "test" });
+      await u.destroy();
+      expect(u.isDestroyed()).toBe(true);
+      expect(u.isPersisted()).toBe(false);
+    });
+
+    it("toParam returns id as string", async () => {
+      class User extends Base { static { this.attribute("name", "string"); this.adapter = adapter; } }
+      const u = await User.create({ name: "Dean" });
+      expect(u.toParam()).toBe("1");
+    });
+
+    it("toParam returns null for new record", () => {
+      class User extends Base { static { this.attribute("name", "string"); } }
+      const u = new User({ name: "Dean" });
+      expect(u.toParam()).toBeNull();
+    });
+
+    it("isFrozen is false by default", () => {
+      class User extends Base { static { this.attribute("name", "string"); this.adapter = adapter; } }
+      const u = new User({ name: "test" });
+      expect(u.isFrozen()).toBe(false);
+    });
+
+    it("isFrozen is true after destroy", async () => {
+      class User extends Base { static { this.attribute("name", "string"); this.adapter = adapter; } }
+      const u = await User.create({ name: "test" });
+      await u.destroy();
+      expect(u.isFrozen()).toBe(true);
+    });
+
+    it("hasAttribute returns true for defined attributes", () => {
+      class User extends Base { static { this.attribute("name", "string"); } }
+      const u = new User({ name: "test" });
+      expect(u.hasAttribute("name")).toBe(true);
+      expect(u.hasAttribute("nonexistent")).toBe(false);
+    });
+
+    it("attributeNames returns list of attributes", () => {
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); this.attribute("email", "string"); }
+      }
+      expect(User.attributeNames()).toEqual(["id", "name", "email"]);
+    });
+
+    it("columnNames returns list of columns", () => {
+      class User extends Base {
+        static { this.attribute("id", "integer"); this.attribute("name", "string"); }
+      }
+      expect(User.columnNames()).toEqual(["id", "name"]);
+    });
+
+    it("columnsHash returns column definitions", () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.attribute("age", "integer"); }
+      }
+      const hash = User.columnsHash();
+      expect(hash["name"].type).toBe("string");
+      expect(hash["age"].type).toBe("integer");
+    });
+
+    it("contentColumns excludes PK, FK, timestamps", () => {
+      class User extends Base {
+        static {
+          this.attribute("id", "integer");
+          this.attribute("name", "string");
+          this.attribute("email", "string");
+          this.attribute("department_id", "integer");
+          this.attribute("created_at", "datetime");
+          this.attribute("updated_at", "datetime");
+        }
+      }
+      const content = User.contentColumns();
+      expect(content).toContain("name");
+      expect(content).toContain("email");
+      expect(content).not.toContain("id");
+      expect(content).not.toContain("department_id");
+      expect(content).not.toContain("created_at");
+    });
+
+    it("inspect returns human-readable string", async () => {
+      class User extends Base { static { this.attribute("name", "string"); this.adapter = adapter; } }
+      const u = await User.create({ name: "Alice" });
+      const str = u.inspect();
+      expect(str).toContain("#<User");
+      expect(str).toContain('name: "Alice"');
+    });
+
+    it("slice returns subset of attributes", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.attribute("email", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice", email: "a@b.com" });
+      const sliced = u.slice("name", "email");
+      expect(sliced).toEqual({ name: "Alice", email: "a@b.com" });
+      expect(sliced).not.toHaveProperty("id");
+    });
+
+    it("valuesAt returns attribute values as array", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.attribute("email", "string"); this.adapter = adapter; }
+      }
+      const u = await User.create({ name: "Alice", email: "a@b.com" });
+      expect(u.valuesAt("name", "email")).toEqual(["Alice", "a@b.com"]);
+    });
+
+    it("adapter throws when not configured", () => {
+      class NoAdapter extends Base { static { this.attribute("name", "string"); } }
+      expect(() => NoAdapter.adapter).toThrow("No adapter configured");
+    });
+
+    it("arelTable returns Table with correct name", () => {
+      class User extends Base {}
+      expect(User.arelTable.name).toBe("users");
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Relation Field Ordered Values (from relation/field_ordered_values_test.rb)
+  // =========================================================================
+  describe("Relation inOrderOf (Rails-guided)", () => {
+    it("generates CASE WHEN ordering", () => {
+      class Item extends Base { static { this.attribute("status", "string"); } }
+      const sql = Item.all().inOrderOf("status", ["active", "pending", "archived"]).toSql();
+      expect(sql).toContain("CASE");
+      expect(sql).toContain("WHEN");
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Annotate (from annotate_test.rb)
+  // =========================================================================
+  describe("Annotate (Rails-guided)", () => {
+    it("annotate adds comment to SQL", () => {
+      class User extends Base { static { this.attribute("name", "string"); } }
+      const sql = User.all().annotate("user query").toSql();
+      expect(sql).toContain("user query");
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Relation Merging (from relation/merging_test.rb)
+  // =========================================================================
+  describe("Relation Merging (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("merge combines two relations", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.attribute("active", "boolean"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice", active: true });
+      await User.create({ name: "Bob", active: false });
+
+      const base = User.where({ active: true });
+      const other = User.where({ name: "Alice" });
+      const result = await base.merge(other).toArray();
+      expect(result).toHaveLength(1);
+      expect(result[0].readAttribute("name")).toBe("Alice");
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Unscope (from relation/where_chain_test.rb)
+  // =========================================================================
+  describe("Unscope (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("removes where conditions", async () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await Item.create({ name: "A" });
+      await Item.create({ name: "B" });
+
+      const result = await Item.where({ name: "A" }).unscope("where").toArray();
+      expect(result).toHaveLength(2);
+    });
+
+    it("removes order", () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const sql = Item.all().order({ name: "asc" }).unscope("order").toSql();
+      expect(sql).not.toContain("ORDER BY");
+    });
+
+    it("removes limit and offset", () => {
+      class Item extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const sql = Item.all().limit(5).offset(10).unscope("limit", "offset").toSql();
+      expect(sql).not.toContain("LIMIT");
+      expect(sql).not.toContain("OFFSET");
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Pluck (from calculations_test.rb pluck tests)
+  // =========================================================================
+  describe("Pluck (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("pluck single column", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      expect(await User.all().pluck("name")).toEqual(["Alice", "Bob"]);
+    });
+
+    it("pluck multiple columns returns arrays", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.attribute("age", "integer"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice", age: 25 });
+      await User.create({ name: "Bob", age: 30 });
+      expect(await User.all().pluck("name", "age")).toEqual([["Alice", 25], ["Bob", 30]]);
+    });
+
+    it("pluck with where", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.attribute("active", "boolean"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice", active: true });
+      await User.create({ name: "Bob", active: false });
+      expect(await User.where({ active: true }).pluck("name")).toEqual(["Alice"]);
+    });
+
+    it("pluck on empty table returns empty", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      expect(await User.all().pluck("name")).toEqual([]);
+    });
+
+    it("ids returns primary key values", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      expect(await User.all().ids()).toEqual([1, 2]);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Readonly (from readonly_test.rb)
+  // =========================================================================
+  describe("Readonly (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("readonly records cannot be saved", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice" });
+      const records = await User.all().readonly().toArray();
+      const user = records[0];
+      user.writeAttribute("name", "Bob");
+      await expect(user.save()).rejects.toThrow();
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Lock (from locking_test.rb)
+  // =========================================================================
+  describe("Lock (Rails-guided)", () => {
+    it("lock generates FOR UPDATE SQL", () => {
+      class User extends Base { static { this.attribute("name", "string"); } }
+      const sql = User.all().lock().toSql();
+      expect(sql).toContain("FOR UPDATE");
+    });
+
+    it("lock with custom clause", () => {
+      class User extends Base { static { this.attribute("name", "string"); } }
+      const sql = User.all().lock("FOR SHARE").toSql();
+      expect(sql).toContain("FOR SHARE");
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Relation Group/Having (from calculations_test.rb)
+  // =========================================================================
+  describe("Group/Having (Rails-guided)", () => {
+    it("group generates GROUP BY SQL", () => {
+      class Order extends Base { static { this.attribute("customer_id", "integer"); this.attribute("amount", "integer"); } }
+      const sql = Order.all().group("customer_id").toSql();
+      expect(sql).toContain("GROUP BY");
+    });
+
+    it("having generates HAVING SQL", () => {
+      class Order extends Base { static { this.attribute("customer_id", "integer"); } }
+      const sql = Order.all().select("customer_id").group("customer_id").having("COUNT(*) > 1").toSql();
+      expect(sql).toContain("HAVING");
+      expect(sql).toContain("COUNT(*) > 1");
+    });
+
+    it("regroup replaces existing group", () => {
+      class Order extends Base { static { this.attribute("customer_id", "integer"); this.attribute("status", "string"); } }
+      const sql = Order.all().group("customer_id").regroup("status").toSql();
+      expect(sql).toContain("status");
+      expect(sql).not.toContain("customer_id");
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Touch All (from persistence tests)
+  // =========================================================================
+  describe("Touch All (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("touchAll updates timestamps on all records", async () => {
+      class Item extends Base {
+        static { this.attribute("updated_at", "datetime"); this.adapter = adapter; }
+      }
+      await Item.create({});
+      await Item.create({});
+      const affected = await Item.all().touchAll();
+      expect(affected).toBe(2);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Enum (from enum_test.rb)
+  // =========================================================================
+  describe("Enum (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("creates query predicates for each value", async () => {
+      class Task extends Base { static { this.attribute("status", "integer"); this.adapter = adapter; } }
+      defineEnum(Task, "status", ["pending", "active", "completed"]);
+
+      const task = await Task.create({ status: 0 });
+      expect((task as any).isPending()).toBe(true);
+      expect((task as any).isActive()).toBe(false);
+    });
+
+    it("creates setter methods", async () => {
+      class Task extends Base { static { this.attribute("status", "integer"); this.adapter = adapter; } }
+      defineEnum(Task, "status", ["pending", "active", "completed"]);
+
+      const task = await Task.create({ status: 0 });
+      (task as any).active();
+      expect(task.readAttribute("status")).toBe(1);
+    });
+
+    it("creates scope for each value", async () => {
+      class Task extends Base { static { this.attribute("status", "integer"); this.adapter = adapter; } }
+      defineEnum(Task, "status", ["pending", "active", "completed"]);
+
+      await Task.create({ status: 0 });
+      await Task.create({ status: 1 });
+      await Task.create({ status: 2 });
+
+      const active = await (Task as any).active().toArray();
+      expect(active).toHaveLength(1);
+    });
+
+    it("bang setter persists the change", async () => {
+      class Task extends Base { static { this.attribute("status", "integer"); this.adapter = adapter; } }
+      defineEnum(Task, "status", ["pending", "active", "completed"]);
+
+      const task = await Task.create({ status: 0 });
+      await (task as any).activeBang();
+      const reloaded = await Task.find(task.id);
+      expect(reloaded.readAttribute("status")).toBe(1);
+    });
+
+    it("readEnumValue returns string name", async () => {
+      class Task extends Base { static { this.attribute("status", "integer"); this.adapter = adapter; } }
+      defineEnum(Task, "status", ["pending", "active", "completed"]);
+
+      const task = await Task.create({ status: 1 });
+      expect(readEnumValue(task, "status")).toBe("active");
+    });
+
+    it("not-scopes filter records", async () => {
+      class Task extends Base { static { this.attribute("status", "integer"); this.adapter = adapter; } }
+      defineEnum(Task, "status", ["pending", "active", "completed"]);
+
+      await Task.create({ status: 0 });
+      await Task.create({ status: 1 });
+      await Task.create({ status: 2 });
+
+      const nonPending = await (Task as any).notPending().toArray();
+      expect(nonPending).toHaveLength(2);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Relation immutability
+  // =========================================================================
+  describe("Relation immutability (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("where returns a new relation", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "A" });
+      await User.create({ name: "B" });
+
+      const all = User.all();
+      const filtered = all.where({ name: "A" });
+      expect(await all.count()).toBe(2);
+      expect(await filtered.count()).toBe(1);
+    });
+
+    it("order returns a new relation", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Bob" });
+      await User.create({ name: "Alice" });
+
+      const all = User.all();
+      const ordered = all.order({ name: "desc" });
+      const allFirst = await all.first();
+      const orderedFirst = await ordered.first();
+      expect(allFirst!.readAttribute("name")).toBe("Bob");
+      expect(orderedFirst!.readAttribute("name")).toBe("Bob");
+    });
+
+    it("limit returns a new relation", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      for (let i = 0; i < 5; i++) await User.create({ name: `U${i}` });
+      const all = User.all();
+      const limited = all.limit(2);
+      expect(await all.count()).toBe(5);
+      // limit restricts toArray() but count() returns the total
+      const limitedRecords = await limited.toArray();
+      expect(limitedRecords).toHaveLength(2);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Scoping block
+  // =========================================================================
+  describe("Scoping block (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("scoping sets currentScope within the block", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const scope = User.where({ name: "Alice" });
+      await User.scoping(scope, async () => {
+        expect(User.currentScope).toBe(scope);
+      });
+      expect(User.currentScope).toBeNull();
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Static shorthands delegating to Relation
+  // =========================================================================
+  describe("Static shorthands (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("Base.where is shorthand for Base.all().where()", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      const result = await User.where({ name: "Alice" }).toArray();
+      expect(result).toHaveLength(1);
+    });
+
+    it("Base.all returns all records", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      expect(await User.all().count()).toBe(2);
+    });
+
+    it("Base.first returns the first record", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice" });
+      const first = await User.first();
+      expect(first).not.toBeNull();
+      expect(first!.readAttribute("name")).toBe("Alice");
+    });
+
+    it("Base.last returns the last record", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      const last = await User.last();
+      expect(last).not.toBeNull();
+      expect(last!.readAttribute("name")).toBe("Bob");
+    });
+
+    it("Base.count returns count", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice" });
+      expect(await User.count()).toBe(1);
+    });
+
+    it("Base.exists returns boolean", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      expect(await User.exists()).toBe(false);
+      await User.create({ name: "Alice" });
+      expect(await User.exists()).toBe(true);
+    });
+
+    it("Base.pluck extracts column values", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      expect(await User.pluck("name")).toEqual(["Alice", "Bob"]);
+    });
+
+    it("Base.ids returns primary keys", async () => {
+      class User extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await User.create({ name: "Alice" });
+      await User.create({ name: "Bob" });
+      expect(await User.ids()).toEqual([1, 2]);
+    });
+  });
+
+  // =========================================================================
+  // Rails-guided: Transactions (from transaction_test.rb)
+  // =========================================================================
+  describe("Transactions (Rails-guided)", () => {
+    let adapter: MemoryAdapter;
+    beforeEach(() => { adapter = freshAdapter(); });
+
+    it("successful transaction commits", async () => {
+      class Account extends Base {
+        static { this.attribute("name", "string"); this.attribute("balance", "integer"); this.adapter = adapter; }
+      }
+      await transaction(Account, async () => {
+        await Account.create({ name: "Alice", balance: 100 });
+        await Account.create({ name: "Bob", balance: 200 });
+      });
+      expect(await Account.all().count()).toBe(2);
+    });
+
+    it("afterCommit runs on success", async () => {
+      class Account extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const log: string[] = [];
+      await transaction(Account, async (tx) => {
+        tx.afterCommit(() => { log.push("committed"); });
+        await Account.create({ name: "Alice" });
+      });
+      expect(log).toEqual(["committed"]);
+    });
+
+    it("afterRollback runs on error", async () => {
+      class Account extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      const log: string[] = [];
+      try {
+        await transaction(Account, async (tx) => {
+          tx.afterRollback(() => { log.push("rolled_back"); });
+          throw new Error("boom");
+        });
+      } catch { /* expected */ }
+      expect(log).toEqual(["rolled_back"]);
+    });
+
+    it("nested savepoint", async () => {
+      class Account extends Base {
+        static { this.attribute("name", "string"); this.adapter = adapter; }
+      }
+      await transaction(Account, async () => {
+        await Account.create({ name: "Alice" });
+        try {
+          await savepoint(Account, "sp1", async () => { throw new Error("inner"); });
+        } catch { /* savepoint rolled back */ }
+        await Account.create({ name: "Bob" });
+      });
+      expect(await Account.all().count()).toBe(2);
     });
   });
 });

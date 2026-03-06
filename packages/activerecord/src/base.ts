@@ -2141,11 +2141,11 @@ export class Base extends Model {
    *
    * Mirrors: ActiveRecord::Base#with_lock
    */
-  async withLock(fn: (record: this) => Promise<void> | void): Promise<void> {
+  async withLock(fn?: (record: this) => Promise<void> | void): Promise<void> {
     const { transaction } = await import("./transactions.js");
     await transaction(async () => {
       await this.lockBang();
-      await fn(this);
+      if (fn) await fn(this);
     });
   }
 
@@ -2602,4 +2602,115 @@ export class Base extends Model {
     const [template, ...binds] = input;
     return this.sanitizeSqlArray(template, ...binds);
   }
+
+  /**
+   * Returns true if the record was previously persisted but is now destroyed.
+   *
+   * Mirrors: ActiveRecord::Base#previously_persisted?
+   */
+  isPreviouslyPersisted(): boolean {
+    return !this._newRecord && this._destroyed;
+  }
+
+  /**
+   * Re-instantiate as the given class, raising on failure.
+   *
+   * Mirrors: ActiveRecord::Base#becomes!
+   */
+  becomesBang(klass: typeof Base): Base {
+    const instance = this.becomes(klass);
+    // Set the STI type column if it exists
+    const inheritanceCol = getInheritanceColumn(klass);
+    if (inheritanceCol) {
+      instance._attributes.set(inheritanceCol, klass.name);
+    }
+    return instance;
+  }
+
+  /**
+   * Update a single attribute and save, raising on validation failure.
+   *
+   * Mirrors: ActiveRecord::Base#update_attribute!
+   */
+  async updateAttributeBang(name: string, value: unknown): Promise<true> {
+    this.writeAttribute(name, value);
+    return this.saveBang();
+  }
+
+  /**
+   * Instance-level transaction wrapper.
+   *
+   * Mirrors: ActiveRecord::Base#transaction
+   */
+  async transaction<R>(fn?: () => R | Promise<R>): Promise<R> {
+    const { transaction: txn } = await import("./transactions.js");
+    return txn(fn as () => R | Promise<R>);
+  }
+
+  /**
+   * Run validations and return self.
+   *
+   * Mirrors: ActiveRecord::Validations#validate
+   */
+  /**
+   * Check if this record passes all validations.
+   *
+   * Mirrors: ActiveRecord::Validations#valid?
+   */
+  isValid(context?: string): boolean {
+    return super.isValid(context);
+  }
+
+  validate(context?: string): this {
+    this.isValid(context);
+    return this;
+  }
+
+  /**
+   * Check if this record is present (persisted and not destroyed).
+   *
+   * Mirrors: ActiveRecord::Base#present? (via Object#present?)
+   */
+  isPresent(): boolean {
+    return this.isPersisted();
+  }
+
+  /**
+   * Check if this record is blank (new record or destroyed).
+   *
+   * Mirrors: ActiveRecord::Base#blank? (via Object#blank?)
+   */
+  isBlank(): boolean {
+    return !this.isPresent();
+  }
+
+  /**
+   * Compare two records for equality.
+   *
+   * Mirrors: ActiveRecord::Core#== (alias)
+   */
+  equals(other: unknown): boolean {
+    return this.isEqual(other);
+  }
+
+  /**
+   * Return the association object for the given name.
+   *
+   * Mirrors: ActiveRecord::Base#association
+   */
+  association(name: string): { name: string; loaded: boolean; target: unknown } {
+    const ctor = this.constructor as any;
+    const associations: any[] = ctor._associations ?? [];
+    const assocDef = associations.find((a: any) => a.name === name);
+    if (!assocDef) {
+      throw new Error(`Association '${name}' not found on ${ctor.name}`);
+    }
+    const cached = this._preloadedAssociations?.get(name) ?? null;
+    return {
+      name,
+      loaded: cached !== null,
+      target: cached,
+    };
+  }
+
 }

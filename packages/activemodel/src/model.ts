@@ -296,7 +296,7 @@ export class Model {
    *
    * Mirrors: ActiveModel::Validations.validators
    */
-  static validators(): Array<{ attribute: string; validator: Validator; on?: "create" | "update" }> {
+  static validators(): Array<{ attribute: string; validator: Validator; on?: string }> {
     return [...this._validations];
   }
 
@@ -338,7 +338,7 @@ export class Model {
   /**
    * Mirrors: ActiveModel::Validations::HelperMethods.validates_numericality_of
    */
-  static validatesNumericalityOf(attribute: string, options: Record<string, unknown> = {}): void {
+  static validatesNumericalityOf(attribute: string, options: Record<string, unknown> | boolean = {}): void {
     this.validates(attribute, { numericality: options === true ? {} : options });
   }
 
@@ -592,7 +592,7 @@ export class Model {
     for (const [name] of this._attributeDefinitions) {
       for (const prefix of this._attributeMethodPrefixes) {
         const methodName = `${prefix}${name}`;
-        if (!this.prototype[methodName]) {
+        if (!(this.prototype as any)[methodName]) {
           Object.defineProperty(this.prototype, methodName, {
             value: function(this: Model) { return this.readAttribute(name); },
             writable: true,
@@ -602,7 +602,7 @@ export class Model {
       }
       for (const suffix of this._attributeMethodSuffixes) {
         const methodName = `${name}${suffix}`;
-        if (!this.prototype[methodName]) {
+        if (!(this.prototype as any)[methodName]) {
           Object.defineProperty(this.prototype, methodName, {
             value: function(this: Model) { return this.readAttribute(name); },
             writable: true,
@@ -612,7 +612,7 @@ export class Model {
       }
       for (const { prefix, suffix } of this._attributeMethodAffixes) {
         const methodName = `${prefix}${name}${suffix}`;
-        if (!this.prototype[methodName]) {
+        if (!(this.prototype as any)[methodName]) {
           Object.defineProperty(this.prototype, methodName, {
             value: function(this: Model) { return this.readAttribute(name); },
             writable: true,
@@ -636,7 +636,7 @@ export class Model {
 
   _attributes: Map<string, unknown> = new Map();
   _attributesBeforeTypeCast: Map<string, unknown> = new Map();
-  errors: Errors = new Errors();
+  errors: Errors = new Errors(this);
   private _dirty: DirtyTracker = new DirtyTracker();
 
   constructor(attrs: Record<string, unknown> = {}) {
@@ -835,7 +835,7 @@ export class Model {
       const value = this._attributes.get(entry.attribute);
       if (entry.strict) {
         // Strict validation: collect errors into a temporary Errors, then throw
-        const tempErrors = new Errors();
+        const tempErrors = new Errors(this);
         entry.validator.validate(this, entry.attribute, value, tempErrors);
         if (tempErrors.any) {
           const msg = tempErrors.fullMessages.join(", ");
@@ -860,6 +860,16 @@ export class Model {
     ctor._callbackChain.runAfter("validation", this);
 
     return this.errors.empty;
+  }
+
+  /**
+   * Run validations and return self.
+   *
+   * Mirrors: ActiveModel::Validations#validate
+   */
+  validate(context?: string): this {
+    this.isValid(context);
+    return this;
   }
 
   isInvalid(): boolean {
@@ -1171,6 +1181,17 @@ export class Model {
     return this;
   }
 
+  /**
+   * Assign multiple attributes at once without saving.
+   *
+   * Mirrors: ActiveModel::AttributeAssignment#assign_attributes
+   */
+  assignAttributes(attrs: Record<string, unknown>): void {
+    for (const [key, value] of Object.entries(attrs)) {
+      this.writeAttribute(key, value);
+    }
+  }
+
   toParam(): string | null {
     return null;
   }
@@ -1199,6 +1220,73 @@ export class Model {
   typeForAttribute(name: string): Type | null {
     const def = (this.constructor as typeof Model)._attributeDefinitions.get(name);
     return def ? def.type : null;
+  }
+
+  /**
+   * Check if an attribute value has changed in-place (by identity).
+   *
+   * Mirrors: ActiveModel::Dirty#attribute_changed_in_place?
+   */
+  attributeChangedInPlace(name: string): boolean {
+    const original = this._dirty.attributeWas(name);
+    const current = this._attributes.get(name);
+    // In-place change = same type but different identity
+    if (original === undefined) return false;
+    return original !== current;
+  }
+
+  /**
+   * Return a unique key for this model, or null if not persisted.
+   *
+   * Mirrors: ActiveModel::Conversion#to_key
+   */
+  toKey(): unknown[] | null {
+    if (!this.isPersisted()) return null;
+    const id = this._attributes.get("id");
+    return id != null ? [id] : null;
+  }
+
+  /**
+   * Return the current validation context.
+   *
+   * Mirrors: ActiveModel::Validations#validation_context
+   */
+  get validationContext(): string | null {
+    return this._validationContext;
+  }
+
+  /**
+   * Run validations, throw if invalid.
+   *
+   * Mirrors: ActiveModel::Validations#validate!
+   */
+  validateBang(context?: string): boolean {
+    if (!this.isValid(context)) {
+      throw new Error(`Validation failed: ${this.errors.fullMessages.join(", ")}`);
+    }
+    return true;
+  }
+
+  /**
+   * Return a subset of attributes.
+   *
+   * Mirrors: ActiveModel::Access#slice
+   */
+  slice(...methods: string[]): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const m of methods) {
+      result[m] = this.readAttribute(m);
+    }
+    return result;
+  }
+
+  /**
+   * Return attribute values as an array.
+   *
+   * Mirrors: ActiveModel::Access#values_at
+   */
+  valuesAt(...methods: string[]): unknown[] {
+    return methods.map((m) => this.readAttribute(m));
   }
 
   // -- Callbacks helper for subclasses --

@@ -59,6 +59,34 @@ export class InsertManager {
   }
 
   /**
+   * Set a SelectManager as the source for INSERT ... SELECT.
+   *
+   * Mirrors: Arel::InsertManager#select
+   */
+  select(selectManager: { ast: Node }): this {
+    this.ast.values = selectManager.ast;
+    return this;
+  }
+
+  /**
+   * Create a ValuesList from a single row and columns.
+   *
+   * Mirrors: Arel::InsertManager#create_values
+   */
+  createValues(row: Node[], columns?: Node[]): ValuesList {
+    return new ValuesList([row]);
+  }
+
+  /**
+   * Create a ValuesList from multiple rows.
+   *
+   * Mirrors: Arel::InsertManager#create_values_list
+   */
+  createValuesList(rows: Node[][]): ValuesList {
+    return new ValuesList(rows);
+  }
+
+  /**
    * Generate SQL string.
    */
   toSql(): string {

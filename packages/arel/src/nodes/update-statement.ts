@@ -10,6 +10,8 @@ export class UpdateStatement extends Node {
   values: Node[];
   wheres: Node[];
   orders: Node[];
+  groups: Node[];
+  havings: Node[];
   limit: Node | null;
   key: Node | null;
 
@@ -19,6 +21,8 @@ export class UpdateStatement extends Node {
     this.values = [];
     this.wheres = [];
     this.orders = [];
+    this.groups = [];
+    this.havings = [];
     this.limit = null;
     this.key = null;
   }

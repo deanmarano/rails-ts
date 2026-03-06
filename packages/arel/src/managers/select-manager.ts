@@ -20,6 +20,16 @@ import { Exists } from "../nodes/exists.js";
 import { Over, NamedWindow } from "../nodes/window.js";
 import { Table } from "../table.js";
 import { ToSql } from "../visitors/to-sql.js";
+import { InsertStatement } from "../nodes/insert-statement.js";
+import { UpdateStatement } from "../nodes/update-statement.js";
+import { DeleteStatement } from "../nodes/delete-statement.js";
+import { Comment } from "../nodes/comment.js";
+import { Lateral } from "../nodes/lateral.js";
+import { True, False } from "../nodes/true-false.js";
+import { And } from "../nodes/and.js";
+import { Grouping } from "../nodes/grouping.js";
+import { NamedFunction } from "../nodes/named-function.js";
+import { InsertManager } from "./insert-manager.js";
 
 /**
  * SelectManager — the chainable API for building SELECT queries.
@@ -328,6 +338,236 @@ export class SelectManager {
    */
   as(alias: string): TableAlias {
     return new TableAlias(this.ast, alias);
+  }
+
+  /**
+   * Return the current LIMIT node.
+   *
+   * Mirrors: Arel::SelectManager#limit
+   */
+  get limit(): Node | null {
+    return this.ast.limit;
+  }
+
+  /**
+   * Return the current OFFSET node.
+   *
+   * Mirrors: Arel::SelectManager#offset
+   */
+  get offset(): Node | null {
+    return this.ast.offset;
+  }
+
+  /**
+   * Return the current LOCK node.
+   *
+   * Mirrors: Arel::SelectManager#locked
+   */
+  get locked(): Node | null {
+    return this.ast.lock;
+  }
+
+  /**
+   * Set the ON condition on the last join.
+   *
+   * Mirrors: Arel::SelectManager#on
+   */
+  on(...exprs: Node[]): this {
+    const joins = this.core.source.right;
+    if (joins.length > 0) {
+      const lastJoin = joins[joins.length - 1];
+      if (exprs.length === 1) {
+        (lastJoin as any).right = new On(exprs[0]);
+      } else {
+        (lastJoin as any).right = new On(new And(exprs));
+      }
+    }
+    return this;
+  }
+
+  /**
+   * Add optimizer hints to the query.
+   *
+   * Mirrors: Arel::SelectManager#optimizer_hints
+   */
+  optimizerHints(...hints: string[]): this {
+    (this.core as any).optimizerHints = hints;
+    return this;
+  }
+
+  /**
+   * Set DISTINCT ON quantifier.
+   *
+   * Mirrors: Arel::SelectManager#distinct_on
+   */
+  distinctOn(value: Node): this {
+    this.core.setQuantifier = value;
+    return this;
+  }
+
+  /**
+   * Compile just the WHERE clause to SQL.
+   *
+   * Mirrors: Arel::SelectManager#where_sql
+   */
+  whereSql(): string | null {
+    if (this.core.wheres.length === 0) return null;
+    const visitor = new ToSql();
+    const parts = this.core.wheres.map((w) => visitor.compile(w));
+    return `WHERE ${parts.join(" AND ")}`;
+  }
+
+  /**
+   * Wrap the AST in a LATERAL subquery.
+   *
+   * Mirrors: Arel::SelectManager#lateral
+   */
+  lateral(alias?: string): Lateral | TableAlias {
+    const lat = new Lateral(this.ast);
+    if (alias) {
+      return new TableAlias(lat, alias);
+    }
+    return lat;
+  }
+
+  /**
+   * Add SQL comments to the query.
+   *
+   * Mirrors: Arel::SelectManager#comment
+   */
+  comment(...values: string[]): this {
+    (this.ast as any).comment = new Comment(...values);
+    return this;
+  }
+
+  /**
+   * Create an InsertManager from a SELECT.
+   *
+   * Mirrors: Arel::SelectManager#compile_insert
+   */
+  compileInsert(values: [Node, unknown][]): InsertManager {
+    const im = new InsertManager();
+    im.insert(values as any);
+    return im;
+  }
+
+  /**
+   * Create a new InsertManager.
+   *
+   * Mirrors: Arel::SelectManager#create_insert
+   */
+  createInsert(): InsertManager {
+    return new InsertManager();
+  }
+
+  /**
+   * Create an UpdateStatement from values.
+   *
+   * Mirrors: Arel::SelectManager#compile_update
+   */
+  compileUpdate(values: [Node, unknown][], key?: Node): UpdateStatement {
+    const stmt = new UpdateStatement();
+    stmt.relation = this.core.source.left;
+    const { Assignment } = require("../nodes/binary.js");
+    stmt.values = values.map(([col, val]) => {
+      const right = val instanceof Node ? val : new Quoted(val);
+      return new Assignment(col, right);
+    });
+    stmt.wheres = [...this.core.wheres];
+    if (key) stmt.key = key;
+    return stmt;
+  }
+
+  /**
+   * Create a DeleteStatement from this SelectManager.
+   *
+   * Mirrors: Arel::SelectManager#compile_delete
+   */
+  compileDelete(): DeleteStatement {
+    const stmt = new DeleteStatement();
+    stmt.relation = this.core.source.left;
+    stmt.wheres = [...this.core.wheres];
+    return stmt;
+  }
+
+  // -- FactoryMethods (via TreeManager) --
+
+  /**
+   * Factory: create a TRUE node.
+   */
+  createTrue(): True {
+    return new True();
+  }
+
+  /**
+   * Factory: create a FALSE node.
+   */
+  createFalse(): False {
+    return new False();
+  }
+
+  /**
+   * Factory: create a TableAlias node.
+   */
+  createTableAlias(relation: Node, name: string): TableAlias {
+    return new TableAlias(relation, name);
+  }
+
+  /**
+   * Factory: create a join node.
+   */
+  createJoin(to: Node, constraint?: Node, klass?: typeof InnerJoin): InnerJoin {
+    return new InnerJoin(to, constraint ? new On(constraint) : null);
+  }
+
+  /**
+   * Factory: create a StringJoin node.
+   */
+  createStringJoin(to: string | Node): StringJoin {
+    const node = typeof to === "string" ? new SqlLiteral(to) : to;
+    return new StringJoin(node, null);
+  }
+
+  /**
+   * Factory: create an AND node.
+   */
+  createAnd(nodes: Node[]): And {
+    return new And(nodes);
+  }
+
+  /**
+   * Factory: create an On node.
+   */
+  createOn(expr: Node): On {
+    return new On(expr);
+  }
+
+  /**
+   * Factory: create a Grouping node.
+   */
+  grouping(expr: Node): Grouping {
+    return new Grouping(expr);
+  }
+
+  /**
+   * Factory: LOWER function.
+   */
+  lower(column: Node): NamedFunction {
+    return new NamedFunction("LOWER", [column]);
+  }
+
+  /**
+   * Factory: COALESCE function.
+   */
+  coalesce(...args: Node[]): NamedFunction {
+    return new NamedFunction("COALESCE", args);
+  }
+
+  /**
+   * Factory: CAST function.
+   */
+  cast(expr: Node, type: string): NamedFunction {
+    return new NamedFunction("CAST", [new SqlLiteral(`${expr} AS ${type}`)]);
   }
 
   /**

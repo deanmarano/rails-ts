@@ -29,6 +29,8 @@ import { NamedFunction } from "./named-function.js";
 import { Extract } from "./extract.js";
 import { Regexp as RegexpNode, NotRegexp } from "./regexp.js";
 import { IsDistinctFrom, IsNotDistinctFrom } from "./distinct-from.js";
+import { Case } from "./case.js";
+import { InfixOperation } from "./infix-operation.js";
 
 function buildQuoted(value: unknown): Node {
   if (value instanceof Node) return value;
@@ -100,19 +102,29 @@ export class Attribute extends Node {
   }
 
   in(values: unknown[]): In {
-    return new In(this, values.map(buildQuoted));
+    return new In(this, values.map(buildQuoted) as any);
   }
 
   notIn(values: unknown[]): NotIn {
-    return new NotIn(this, values.map(buildQuoted));
+    return new NotIn(this, values.map(buildQuoted) as any);
   }
 
-  between(begin: unknown, end: unknown): Between {
-    return new Between(this, new And([buildQuoted(begin), buildQuoted(end)]));
+  between(range: [unknown, unknown]): Between;
+  between(begin: unknown, end: unknown): Between;
+  between(beginOrRange: unknown, end?: unknown): Between {
+    if (Array.isArray(beginOrRange) && end === undefined) {
+      return new Between(this, new And([buildQuoted(beginOrRange[0]), buildQuoted(beginOrRange[1])]));
+    }
+    return new Between(this, new And([buildQuoted(beginOrRange), buildQuoted(end)]));
   }
 
-  notBetween(begin: unknown, end: unknown): Not {
-    return new Not(this.between(begin, end));
+  notBetween(range: [unknown, unknown]): Not;
+  notBetween(begin: unknown, end: unknown): Not;
+  notBetween(beginOrRange: unknown, end?: unknown): Not {
+    if (Array.isArray(beginOrRange) && end === undefined) {
+      return new Not(this.between(beginOrRange as [unknown, unknown]));
+    }
+    return new Not(this.between(beginOrRange, end!));
   }
 
   isNull(): Equality {
@@ -293,8 +305,8 @@ export class Attribute extends Node {
     return new NamedFunction("SUBSTRING", args);
   }
 
-  concat(...others: unknown[]): NamedFunction {
-    return new NamedFunction("CONCAT", [this, ...others.map(buildQuoted)]);
+  concat(other: unknown, ...rest: unknown[]): NamedFunction {
+    return new NamedFunction("CONCAT", [this, buildQuoted(other), ...rest.map(buildQuoted)]);
   }
 
   replace(from: string, to: string): NamedFunction {
@@ -357,6 +369,37 @@ export class Attribute extends Node {
 
   isNotDistinctFrom(other: unknown): IsNotDistinctFrom {
     return new IsNotDistinctFrom(this, buildQuoted(other));
+  }
+
+  // -- Case --
+
+  /**
+   * Start a CASE expression on this attribute.
+   *
+   * Mirrors: Arel::Attributes::Attribute#when
+   */
+  when(value: unknown): Case {
+    return new Case(this).when(buildQuoted(value));
+  }
+
+  // -- PostgreSQL array operators --
+
+  /**
+   * PostgreSQL @> (contains) operator.
+   *
+   * Mirrors: Arel::Attributes::Attribute#contains
+   */
+  contains(other: unknown): InfixOperation {
+    return new InfixOperation("@>", this, buildQuoted(other));
+  }
+
+  /**
+   * PostgreSQL && (overlaps) operator.
+   *
+   * Mirrors: Arel::Attributes::Attribute#overlaps
+   */
+  overlaps(other: unknown): InfixOperation {
+    return new InfixOperation("&&", this, buildQuoted(other));
   }
 
   accept<T>(visitor: NodeVisitor<T>): T {

@@ -20,7 +20,7 @@ export class Case extends Node {
   }
 
   when(condition: Node | unknown, result?: Node | unknown): Case {
-    const c = new Case(this.operand);
+    const c = new Case(this.operand ?? undefined);
     (c as any).conditions = [...this.conditions];
     const whenNode = condition instanceof Node ? condition : new SqlLiteral(String(condition));
     const thenNode = result instanceof Node ? result : new SqlLiteral(
@@ -35,7 +35,7 @@ export class Case extends Node {
   }
 
   else(result: Node | unknown): Case {
-    const c = new Case(this.operand);
+    const c = new Case(this.operand ?? undefined);
     (c as any).conditions = [...this.conditions];
     const elseNode = result instanceof Node ? result : new SqlLiteral(
       result === null ? "NULL"

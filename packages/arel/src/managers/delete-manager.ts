@@ -2,6 +2,7 @@ import { Node } from "../nodes/node.js";
 import { DeleteStatement } from "../nodes/delete-statement.js";
 import { Limit } from "../nodes/unary.js";
 import { Quoted } from "../nodes/quoted.js";
+import { SqlLiteral } from "../nodes/sql-literal.js";
 import { Table } from "../table.js";
 import { ToSql } from "../visitors/to-sql.js";
 
@@ -56,6 +57,33 @@ export class DeleteManager {
    */
   get wheres(): Node[] {
     return [...this.ast.wheres];
+  }
+
+  /**
+   * Add GROUP BY.
+   *
+   * Mirrors: Arel::DeleteManager#group
+   */
+  group(column: Node | string, ...rest: (Node | string)[]): this {
+    const columns = [column, ...rest];
+    for (const c of columns) {
+      if (typeof c === "string") {
+        this.ast.groups.push(new SqlLiteral(c));
+      } else {
+        this.ast.groups.push(c);
+      }
+    }
+    return this;
+  }
+
+  /**
+   * Add HAVING.
+   *
+   * Mirrors: Arel::DeleteManager#having
+   */
+  having(condition: Node): this {
+    this.ast.havings.push(condition);
+    return this;
   }
 
   /**

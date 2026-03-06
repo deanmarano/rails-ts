@@ -15,6 +15,30 @@ export interface ErrorDetail {
  */
 export class Errors {
   private _errors: ErrorDetail[] = [];
+  private _base: unknown;
+
+  constructor(base: unknown) {
+    this._base = base;
+  }
+
+  /**
+   * The object this Errors instance is attached to.
+   *
+   * Mirrors: ActiveModel::Errors#base
+   */
+  get base(): unknown {
+    return this._base;
+  }
+
+  /**
+   * Returns self. In Ruby, model.errors returns the Errors object;
+   * calling errors.errors is an identity operation.
+   *
+   * Mirrors: ActiveModel::Errors#errors
+   */
+  get errors(): this {
+    return this;
+  }
 
   /**
    * Add an error for an attribute.
@@ -260,6 +284,50 @@ export class Errors {
    */
   generateMessage(attribute: string, type: string = "invalid", options?: Record<string, unknown>): string {
     return this.defaultMessage(type, options);
+  }
+
+  /**
+   * Import a single error from another Errors instance.
+   *
+   * Mirrors: ActiveModel::Errors#import
+   */
+  import(error: ErrorDetail, options?: { attribute?: string }): void {
+    const attr = options?.attribute ?? error.attribute;
+    this._errors.push({ ...error, attribute: attr });
+  }
+
+  /**
+   * Return errors as a JSON representation.
+   *
+   * Mirrors: ActiveModel::Errors#as_json
+   */
+  asJson(_options?: Record<string, unknown>): Record<string, string[]> {
+    return this.toHash();
+  }
+
+  /**
+   * Group errors by attribute, returning ErrorDetail arrays.
+   *
+   * Mirrors: ActiveModel::Errors#group_by_attribute
+   */
+  groupByAttribute(): Record<string, ErrorDetail[]> {
+    const result: Record<string, ErrorDetail[]> = {};
+    for (const error of this._errors) {
+      if (!result[error.attribute]) {
+        result[error.attribute] = [];
+      }
+      result[error.attribute].push(error);
+    }
+    return result;
+  }
+
+  /**
+   * Return message strings for a specific attribute.
+   *
+   * Mirrors: ActiveModel::Errors#messages_for
+   */
+  messagesFor(attribute: string): string[] {
+    return this.get(attribute);
   }
 
   private defaultMessage(
