@@ -12,8 +12,15 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "outDir": "dist",
-    "rootDir": "src"
+    "composite": true,
+    "rootDir": ".",
+    "outDir": "dist"
   },
+  "files": [],
+  "references": [
+    { "path": "packages/arel" },
+    { "path": "packages/activemodel" },
+    { "path": "packages/activerecord" }
+  ],
   "exclude": ["node_modules", "dist"]
 }
