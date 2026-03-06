@@ -2406,4 +2406,97 @@ export const TEST_OVERRIDES: Record<string, string | null> = {
   "CalculationsTest > count with distinct": "ActiveRecord > distinct count > count with distinct uses COUNT(DISTINCT ...)",
   "HasManyThroughAssociationsTest > has many association through a has many association to self": "ActiveRecord > association scopes > applies scope to has_many association",
   "NestedThroughAssociationsTest > has many through has many with has many through source reflection": "ActiveRecord > has_and_belongs_to_many > loads associated records through a join table",
+
+  // ==========================================================================
+  // ActiveRecord overrides — batch 2 (automated fuzzy matches)
+  // ==========================================================================
+
+  // --- relations_test.rb ---
+  "RelationTest > finding with order and take": "RelationTest > finding with order and take",
+  "RelationTest > respond to dynamic finders": "RelationTest > respond to dynamic finders",
+  "RelationTest > find all using where with relation does not alter select values": "RelationTest > find all using where with relation does not alter select values",
+  "RelationTest > first or initialize with no parameters": "RelationTest > first or initialize with no parameters",
+  "RelationTest > create or find by with block": "RelationTest > create or find by with block",
+  "RelationTest > find_by with multi-arg conditions returns the first matching record": "FinderTest > find_by with multi-arg conditions returns the first matching record",
+  "RelationTest > find_by! with hash conditions returns the first matching record": "ActiveRecord > Base > finders > find_by with hash conditions returns the first matching record",
+  "RelationTest > find_by! with non-hash conditions returns the first matching record": "ActiveRecord > Base > finders > find_by with hash conditions returns the first matching record",
+  "RelationTest > find_by! with multi-arg conditions returns the first matching record": "FinderTest > find_by with multi-arg conditions returns the first matching record",
+  "RelationTest > find_by! doesn't have implicit ordering": "RelationTest > find_by doesn't have implicit ordering",
+  "RelationTest > find_by! requires at least one argument": "RelationTest > find_by! requires at least one argument",
+  "RelationTest > loaded relations cannot be mutated by extending!": "RelationTest > loaded relations cannot be mutated by extending!",
+  "RelationTest > finding with subquery with binds": "RelationTest > finding with subquery",
+  "RelationTest > pluck with from includes quoted original table name": "RelationTest > select with from includes quoted original table name",
+  "RelationTest > finding with complex order": "RelationTest > finding with order",
+  "RelationTest > finding with sanitized order": "RelationTest > finding with order",
+  "RelationTest > find all using where with relation with bound values": "RelationTest > find all using where with relation",
+  "RelationTest > create or find by with bang": "RelationTest > find or create by with create with",
+  "RelationTest > loaded relations cannot be mutated by merge!": "RelationTest > loaded relations cannot be mutated by extending!",
+  "RelationTest > reverse arel assoc order with function": "RelationTest > reverse order with function",
+  "RelationTest > reverse order with function other predicates": "RelationTest > reverse order with function",
+  "RelationTest > loading with one association with non preload": "RelationTest > loading with one association",
+  "RelationTest > where id with delegated ar object": "RelationTest > where with ar object",
+  "RelationTest > create or find by within transaction": "RelationTest > find or create by",
+
+  // --- finder_test.rb ---
+  "FinderTest > exists with loaded relation": "FinderTest > exists with loaded relation",
+  "FinderTest > find by ids with limit and offset": "FinderTest > find by ids with limit and offset",
+  "FinderTest > model class responds to last bang": "FinderTest > model class responds to last bang",
+  "FinderTest > first on relation with limit and offset": "FinderTest > first on relation with limit and offset",
+  "FinderTest > last on relation with limit and offset": "FinderTest > last on relation with limit and offset",
+  "FinderTest > hash condition find with escaped characters": "FinderTest > hash condition find with escaped characters",
+  "FinderTest > hash condition find with array": "FinderTest > hash condition find with array",
+  "FinderTest > hash condition find with nil": "FinderTest > hash condition find with nil",
+  "FinderTest > named bind variables": "FinderTest > named bind variables",
+  "FinderTest > find by two attributes": "FinderTest > find by two attributes",
+  "FinderTest > find by two attributes but passing only one": "FinderTest > find by two attributes but passing only one",
+  "FinderTest > find by empty ids": "FinderTest > find by empty ids",
+  "FinderTest > find_by! with non-hash conditions returns the first matching record": "ActiveRecord > Base > finders > find_by with hash conditions returns the first matching record",
+  "FinderTest > find_by! with multi-arg conditions returns the first matching record": "FinderTest > find_by with multi-arg conditions returns the first matching record",
+  "FinderTest > exists with distinct and offset and eagerload and order": "FinderTest > exists with order and distinct",
+  "FinderTest > #find_by with composite primary key": "ActiveRecord > Base > finders > find by primary key",
+
+  // --- calculations_test.rb ---
+  "CalculationsTest > should calculate grouped with longer field": "CalculationsTest > should calculate grouped with longer field",
+  "CalculationsTest > count with block": "RelationTest > count with block",
+  "CalculationsTest > count with reverse order": "CalculationsTest > count with reverse order",
+  "CalculationsTest > should group by multiple fields having functions": "CalculationsTest > should group by multiple fields",
+  "CalculationsTest > should group by summed association": "CalculationsTest > should group by summed field",
+  "CalculationsTest > count with order": "CalculationsTest > count with reverse order",
+  "CalculationsTest > ids on loaded relation": "CalculationsTest > ids on relation",
+  "CalculationsTest > ids with contradicting scope": "CalculationsTest > ids with scope",
+
+  // --- base_test.rb ---
+  "BasicsTest > no limit offset": "CalculationsTest > no limit no offset",
+
+  // --- persistence_test.rb ---
+  "PersistenceTest > class level update is affected by scoping!": "PersistenceTest > class level update is affected by scoping",
+  "PersistenceTest > update attribute!": "ActiveRecord > Persistence (Rails-guided) > update attribute",
+  "PersistenceTest > update columns should not modify updated at": "ActiveRecord > Bulk operations edge cases > update column should not modify updated at",
+  "PersistenceTest > class level destroy is affected by scoping": "PersistenceTest > class level update is affected by scoping",
+  "PersistenceTest > class level delete is affected by scoping": "PersistenceTest > class level update is affected by scoping",
+  "PersistenceTest > update for record with only primary key": "PersistenceTest > save for record with only primary key",
+  "PersistenceTest > destroy raises record not found exception": "ActiveRecord > Base > finders > find raises record not found exception",
+  "PersistenceTest > update attribute for updated at on": "Persistence edge cases (Rails-guided) > updated_at changes on attribute update",
+  "PersistenceTest > update attribute for updated at on!": "Persistence edge cases (Rails-guided) > updated_at changes on attribute update",
+  "PersistenceTest > increment aliased attribute": "ActiveRecord > Base: increment/decrement/toggle > increment attribute",
+
+  // --- batches_test.rb ---
+  "EachTest > each should return a sized enumerator": "EachTest > each should return a sized enumerator",
+  "EachTest > in batches should end at the finish option": "EachTest > find in batches should end at the finish option",
+  "EachTest > in batches should use any column as primary key": "EachTest > find in batches should use any column as primary key",
+  "EachTest > find in batches should use any column as primary key when start is not specified": "EachTest > find in batches should use any column as primary key",
+  "EachTest > in batches should use any column as primary key when start is not specified": "EachTest > find in batches should use any column as primary key",
+  "EachTest > in batches should return relations": "ActiveRecord > findEach / findInBatches > find in batches should return batches",
+
+  // --- enum_test.rb ---
+  "EnumTest > validate uniqueness": "ActiveRecord > UniquenessValidator > validate uniqueness",
+  "EnumTest > reverted changes that are not dirty": "ActiveRecord > Dirty (Rails-guided) > reverted changes are not dirty",
+  "EnumTest > query state by predicate with :prefix": "ActiveRecord > Enum > query state by predicate",
+  "EnumTest > query state by predicate with :suffix": "ActiveRecord > Enum > query state by predicate",
+
+  // --- relation/or_test.rb ---
+  "OrTest > or with sti relation": "ActiveRecord > Relation Or (Rails-guided) > or with relation",
+
+  // --- scoping/default_scoping_test.rb ---
+  "DefaultScopingTest > unscope reverse order": "OrderTest > reverse order",
 };

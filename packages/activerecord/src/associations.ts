@@ -1,5 +1,6 @@
 import type { Base } from "./base.js";
 import { StrictLoadingViolationError, DeleteRestrictionError } from "./errors.js";
+import { underscore, singularize, pluralize, camelize } from "@rails-ts/activesupport";
 
 /**
  * Association options.
@@ -25,51 +26,6 @@ export interface AssociationDefinition {
   type: "belongsTo" | "hasOne" | "hasMany" | "hasAndBelongsToMany";
   name: string;
   options: AssociationOptions & { joinTable?: string };
-}
-
-/**
- * Underscore a camelCase name.
- */
-function underscore(name: string): string {
-  return name
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
-    .replace(/([a-z\d])([A-Z])/g, "$1_$2")
-    .toLowerCase();
-}
-
-/**
- * Singularize a plural word (naive).
- */
-function singularize(word: string): string {
-  if (word.endsWith("ies")) return word.slice(0, -3) + "y";
-  if (word.endsWith("ses") || word.endsWith("xes") || word.endsWith("zes")) {
-    return word.slice(0, -2);
-  }
-  if (word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1);
-  return word;
-}
-
-/**
- * Pluralize a name (naive English pluralization).
- */
-function pluralize(word: string): string {
-  if (word.endsWith("s") || word.endsWith("x") || word.endsWith("z")) {
-    return word + "es";
-  }
-  if (word.endsWith("y") && !/[aeiou]y$/i.test(word)) {
-    return word.slice(0, -1) + "ies";
-  }
-  return word + "s";
-}
-
-/**
- * CamelCase a snake_case name.
- */
-function camelize(name: string): string {
-  return name
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join("");
 }
 
 /**

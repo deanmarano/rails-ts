@@ -3701,8 +3701,8 @@ describe("BasicsTest", () => {
 
   it("singular table name guesses for individual table", () => {
     class Person extends Base {}
-    // Naive pluralization gives "persons" not "people"
-    expect(Person.tableName).toBe("persons");
+    // Rails irregular: "person" → "people"
+    expect(Person.tableName).toBe("people");
   });
 
   it("columns should obey set primary key", () => {

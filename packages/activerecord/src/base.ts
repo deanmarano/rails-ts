@@ -1,5 +1,6 @@
 import { Model } from "@rails-ts/activemodel";
 import { Table } from "@rails-ts/arel";
+import { pluralize, underscore } from "@rails-ts/activesupport";
 import type { DatabaseAdapter } from "./adapter.js";
 import { getInheritanceColumn, isStiSubclass, getStiBase, instantiateSti } from "./sti.js";
 import {
@@ -11,29 +12,6 @@ import {
   ReadOnlyRecord,
 } from "./errors.js";
 import { encrypts as _encrypts, getEncryptor } from "./encryption.js";
-
-/**
- * Pluralize a name (naive English pluralization).
- */
-function pluralize(word: string): string {
-  if (word.endsWith("s") || word.endsWith("x") || word.endsWith("z")) {
-    return word + "es";
-  }
-  if (word.endsWith("y") && !/[aeiou]y$/i.test(word)) {
-    return word.slice(0, -1) + "ies";
-  }
-  return word + "s";
-}
-
-/**
- * Convert CamelCase to snake_case.
- */
-function underscore(name: string): string {
-  return name
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
-    .replace(/([a-z\d])([A-Z])/g, "$1_$2")
-    .toLowerCase();
-}
 
 // Late-bound Relation constructor to break circular dependency.
 // Set by relation.ts when it loads.
