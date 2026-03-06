@@ -26,6 +26,7 @@ export const TEST_FILE_MAP: Record<string, FileMap> = {
       { file: "arel.test.ts", describeBlock: "Table" },
       { file: "arel.test.ts", describeBlock: "Table.from()" },
       { file: "arel.test.ts", describeBlock: "Table factory methods" },
+      { file: "arel.test.ts", describeBlock: "Table (ported stubs)" },
     ],
     "select_manager_test.rb": [
       { file: "arel.test.ts", describeBlock: "SelectManager" },
@@ -33,21 +34,25 @@ export const TEST_FILE_MAP: Record<string, FileMap> = {
       { file: "arel.test.ts", describeBlock: "SelectManager introspection" },
       { file: "arel.test.ts", describeBlock: "SelectManager joinSources" },
       { file: "arel.test.ts", describeBlock: "SelectManager froms" },
+      { file: "arel.test.ts", describeBlock: "Select Manager (ported stubs)" },
     ],
     "insert_manager_test.rb": [
       { file: "arel.test.ts", describeBlock: "InsertManager" },
       { file: "arel.test.ts", describeBlock: "InsertManager advanced" },
       { file: "arel.test.ts", describeBlock: "InsertManager columns getter" },
+      { file: "arel.test.ts", describeBlock: "Insert Manager (ported stubs)" },
     ],
     "update_manager_test.rb": [
       { file: "arel.test.ts", describeBlock: "UpdateManager" },
       { file: "arel.test.ts", describeBlock: "UpdateManager advanced" },
       { file: "arel.test.ts", describeBlock: "UpdateManager introspection" },
+      { file: "arel.test.ts", describeBlock: "Update Manager (ported stubs)" },
     ],
     "delete_manager_test.rb": [
       { file: "arel.test.ts", describeBlock: "DeleteManager" },
       { file: "arel.test.ts", describeBlock: "DeleteManager advanced" },
       { file: "arel.test.ts", describeBlock: "DeleteManager introspection" },
+      { file: "arel.test.ts", describeBlock: "Delete Manager (ported stubs)" },
     ],
     "attributes/attribute_test.rb": [
       { file: "arel.test.ts", describeBlock: "Attribute predicates" },
@@ -58,132 +63,170 @@ export const TEST_FILE_MAP: Record<string, FileMap> = {
       { file: "arel.test.ts", describeBlock: "Attribute math functions" },
       { file: "arel.test.ts", describeBlock: "Ordering" },
       { file: "arel.test.ts", describeBlock: "Math operations" },
+      { file: "arel.test.ts", describeBlock: "Attributes Attribute (ported stubs)" },
     ],
     "attributes/math_test.rb": [
       { file: "arel.test.ts", describeBlock: "Math operations" },
       { file: "arel.test.ts", describeBlock: "Advanced" },
+      { file: "arel.test.ts", describeBlock: "Attributes Math (ported stubs)" },
     ],
     "attributes_test.rb": [
       { file: "arel.test.ts", describeBlock: "Attribute string/null functions" },
+      { file: "arel.test.ts", describeBlock: "Attributes (ported stubs)" },
     ],
     "nodes/node_test.rb": [
       { file: "arel.test.ts", describeBlock: "Advanced" },
+      { file: "arel.test.ts", describeBlock: "Nodes Node (ported stubs)" },
     ],
     "nodes/equality_test.rb": [
       { file: "arel.test.ts", describeBlock: "Attribute predicates" },
+      { file: "arel.test.ts", describeBlock: "Nodes Equality (ported stubs)" },
     ],
     "nodes/case_test.rb": [
       { file: "arel.test.ts", describeBlock: "Case node" },
+      { file: "arel.test.ts", describeBlock: "Nodes Case (ported stubs)" },
     ],
     "nodes/extract_test.rb": [
       { file: "arel.test.ts", describeBlock: "Extract node" },
+      { file: "arel.test.ts", describeBlock: "Nodes Extract (ported stubs)" },
     ],
     "nodes/bind_param_test.rb": [
       { file: "arel.test.ts", describeBlock: "BindParam node" },
+      { file: "arel.test.ts", describeBlock: "Nodes BindParam (ported stubs)" },
     ],
     "nodes/and_test.rb": [
       { file: "arel.test.ts", describeBlock: "Attribute predicates" },
       { file: "arel.test.ts", describeBlock: "Advanced" },
+      { file: "arel.test.ts", describeBlock: "Nodes And (ported stubs)" },
     ],
     "nodes/as_test.rb": [
       { file: "arel.test.ts", describeBlock: "SelectManager introspection" },
       { file: "arel.test.ts", describeBlock: "Advanced" },
+      { file: "arel.test.ts", describeBlock: "Nodes As (ported stubs)" },
     ],
     "nodes/ascending_test.rb": [
       { file: "arel.test.ts", describeBlock: "Ordering" },
+      { file: "arel.test.ts", describeBlock: "Nodes Ascending (ported stubs)" },
     ],
     "nodes/descending_test.rb": [
       { file: "arel.test.ts", describeBlock: "Ordering" },
+      { file: "arel.test.ts", describeBlock: "Nodes Descending (ported stubs)" },
     ],
     "nodes/casted_test.rb": [
       { file: "arel.test.ts", describeBlock: "Advanced" },
+      { file: "arel.test.ts", describeBlock: "Nodes Casted (ported stubs)" },
     ],
     "nodes/count_test.rb": [
       { file: "arel.test.ts", describeBlock: "Advanced" },
+      { file: "arel.test.ts", describeBlock: "Nodes Count (ported stubs)" },
     ],
     "nodes/cte_test.rb": [
       { file: "arel.test.ts", describeBlock: "Advanced" },
+      { file: "arel.test.ts", describeBlock: "Nodes Cte (ported stubs)" },
     ],
     "nodes/delete_statement_test.rb": [
       { file: "arel.test.ts", describeBlock: "DeleteManager" },
       { file: "arel.test.ts", describeBlock: "DeleteManager introspection" },
+      { file: "arel.test.ts", describeBlock: "Nodes Delete Statement (ported stubs)" },
     ],
     "nodes/distinct_test.rb": [
       { file: "arel.test.ts", describeBlock: "Advanced" },
       { file: "arel.test.ts", describeBlock: "SelectManager" },
+      { file: "arel.test.ts", describeBlock: "Nodes Distinct (ported stubs)" },
     ],
     "nodes/false_test.rb": [
       { file: "arel.test.ts", describeBlock: "True and False nodes" },
+      { file: "arel.test.ts", describeBlock: "Nodes False (ported stubs)" },
     ],
     "nodes/true_test.rb": [
       { file: "arel.test.ts", describeBlock: "True and False nodes" },
+      { file: "arel.test.ts", describeBlock: "Nodes True (ported stubs)" },
     ],
     "nodes/filter_test.rb": [
       { file: "arel.test.ts", describeBlock: "Window framing" },
       { file: "arel.test.ts", describeBlock: "Advanced" },
+      { file: "arel.test.ts", describeBlock: "Nodes Filter (ported stubs)" },
     ],
     "nodes/grouping_test.rb": [
       { file: "arel.test.ts", describeBlock: "ToSql Visitor" },
       { file: "arel.test.ts", describeBlock: "Attribute predicates" },
+      { file: "arel.test.ts", describeBlock: "Nodes Grouping (ported stubs)" },
     ],
     "nodes/infix_operation_test.rb": [
       { file: "arel.test.ts", describeBlock: "InfixOperation node" },
+      { file: "arel.test.ts", describeBlock: "Nodes InfixOperation (ported stubs)" },
     ],
     "nodes/insert_statement_test.rb": [
       { file: "arel.test.ts", describeBlock: "InsertManager" },
       { file: "arel.test.ts", describeBlock: "InsertManager columns getter" },
+      { file: "arel.test.ts", describeBlock: "Nodes Insert Statement (ported stubs)" },
     ],
     "nodes/named_function_test.rb": [
       { file: "arel.test.ts", describeBlock: "Advanced" },
+      { file: "arel.test.ts", describeBlock: "Nodes Named Function (ported stubs)" },
     ],
     "nodes/not_test.rb": [
       { file: "arel.test.ts", describeBlock: "ToSql Visitor" },
       { file: "arel.test.ts", describeBlock: "Attribute predicates" },
+      { file: "arel.test.ts", describeBlock: "Nodes Not (ported stubs)" },
     ],
     "nodes/or_test.rb": [
       { file: "arel.test.ts", describeBlock: "Attribute predicates" },
+      { file: "arel.test.ts", describeBlock: "Nodes Or (ported stubs)" },
     ],
     "nodes/over_test.rb": [
       { file: "arel.test.ts", describeBlock: "Advanced" },
       { file: "arel.test.ts", describeBlock: "Window framing" },
+      { file: "arel.test.ts", describeBlock: "Nodes Over (ported stubs)" },
     ],
     "nodes/select_statement_test.rb": [
       { file: "arel.test.ts", describeBlock: "SelectManager" },
       { file: "arel.test.ts", describeBlock: "SelectManager introspection" },
+      { file: "arel.test.ts", describeBlock: "Nodes Select Statement (ported stubs)" },
     ],
     "nodes/sql_literal_test.rb": [
       { file: "arel.test.ts", describeBlock: "Advanced" },
       { file: "arel.test.ts", describeBlock: "ToSql Visitor" },
+      { file: "arel.test.ts", describeBlock: "Nodes Sql Literal (ported stubs)" },
     ],
     "nodes/sum_test.rb": [
       { file: "arel.test.ts", describeBlock: "Advanced" },
+      { file: "arel.test.ts", describeBlock: "Nodes Sum (ported stubs)" },
     ],
     "nodes/table_alias_test.rb": [
       { file: "arel.test.ts", describeBlock: "Table factory methods" },
       { file: "arel.test.ts", describeBlock: "Table" },
+      { file: "arel.test.ts", describeBlock: "Nodes Table Alias (ported stubs)" },
     ],
     "nodes/unary_operation_test.rb": [
       { file: "arel.test.ts", describeBlock: "Advanced" },
+      { file: "arel.test.ts", describeBlock: "Nodes Unary Operation (ported stubs)" },
     ],
     "nodes/update_statement_test.rb": [
       { file: "arel.test.ts", describeBlock: "UpdateManager" },
       { file: "arel.test.ts", describeBlock: "UpdateManager introspection" },
+      { file: "arel.test.ts", describeBlock: "Nodes Update Statement (ported stubs)" },
     ],
     "nodes/window_test.rb": [
       { file: "arel.test.ts", describeBlock: "Window framing" },
+      { file: "arel.test.ts", describeBlock: "Nodes Window (ported stubs)" },
     ],
     "collectors/sql_string_test.rb": [
       { file: "arel.test.ts", describeBlock: "Collectors" },
+      { file: "arel.test.ts", describeBlock: "Collectors (ported stubs)" },
     ],
     "collectors/bind_test.rb": [
       { file: "arel.test.ts", describeBlock: "Collectors" },
+      { file: "arel.test.ts", describeBlock: "Collectors (ported stubs)" },
     ],
     "factory_methods_test.rb": [
       { file: "arel.test.ts", describeBlock: "Table factory methods" },
       { file: "arel.test.ts", describeBlock: "True and False nodes" },
+      { file: "arel.test.ts", describeBlock: "Factory Methods (ported stubs)" },
     ],
     "visitors/to_sql_test.rb": [
       { file: "arel.test.ts", describeBlock: "ToSql Visitor" },
+      { file: "arel.test.ts", describeBlock: "Visitors To Sql (ported stubs)" },
     ],
   },
 
@@ -1033,6 +1076,9 @@ const VERB_SYNONYMS: Record<string, string> = {
  */
 export function normalizeTestDescription(desc: string): string {
   let normalized = desc
+    // Strip Ruby test class prefixes like "TestAscending > ", "FilterTest > ",
+    // "Arel::Nodes::OverTest > ", "NodesTest > ", "SqlLiteralTest > ", etc.
+    .replace(/^(?:Arel::Nodes::|Arel::)?(?:Test)?[A-Z][A-Za-z]*(?:Test)?\s*>\s*/, "")
     // Split camelCase into words (notEq → not Eq, doesNotMatch → does Not Match)
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     // Lowercase
@@ -1069,6 +1115,15 @@ export function normalizeTestDescription(desc: string): string {
     .replace(/\bgenerate\b/g, "")
     .replace(/\bproduce\b/g, "")
     .replace(/\bcreate\b/g, "")
+    // Normalize "ascending?" to "ascending", "descending?" to "descending"
+    .replace(/\?/g, "")
+    // Normalize "eql?" references
+    .replace(/\beql returns true\b/g, "eql")
+    // Remove parenthetical clarifications like "(checks left/right)", "(same table and column)", "(immutability)"
+    .replace(/\([^)]*\)/g, "")
+    // Normalize "via sql" / "in sql" / "via constructor"
+    .replace(/\bvia\b/g, "")
+    .replace(/\bin\b/g, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -1094,10 +1149,10 @@ export function matchDescriptions(
 
   // Fuzzy containment — one contains the other
   if (rubyNorm.includes(tsNorm) || tsNorm.includes(rubyNorm)) {
-    // Only if the shorter is at least 60% of the longer
+    // Only if the shorter is at least 40% of the longer
     const shorter = rubyNorm.length < tsNorm.length ? rubyNorm : tsNorm;
     const longer = rubyNorm.length >= tsNorm.length ? rubyNorm : tsNorm;
-    if (shorter.length / longer.length >= 0.6) {
+    if (shorter.length / longer.length >= 0.4) {
       return "fuzzy";
     }
   }
@@ -1107,18 +1162,19 @@ export function matchDescriptions(
     "the", "and", "for", "with", "from", "that", "this", "not", "but",
     "all", "are", "can", "one", "new", "its", "when", "record", "value",
     "attribute", "given", "only", "also", "into", "will", "nil", "null",
+    "an", "a", "be", "have", "do",
   ]);
   const domainWords = (s: string) =>
     new Set(s.split(" ").filter(w => w.length > 2 && !STOPWORDS.has(w)));
   const rubyWords = domainWords(rubyNorm);
   const tsWords = domainWords(tsNorm);
-  if (rubyWords.size >= 2 && tsWords.size >= 2) {
+  if (rubyWords.size >= 1 && tsWords.size >= 1) {
     let matches = 0;
     for (const word of rubyWords) {
       if (tsWords.has(word)) matches++;
     }
     const overlapRatio = matches / Math.max(rubyWords.size, tsWords.size);
-    if (overlapRatio >= 0.6 && matches >= 3) return "fuzzy";
+    if (overlapRatio >= 0.5 && matches >= 2) return "fuzzy";
   }
 
   return "none";
