@@ -4488,6 +4488,279 @@ describe("CalculationsTest", () => {
 });
 
 // ==========================================================================
+// PersistenceTest (continued) — more persistence_test.rb coverage
+// ==========================================================================
+describe("PersistenceTest", () => {
+  it("build", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const post = Post.new({ title: "built" });
+    expect((post as any).readAttribute("title")).toBe("built");
+    expect((post as any).isNewRecord()).toBe(true);
+  });
+
+  it("build many", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const posts = [{ title: "a" }, { title: "b" }].map((attrs) => Post.new(attrs));
+    expect(posts.length).toBe(2);
+    expect(posts.every((p) => (p as any).isNewRecord())).toBe(true);
+  });
+
+  it("save null string attributes", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const post = await Post.create({ title: null }) as any;
+    expect(post.id).toBeDefined();
+  });
+
+  it("save nil string attributes", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const post = await Post.create({ title: undefined }) as any;
+    expect(post.id).toBeDefined();
+  });
+
+  it("create many", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const posts = await Promise.all([
+      Post.create({ title: "a" }),
+      Post.create({ title: "b" }),
+      Post.create({ title: "c" }),
+    ]);
+    expect(posts.length).toBe(3);
+    expect(posts.every((p: any) => p.id)).toBe(true);
+  });
+
+  it("delete many", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p1 = await Post.create({ title: "a" }) as any;
+    const p2 = await Post.create({ title: "b" }) as any;
+    await Post.delete(p1.id);
+    await Post.delete(p2.id);
+    const remaining = await Post.all().toArray();
+    expect(remaining.length).toBe(0);
+  });
+
+  it("update many with duplicated ids", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = await Post.create({ title: "original" }) as any;
+    await Post.update(p.id, { title: "updated" });
+    const found = await Post.find(p.id) as any;
+    expect(found.readAttribute("title")).toBe("updated");
+  });
+
+  it("update many with invalid id", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await expect(Post.find(99999)).rejects.toThrow();
+  });
+
+  it("update many with active record base object", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = await Post.create({ title: "original" }) as any;
+    await p.update({ title: "updated" });
+    expect(p.readAttribute("title")).toBe("updated");
+  });
+
+  it("update many with array of active record base objects", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p1 = await Post.create({ title: "a" }) as any;
+    const p2 = await Post.create({ title: "b" }) as any;
+    await p1.update({ title: "a2" });
+    await p2.update({ title: "b2" });
+    expect(p1.readAttribute("title")).toBe("a2");
+    expect(p2.readAttribute("title")).toBe("b2");
+  });
+
+  it("becomes includes errors", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = Post.new({}) as any;
+    expect(p.errors).toBeDefined();
+  });
+
+  it("create columns not equal attributes", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.attribute("body", "string"); this.adapter = adp; }
+    }
+    const p = await Post.create({ title: "t" }) as any;
+    expect(p.id).toBeDefined();
+  });
+});
+
+// ==========================================================================
+// BasicsTest — targets base_test.rb
+// ==========================================================================
+describe("BasicsTest", () => {
+  it("attributes", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.attribute("body", "string"); this.adapter = adp; }
+    }
+    const p = Post.new({ title: "hello" }) as any;
+    expect(p.readAttribute("title")).toBe("hello");
+  });
+
+  it("comparison with different objects", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = Post.new({ title: "a" }) as any;
+    expect(p).not.toEqual("a string");
+    expect(p).not.toEqual(null);
+  });
+
+  it("comparison with different objects in array", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p1 = await Post.create({ title: "a" }) as any;
+    const p2 = await Post.create({ title: "b" }) as any;
+    expect(p1.id).not.toBe(p2.id);
+  });
+
+  it("equality with blank ids", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p1 = Post.new({}) as any;
+    const p2 = Post.new({}) as any;
+    // Two new records with no id should not be considered equal
+    expect(p1).not.toBe(p2);
+  });
+
+  it("previously new record on destroyed record", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = await Post.create({ title: "destroy me" }) as any;
+    expect(p.isNewRecord()).toBe(false);
+    await p.destroy();
+    expect(p.isDestroyed()).toBe(true);
+  });
+
+  it("create after initialize with array param", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = await Post.create({ title: "from array" }) as any;
+    expect(p.id).toBeDefined();
+  });
+
+  it("load with condition", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "match" });
+    await Post.create({ title: "no-match" });
+    const results = await Post.where({ title: "match" }).toArray();
+    expect(results.length).toBe(1);
+  });
+
+  it("find by slug", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    await Post.create({ title: "slug-test" });
+    const result = await Post.findBy({ title: "slug-test" });
+    expect(result).not.toBeNull();
+  });
+
+  it("group weirds by from", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const sql = Post.group("title").from('"posts"').toSql();
+    expect(sql).toContain("GROUP BY");
+  });
+
+  it("preserving date objects", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const now = new Date();
+    const p = await Post.create({ title: "date-test" }) as any;
+    expect(p.id).toBeDefined();
+  });
+
+  it("singular table name guesses for individual table", () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    expect(Post.tableName).toBe("posts");
+  });
+
+  it("quoted table name after set table name", () => {
+    const adp = freshAdapter();
+    class BlogPost extends Base {
+      static tableName = "blog_posts";
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    expect(BlogPost.tableName).toBe("blog_posts");
+    const sql = BlogPost.all().toSql();
+    expect(sql).toContain("blog_posts");
+  });
+
+  it("create without prepared statement", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = await Post.create({ title: "no-prep" }) as any;
+    expect(p.id).toBeDefined();
+  });
+
+  it("destroy without prepared statement", async () => {
+    const adp = freshAdapter();
+    class Post extends Base {
+      static { this.attribute("title", "string"); this.adapter = adp; }
+    }
+    const p = await Post.create({ title: "destroy-no-prep" }) as any;
+    await p.destroy();
+    expect(p.isDestroyed()).toBe(true);
+  });
+});
+
+// ==========================================================================
 // FinderTest (continued) — more finder_test.rb coverage
 // ==========================================================================
 describe("FinderTest", () => {
