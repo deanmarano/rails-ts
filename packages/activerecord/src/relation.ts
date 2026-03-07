@@ -1851,11 +1851,15 @@ export class Relation<T extends Base> {
   ): Promise<number> {
     if (records.length === 0) return 0;
 
+    // Merge scope attributes (from where() and createWith()) into each record
+    const scopeAttrs = { ...this._createWithAttrs, ...this._scopeAttributes() };
+    const mergedRecords = records.map((r) => ({ ...scopeAttrs, ...r }));
+
     const table = this._modelClass.arelTable;
-    const columns = Object.keys(records[0]);
+    const columns = Object.keys(mergedRecords[0]);
     const colList = columns.map((c) => `"${c}"`).join(", ");
 
-    const valueRows = records.map((row) => {
+    const valueRows = mergedRecords.map((row) => {
       const vals = columns.map((c) => {
         const v = row[c];
         if (v === null || v === undefined) return "NULL";
@@ -1885,15 +1889,23 @@ export class Relation<T extends Base> {
    */
   async upsertAll(
     records: Record<string, unknown>[],
-    options?: { uniqueBy?: string | string[] }
+    options?: { uniqueBy?: string | string[]; updateOnly?: string | string[]; onDuplicate?: unknown }
   ): Promise<number> {
+    if (options?.onDuplicate !== undefined && options?.updateOnly !== undefined) {
+      throw new Error("Cannot use both onDuplicate and updateOnly");
+    }
+
     if (records.length === 0) return 0;
 
+    // Merge scope attributes into each record
+    const scopeAttrs = { ...this._createWithAttrs, ...this._scopeAttributes() };
+    const mergedRecords = records.map((r) => ({ ...scopeAttrs, ...r }));
+
     const table = this._modelClass.arelTable;
-    const columns = Object.keys(records[0]);
+    const columns = Object.keys(mergedRecords[0]);
     const colList = columns.map((c) => `"${c}"`).join(", ");
 
-    const valueRows = records.map((row) => {
+    const valueRows = mergedRecords.map((row) => {
       const vals = columns.map((c) => {
         const v = row[c];
         if (v === null || v === undefined) return "NULL";
@@ -1910,7 +1922,15 @@ export class Relation<T extends Base> {
       ? (Array.isArray(options.uniqueBy) ? options.uniqueBy : [options.uniqueBy])
       : [this._modelClass.primaryKey];
 
-    const updateCols = columns.filter((c) => !uniqueCols.includes(c));
+    // updateOnly restricts which columns get updated on conflict
+    let updateCols: string[];
+    if (options?.updateOnly) {
+      const only = Array.isArray(options.updateOnly) ? options.updateOnly : [options.updateOnly];
+      updateCols = only;
+    } else {
+      updateCols = columns.filter((c) => !uniqueCols.includes(c));
+    }
+
     const updateClause = updateCols.length > 0
       ? updateCols.map((c) => `"${c}" = EXCLUDED."${c}"`).join(", ")
       : `"${columns[0]}" = EXCLUDED."${columns[0]}"`;

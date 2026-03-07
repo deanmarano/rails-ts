@@ -2910,7 +2910,7 @@ export const TEST_OVERRIDES: Record<string, string | null> = {
   "ClearTest > clear all cache key": null,
   "ClearTest > only clear namespace cache key": null,
   "ClearTest > clear all cache key with Redis::Distributed": null,
-  "RawTest > does not compress values read with \"raw\" enabled": null,
+  "RawTest > does not compress values read with \\\"raw\\\" enabled": null,
 
   // --- callback_inheritance_test.rb ---
   "BasicCallbacksTest > basic conditional callback1": null,
@@ -6193,6 +6193,7 @@ export const TEST_OVERRIDES: Record<string, string | null> = {
   "EagerAssociationTest > preload has many using primary key": null,
   "EagerAssociationTest > include has many using primary key": null,
   "EagerAssociationTest > preloading through empty belongs to": null,
+  "EagerAssociationTest > preloading empty belongs to polymorphic": null,
   "EagerAssociationTest > preloading has many through with distinct": null,
   "EagerAssociationTest > preloading has one using reorder": null,
   "EagerAssociationTest > preloading polymorphic with custom foreign type": null,
@@ -7791,6 +7792,7 @@ export const TEST_OVERRIDES: Record<string, string | null> = {
   "CoreTest > composite pk models equality": null,
   "CoreTest > composite pk models hash": null,
   "CounterCacheTest > decrement counter for cpk model": null,
+  "CounterCacheTest > increment counter for multiple cpk model records": null,
   "CounterCacheTest > reset counters": null,
   "CounterCacheTest > reset counters by counter name": null,
   "CounterCacheTest > reset multiple counters": null,
