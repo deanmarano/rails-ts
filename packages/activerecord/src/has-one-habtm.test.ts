@@ -54,7 +54,7 @@ describe("HasOneAssociationsTest", () => {
   it.skip("has one", async () => {
     const firm = await Firm.create({ name: "First Firm" });
     await Account.create({ firm_id: firm.id, credit_limit: 50 });
-    const assoc = await loadHasOne(firm, Account, "firm_id", "id");
+    const assoc = await loadHasOne(firm, "account", { foreignKey: "firm_id", primaryKey: "id" });
     expect(assoc).not.toBeNull();
     expect((assoc as any).readAttribute("credit_limit")).toBe(50);
   });
@@ -102,7 +102,7 @@ describe("HasOneAssociationsTest", () => {
     // Simulate setting foreign key
     account.writeAttribute("firm_id", firm.id as number);
     await account.save();
-    const loaded = await loadHasOne(firm, Account, "firm_id", "id");
+    const loaded = await loadHasOne(firm, "account", { foreignKey: "firm_id", primaryKey: "id" });
     expect(loaded).not.toBeNull();
   });
 
@@ -110,11 +110,11 @@ describe("HasOneAssociationsTest", () => {
     const firm = await Firm.create({ name: "Nil Corp" });
     await Account.create({ firm_id: firm.id, credit_limit: 50 });
     // Nullify foreign key
-    const existing = await loadHasOne(firm, Account, "firm_id", "id");
+    const existing = await loadHasOne(firm, "account", { foreignKey: "firm_id", primaryKey: "id" });
     expect(existing).not.toBeNull();
     (existing as any).writeAttribute("firm_id", null);
     await (existing as any).save();
-    const after = await loadHasOne(firm, Account, "firm_id", "id");
+    const after = await loadHasOne(firm, "account", { foreignKey: "firm_id", primaryKey: "id" });
     expect(after).toBeNull();
   });
 
@@ -154,7 +154,7 @@ describe("HasOneAssociationsTest", () => {
     const firm = await Firm.create({ name: "Dep Corp" });
     const account = await Account.create({ firm_id: firm.id, credit_limit: 10 });
     const deps = [{ model: Account, foreignKey: "firm_id", dependent: "destroy" as const }];
-    await processDependentAssociations(firm, deps);
+    await processDependentAssociations(firm);
     const after = await Account.find(account.id as number).catch(() => null);
     expect(after).toBeNull();
   });
@@ -178,7 +178,7 @@ describe("HasOneAssociationsTest", () => {
   it("successful build association", async () => {
     const firm = await Firm.create({ name: "Build Corp" });
     const account = new Account({ firm_id: firm.id as number, credit_limit: 200 });
-    account.adapter = adapter;
+    (account.constructor as any).adapter = adapter;
     expect(account.isNewRecord()).toBe(true);
     await account.save();
     expect(account.isNewRecord()).toBe(false);
@@ -215,9 +215,9 @@ describe("HasOneAssociationsTest", () => {
   it.skip("create association", async () => {
     const firm = await Firm.create({ name: "Create Corp" });
     const account = new Account({ firm_id: firm.id as number, credit_limit: 300 });
-    account.adapter = adapter;
+    (account.constructor as any).adapter = adapter;
     await account.save();
-    const found = await loadHasOne(firm, Account, "firm_id", "id");
+    const found = await loadHasOne(firm, "account", { foreignKey: "firm_id", primaryKey: "id" });
     expect(found).not.toBeNull();
     expect((found as any).readAttribute("credit_limit")).toBe(300);
   });
@@ -257,14 +257,14 @@ describe("HasOneAssociationsTest", () => {
   it("build", async () => {
     const firm = await Firm.create({ name: "Build2 Corp" });
     const account = new Account({ firm_id: firm.id as number, credit_limit: 50 });
-    account.adapter = adapter;
+    (account.constructor as any).adapter = adapter;
     expect(account.readAttribute("firm_id")).toBe(firm.id);
   });
 
   it("create", async () => {
     const firm = await Firm.create({ name: "Create2 Corp" });
     const account = new Account({ firm_id: firm.id as number, credit_limit: 50 });
-    account.adapter = adapter;
+    (account.constructor as any).adapter = adapter;
     await account.save();
     expect(account.isNewRecord()).toBe(false);
   });
@@ -383,9 +383,9 @@ describe("HasOneAssociationsTest", () => {
 
   it("has one loading for new record", async () => {
     const firm = new Firm({ name: "New Firm" });
-    firm.adapter = adapter;
+    (firm.constructor as any).adapter = adapter;
     // New records should return null for has_one associations
-    const result = firm.isNewRecord() ? null : await loadHasOne(firm, Account, "firm_id", "id");
+    const result = firm.isNewRecord() ? null : await loadHasOne(firm, "account", { foreignKey: "firm_id", primaryKey: "id" });
     expect(result).toBeNull();
   });
 
@@ -520,7 +520,7 @@ describe("HasAndBelongsToManyAssociationsTest", () => {
     const dev = await Developer.create({ name: "Alice", salary: 100000 });
     const proj = await Project.create({ name: "Rails" });
     await DeveloperProject.create({ developer_id: dev.id, project_id: proj.id });
-    const projects = await loadHabtm(dev, Project, DeveloperProject, "developer_id", "project_id");
+    const projects = await loadHabtm(dev, "projects", { className: "Project", joinTable: "developer_projects", foreignKey: "developer_id" });
     expect(projects.length).toBe(1);
     expect((projects[0] as any).readAttribute("name")).toBe("Rails");
   });
@@ -529,7 +529,7 @@ describe("HasAndBelongsToManyAssociationsTest", () => {
     const dev = await Developer.create({ name: "Bob", salary: 80000 });
     const proj = await Project.create({ name: "ActiveRecord" });
     await DeveloperProject.create({ developer_id: dev.id, project_id: proj.id });
-    const projects = await loadHabtm(dev, Project, DeveloperProject, "developer_id", "project_id");
+    const projects = await loadHabtm(dev, "projects", { className: "Project", joinTable: "developer_projects", foreignKey: "developer_id" });
     expect(projects.length).toBe(1);
   });
 
@@ -541,7 +541,7 @@ describe("HasAndBelongsToManyAssociationsTest", () => {
     const proj = await Project.create({ name: "Arel" });
     const dev = await Developer.create({ name: "Carol", salary: 90000 });
     await DeveloperProject.create({ developer_id: dev.id, project_id: proj.id });
-    const devs = await loadHabtm(proj, Developer, DeveloperProject, "project_id", "developer_id");
+    const devs = await loadHabtm(proj, "developers", { className: "Developer", joinTable: "developer_projects", foreignKey: "project_id" });
     expect(devs.length).toBe(1);
   });
 
@@ -555,7 +555,7 @@ describe("HasAndBelongsToManyAssociationsTest", () => {
     const p2 = await Project.create({ name: "P2" });
     await DeveloperProject.create({ developer_id: dev.id, project_id: p1.id });
     await DeveloperProject.create({ developer_id: dev.id, project_id: p2.id });
-    const projects = await loadHabtm(dev, Project, DeveloperProject, "developer_id", "project_id");
+    const projects = await loadHabtm(dev, "projects", { className: "Project", joinTable: "developer_projects", foreignKey: "developer_id" });
     expect(projects.length).toBe(2);
   });
 
@@ -569,7 +569,7 @@ describe("HasAndBelongsToManyAssociationsTest", () => {
     for (const p of projs) {
       await DeveloperProject.create({ developer_id: dev.id, project_id: p.id });
     }
-    const loaded = await loadHabtm(dev, Project, DeveloperProject, "developer_id", "project_id");
+    const loaded = await loadHabtm(dev, "projects", { className: "Project", joinTable: "developer_projects", foreignKey: "developer_id" });
     expect(loaded.length).toBe(3);
   });
 
@@ -630,7 +630,7 @@ describe("HasAndBelongsToManyAssociationsTest", () => {
     const proj = await Project.create({ name: "ToDelete" });
     const join = await DeveloperProject.create({ developer_id: dev.id, project_id: proj.id });
     await join.destroy();
-    const projects = await loadHabtm(dev, Project, DeveloperProject, "developer_id", "project_id");
+    const projects = await loadHabtm(dev, "projects", { className: "Project", joinTable: "developer_projects", foreignKey: "developer_id" });
     expect(projects.length).toBe(0);
   });
 
@@ -814,7 +814,7 @@ describe("HasAndBelongsToManyAssociationsTest", () => {
     const dev = await Developer.create({ name: "Grace", salary: 120000 });
     await DeveloperProject.create({ developer_id: dev.id, project_id: 1 });
     await DeveloperProject.create({ developer_id: dev.id, project_id: 2 });
-    const joins = await loadHabtm(dev, Project, DeveloperProject, "developer_id", "project_id");
+    const joins = await loadHabtm(dev, "projects", { className: "Project", joinTable: "developer_projects", foreignKey: "developer_id" });
     // Count via loaded array
     expect(joins.length).toBe(2);
   });
@@ -955,7 +955,7 @@ describe("AssociationsJoinModelTest", () => {
   it.skip("has many", async () => {
     const author = await Author.create({ name: "DHH" });
     await Post.create({ author_id: author.id, title: "Intro", body: "Hello" });
-    const posts = await loadHasMany(author, Post, "author_id", "id");
+    const posts = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id", primaryKey: "id" });
     expect(posts.length).toBe(1);
   });
 
@@ -983,7 +983,7 @@ describe("AssociationsJoinModelTest", () => {
     const tag = await Tag.create({ name: "ruby" });
     const post = await Post.create({ title: "Test", body: "Body" });
     await Tagging.create({ tag_id: tag.id, taggable_id: post.id, taggable_type: "Post" });
-    const taggings = await loadHasMany(tag, Tagging, "tag_id", "id");
+    const taggings = await loadHasMany(tag, "taggings", { className: "Tagging", foreignKey: "tag_id", primaryKey: "id" });
     expect(taggings.length).toBe(1);
   });
 
@@ -1107,14 +1107,14 @@ describe("AssociationsJoinModelTest", () => {
     const author = await Author.create({ name: "Matz" });
     await Post.create({ author_id: author.id, title: "P1", body: "B1" });
     await Post.create({ author_id: author.id, title: "P2", body: "B2" });
-    const posts = await loadHasMany(author, Post, "author_id", "id");
+    const posts = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id", primaryKey: "id" });
     expect(posts.length).toBe(2);
   });
 
   it.skip("has many find first", async () => {
     const author = await Author.create({ name: "Koichi" });
     await Post.create({ author_id: author.id, title: "First", body: "B" });
-    const posts = await loadHasMany(author, Post, "author_id", "id");
+    const posts = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id", primaryKey: "id" });
     expect(posts[0]).toBeDefined();
   });
 
@@ -1430,11 +1430,11 @@ describe("NestedThroughAssociationsTest", () => {
     await Tagging.create({ tag_id: tag.id, taggable_id: post.id, taggable_type: "Post" });
 
     // Load intermediate: author's posts
-    const posts = await loadHasMany(author, Post, "author_id", "id");
+    const posts = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id", primaryKey: "id" });
     expect(posts.length).toBe(1);
 
     // Load through: taggings for that post
-    const taggings = await loadHasMany(posts[0] as Post, Tagging, "taggable_id", "id");
+    const taggings = await loadHasMany(posts[0] as Post, "taggings", { className: "Tagging", foreignKey: "taggable_id", primaryKey: "id" });
     expect(taggings.length).toBe(1);
   });
 

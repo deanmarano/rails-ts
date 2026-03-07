@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   Base,
   MemoryAdapter,
+  Associations,
   AssociationReflection,
   reflectOnAssociation,
   reflectOnAllAssociations,
@@ -37,8 +38,8 @@ describe("ReflectionTest", () => {
     class Article extends Base {
       static { this.attribute("title", "string"); this.adapter = adapter; }
     }
-    const cols = Article.columns();
-    const title = cols.find((c) => c.name === "title");
+    const cols = (Article as any).columnsHash();
+    const title = cols.find((c: any) => c.name === "title");
     expect(title).toBeDefined();
     expect(title!.type).toBe("string");
   });
@@ -47,7 +48,7 @@ describe("ReflectionTest", () => {
     class Article extends Base {
       static { this.attribute("title", "string"); this.adapter = adapter; }
     }
-    const cols = Article.columns();
+    const cols = (Article as any).columnsHash();
     expect(cols.length).toBeGreaterThan(0);
   });
 
@@ -55,8 +56,8 @@ describe("ReflectionTest", () => {
     class Article extends Base {
       static { this.attribute("body_text", "string"); this.adapter = adapter; }
     }
-    const cols = Article.columns();
-    const col = cols.find((c) => c.name === "body_text");
+    const cols = (Article as any).columnsHash();
+    const col = cols.find((c: any) => c.name === "body_text");
     expect(col).toBeDefined();
     expect(col!.name).toBe("body_text");
   });
@@ -65,8 +66,8 @@ describe("ReflectionTest", () => {
     class Article extends Base {
       static { this.attribute("views", "integer"); this.adapter = adapter; }
     }
-    const cols = Article.columns();
-    const views = cols.find((c) => c.name === "views");
+    const cols = (Article as any).columnsHash();
+    const views = cols.find((c: any) => c.name === "views");
     expect(views).toBeDefined();
     expect(views!.type).toBe("integer");
   });
@@ -75,8 +76,8 @@ describe("ReflectionTest", () => {
     class Article extends Base {
       static { this.attribute("title", "string"); this.adapter = adapter; }
     }
-    const cols = Article.columns();
-    const nonExistent = cols.find((c) => c.name === "does_not_exist");
+    const cols = (Article as any).columnsHash();
+    const nonExistent = cols.find((c: any) => c.name === "does_not_exist");
     expect(nonExistent).toBeUndefined();
   });
 
@@ -88,7 +89,7 @@ describe("ReflectionTest", () => {
       static {
         this.attribute("title", "string");
         this.adapter = adapter;
-        this.hasMany("comments", { model: Comment });
+        Associations.hasMany.call(this, "comments", { className: "Comment" });
       }
     }
     const reflection = reflectOnAssociation(Post, "comments");
@@ -105,7 +106,7 @@ describe("ReflectionTest", () => {
       static {
         this.attribute("name", "string");
         this.adapter = adapter;
-        this.hasOne("profile", { model: Profile });
+        Associations.hasOne.call(this, "profile", { className: "Profile" });
       }
     }
     const reflection = reflectOnAssociation(User, "profile");
@@ -121,7 +122,7 @@ describe("ReflectionTest", () => {
       static {
         this.attribute("author_id", "integer");
         this.adapter = adapter;
-        this.belongsTo("author", { model: Author });
+        Associations.belongsTo.call(this, "author", { className: "Author" });
       }
     }
     const reflection = reflectOnAssociation(Post, "author");
@@ -138,7 +139,7 @@ describe("ReflectionTest", () => {
       static {
         this.attribute("title", "string");
         this.adapter = adapter;
-        this.hasMany("comments", { model: Comment });
+        Associations.hasMany.call(this, "comments", { className: "Comment" });
       }
     }
     const reflections = reflectOnAllAssociations(Post);
@@ -155,15 +156,15 @@ describe("ReflectionTest", () => {
         this.attribute("post_id", "integer");
         this.attribute("tag_id", "integer");
         this.adapter = adapter;
-        this.belongsTo("tag", { model: Tag });
+        Associations.belongsTo.call(this, "tag", { className: "Tag" });
       }
     }
     class Post extends Base {
       static {
         this.attribute("title", "string");
         this.adapter = adapter;
-        this.hasMany("post_tags", { model: PostTag });
-        this.hasMany("tags", { through: "post_tags", model: Tag });
+        Associations.hasMany.call(this, "post_tags", { className: "PostTag" });
+        Associations.hasMany.call(this, "tags", { through: "post_tags", className: "Tag" });
       }
     }
     const reflection = reflectOnAssociation(Post, "tags");
@@ -178,7 +179,7 @@ describe("ReflectionTest", () => {
       static {
         this.attribute("title", "string");
         this.adapter = adapter;
-        this.hasMany("comments", { model: Comment });
+        Associations.hasMany.call(this, "comments", { className: "Comment" });
       }
     }
     const reflection = reflectOnAssociation(Post, "comments");
@@ -193,7 +194,7 @@ describe("ReflectionTest", () => {
       static {
         this.attribute("title", "string");
         this.adapter = adapter;
-        this.hasMany("comments", { model: Comment });
+        Associations.hasMany.call(this, "comments", { className: "Comment" });
       }
     }
     const reflection = reflectOnAssociation(Post, "comments");
@@ -208,7 +209,7 @@ describe("ReflectionTest", () => {
       static {
         this.attribute("author_id", "integer");
         this.adapter = adapter;
-        this.belongsTo("author", { model: Author });
+        Associations.belongsTo.call(this, "author", { className: "Author" });
       }
     }
     const reflection = reflectOnAssociation(Post, "author");
@@ -223,7 +224,7 @@ describe("ReflectionTest", () => {
       static {
         this.attribute("post_id", "integer");
         this.adapter = adapter;
-        this.belongsTo("post", { model: Post });
+        Associations.belongsTo.call(this, "post", { className: "Post" });
       }
     }
     const reflection = reflectOnAssociation(Comment, "post");
@@ -343,8 +344,8 @@ describe("MigrationTest", () => {
         this.adapter = adapter;
       }
     }
-    const cols = Post.columns();
-    const body = cols.find((c) => c.name === "body");
+    const cols = (Post as any).columnsHash();
+    const body = cols.find((c: any) => c.name === "body");
     expect(body).toBeDefined();
   });
 
@@ -355,8 +356,8 @@ describe("MigrationTest", () => {
         this.adapter = adapter;
       }
     }
-    const cols = Product.columns();
-    const price = cols.find((c) => c.name === "price");
+    const cols = (Product as any).columnsHash();
+    const price = cols.find((c: any) => c.name === "price");
     expect(price).toBeDefined();
     expect(price!.type).toBe("decimal");
   });
@@ -398,8 +399,8 @@ describe("MigrationTest", () => {
     class Counter extends Base {
       static { this.attribute("count", "integer"); this.adapter = adapter; }
     }
-    const cols = Counter.columns();
-    expect(cols.find((c) => c.name === "count")).toBeDefined();
+    const cols = (Counter as any).columnsHash();
+    expect(cols.find((c: any) => c.name === "count")).toBeDefined();
   });
 
   it.skip("create table with binary column", () => {
@@ -409,8 +410,8 @@ describe("MigrationTest", () => {
         this.adapter = adapter;
       }
     }
-    const cols = Document.columns();
-    const content = cols.find((c) => c.name === "content");
+    const cols = (Document as any).columnsHash();
+    const content = cols.find((c: any) => c.name === "content");
     expect(content).toBeDefined();
   });
 
@@ -429,8 +430,8 @@ describe("MigrationTest", () => {
         this.adapter = adapter;
       }
     }
-    const cols = Post.columns();
-    expect(cols.find((c) => c.name === "title")).toBeDefined();
+    const cols = (Post as any).columnsHash();
+    expect(cols.find((c: any) => c.name === "title")).toBeDefined();
   });
 
   it("migration instance has connection", () => {

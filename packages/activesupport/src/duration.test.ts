@@ -18,7 +18,7 @@ describe("DurationTest", () => {
   it("threequals", () => {
     expect(Duration.days(1) instanceof Duration).toBe(true);
     expect(typeof Duration.days(1).inSeconds() === "number").toBe(true);
-    expect("foo" instanceof Duration).toBe(false);
+    expect(("foo" as any) instanceof Duration).toBe(false);
   });
 
   it("equals", () => {

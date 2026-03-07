@@ -111,7 +111,7 @@ describe("ModuleTest", () => {
     w.color = "red";
     expect(w.color).toBe("red");
     // Stored in _color_
-    expect((w as Record<string, unknown>)["_color_"]).toBe("red");
+    expect(((w as unknown) as Record<string, unknown>)["_color_"]).toBe("red");
   });
 
   it("attr_internal writer method — sets value via assignment method", () => {

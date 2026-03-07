@@ -1129,7 +1129,7 @@ describe("HasManyAssociationsTest", () => {
     await proxy.clear();
 
     const all = await Client.all().toArray();
-    expect(all.every(c => c.readAttribute("firm_id") === null)).toBe(true);
+    expect(all.every((c: any) => c.readAttribute("firm_id") === null)).toBe(true);
   });
 
   // -------------------------------------------------------------------------

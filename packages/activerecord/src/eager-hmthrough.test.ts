@@ -55,8 +55,8 @@ describe("EagerAssociationTest", () => {
     await EagerComment.create({ body: "c1", eager_post_id: p1.readAttribute("id") });
 
     const posts = await EagerPost.all().includes("eagerComments").toArray();
-    const post1 = posts.find((p) => p.readAttribute("title") === "A")!;
-    const post2 = posts.find((p) => p.readAttribute("title") === "B")!;
+    const post1 = posts.find((p: any) => p.readAttribute("title") === "A")!;
+    const post2 = posts.find((p: any) => p.readAttribute("title") === "B")!;
     expect((post1 as any)._preloadedAssociations.get("eagerComments")).toHaveLength(1);
     expect((post2 as any)._preloadedAssociations.get("eagerComments")).toHaveLength(0);
   });

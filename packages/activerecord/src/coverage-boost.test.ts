@@ -11441,8 +11441,8 @@ describe("EagerAssociationTest", () => {
 
     const pets = await PetEager.all().includes("ownerEager").toArray();
     expect(pets).toHaveLength(2);
-    const rexPet = pets.find((p) => p.readAttribute("id") === ownedPet.readAttribute("id"))!;
-    const stray = pets.find((p) => p.readAttribute("id") === strayPet.readAttribute("id"))!;
+    const rexPet = pets.find((p: any) => p.readAttribute("id") === ownedPet.readAttribute("id"))!;
+    const stray = pets.find((p: any) => p.readAttribute("id") === strayPet.readAttribute("id"))!;
     // The owned pet should have the owner preloaded
     expect((rexPet as any)._preloadedAssociations.get("ownerEager")?.readAttribute("name")).toBe("Alice");
     // The stray has no owner — maps to null
@@ -12998,7 +12998,7 @@ describe("InsertAllTest", () => {
     const adapter = freshAdapter();
     const Book = makeBook(adapter);
     await expect(
-      Book.upsertAll([{ title: "X" }], { onDuplicate: "skip", updateOnly: "title" })
+      Book.upsertAll([{ title: "X" }], { onDuplicate: "skip", updateOnly: "title" } as any)
     ).rejects.toThrow();
   });
 
@@ -13006,7 +13006,7 @@ describe("InsertAllTest", () => {
     const adapter = freshAdapter();
     const Book = makeBook(adapter);
     const b = await Book.create({ title: "Original", author: "Smith" });
-    await Book.upsertAll([{ id: b.id, title: "Ignored", author: "Kept" }], { updateOnly: "author" });
+    await Book.upsertAll([{ id: b.id, title: "Ignored", author: "Kept" }], { updateOnly: "author" } as any);
     const found = await Book.find(b.id);
     // author gets updated but title stays (updateOnly restricts to author)
     expect(found.readAttribute("author")).toBe("Kept");
@@ -13016,7 +13016,7 @@ describe("InsertAllTest", () => {
     const adapter = freshAdapter();
     const Book = makeBook(adapter);
     const b = await Book.create({ title: "Title", author: "Author", status: 0 });
-    await Book.upsertAll([{ id: b.id, title: "New Title", author: "New Author", status: 1 }], { updateOnly: ["title", "author"] });
+    await Book.upsertAll([{ id: b.id, title: "New Title", author: "New Author", status: 1 }], { updateOnly: ["title", "author"] } as any);
     const found = await Book.find(b.id);
     expect(found.readAttribute("title")).toBe("New Title");
     expect(found.readAttribute("author")).toBe("New Author");
@@ -13037,7 +13037,7 @@ describe("InsertAllTest", () => {
     await Book.insertAll([{ title: "Draft Book", status: 0 }, { title: "Published Book", status: 1 }]);
     const all = await Book.all().toArray();
     expect(all).toHaveLength(2);
-    expect(all.find((b) => b.readAttribute("title") === "Draft Book")!.readAttribute("status")).toBe(0);
+    expect(all.find((b: any) => b.readAttribute("title") === "Draft Book")!.readAttribute("status")).toBe(0);
   });
 
   it("insert all on relation", async () => {

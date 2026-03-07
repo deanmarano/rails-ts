@@ -576,7 +576,7 @@ describe("HasManyAssociationsTest", () => {
     const author = await Author.create({ name: "Alice" });
     await Post.create({ author_id: author.id, title: "A" });
     await Post.create({ author_id: author.id, title: "B" });
-    await processDependentAssociations(author, [{ name: "posts", options: { dependent: "destroy", className: "Post", foreignKey: "author_id" } }]);
+    await processDependentAssociations(author);
     const remaining = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id" });
     expect(remaining.length).toBe(0);
   });
@@ -593,7 +593,7 @@ describe("HasManyAssociationsTest", () => {
     const author = await Author.create({ name: "Alice" });
     await Post.create({ author_id: author.id, title: "A" });
     await Post.create({ author_id: author.id, title: "B" });
-    await processDependentAssociations(author, [{ name: "posts", options: { dependent: "delete_all", className: "Post", foreignKey: "author_id" } }]);
+    await processDependentAssociations(author);
     const remaining = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id" });
     expect(remaining.length).toBe(0);
   });
@@ -610,7 +610,7 @@ describe("HasManyAssociationsTest", () => {
     const author = await Author.create({ name: "Alice" });
     await Post.create({ author_id: author.id, title: "A" });
     // delete all without pre-loading the collection
-    await processDependentAssociations(author, [{ name: "posts", options: { dependent: "delete_all", className: "Post", foreignKey: "author_id" } }]);
+    await processDependentAssociations(author);
     const remaining = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id" });
     expect(remaining.length).toBe(0);
   });
@@ -626,7 +626,7 @@ describe("HasManyAssociationsTest", () => {
     registerModel(Post);
     const author = await Author.create({ name: "Alice" });
     const post = await Post.create({ author_id: author.id, title: "A" });
-    await processDependentAssociations(author, [{ name: "posts", options: { dependent: "nullify", className: "Post", foreignKey: "author_id" } }]);
+    await processDependentAssociations(author);
     const reloaded = await Post.find(post.id!);
     expect((reloaded as any).readAttribute("author_id")).toBeNull();
   });
@@ -644,7 +644,7 @@ describe("HasManyAssociationsTest", () => {
     registerModel(Post);
     const author = await Author.create({ name: "Alice" });
     await Post.create({ author_id: author.id, title: "A" });
-    await processDependentAssociations(author, [{ name: "posts", options: { dependent: "destroy", className: "Post", foreignKey: "author_id" } }]);
+    await processDependentAssociations(author);
     const remaining = await Post.where({ author_id: author.id }).toArray();
     expect(remaining.length).toBe(0);
   });
@@ -749,7 +749,7 @@ describe("HasManyAssociationsTest", () => {
     await Post.create({ author_id: author.id, title: "A" });
     await Post.create({ author_id: author.id, title: "B" });
     // Nullify/delete all
-    await processDependentAssociations(author, [{ name: "posts", options: { dependent: "nullify", className: "Post", foreignKey: "author_id" } }]);
+    await processDependentAssociations(author);
     const posts = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id" });
     expect(posts.length).toBe(0);
   });
@@ -765,7 +765,7 @@ describe("HasManyAssociationsTest", () => {
     registerModel(Post);
     const author = await Author.create({ name: "Alice" });
     await Post.create({ author_id: author.id, title: "A" });
-    await processDependentAssociations(author, [{ name: "posts", options: { dependent: "destroy", className: "Post", foreignKey: "author_id" } }]);
+    await processDependentAssociations(author);
     const remaining = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id" });
     expect(remaining.length).toBe(0);
   });
@@ -793,7 +793,7 @@ describe("HasManyAssociationsTest", () => {
     registerModel(Post);
     const author = await Author.create({ name: "Alice", posts_count: 0 });
     await Post.create({ author_id: author.id, title: "A" });
-    await updateCounterCaches(author.constructor as typeof Base, author.id!, [{ name: "posts", options: { counterCache: true, className: "Post", foreignKey: "author_id" } }]);
+    await updateCounterCaches(author, "increment");
     const reloaded = await Author.find(author.id!);
     expect((reloaded as any).readAttribute("posts_count")).toBe(1);
   });
@@ -809,7 +809,7 @@ describe("HasManyAssociationsTest", () => {
     registerModel(Post);
     const author = await Author.create({ name: "Alice", posts_count: 0 });
     await Post.create({ author_id: author.id, title: "A" });
-    await updateCounterCaches(author.constructor as typeof Base, author.id!, [{ name: "posts", options: { counterCache: true, className: "Post", foreignKey: "author_id" } }]);
+    await updateCounterCaches(author, "increment");
     const reloaded = await Author.find(author.id!);
     expect((reloaded as any).readAttribute("posts_count")).toBeGreaterThanOrEqual(1);
   });
@@ -842,7 +842,7 @@ describe("HasManyAssociationsTest", () => {
     const author = await Author.create({ name: "Alice" });
     await Post.create({ author_id: author.id, title: "Old" });
     // Replace: nullify old, assign new
-    await processDependentAssociations(author, [{ name: "posts", options: { dependent: "nullify", className: "Post", foreignKey: "author_id" } }]);
+    await processDependentAssociations(author);
     const newPost = await Post.create({ author_id: author.id, title: "New" });
     const posts = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id" });
     expect(posts.some((p: any) => p.id === newPost.id)).toBe(true);
@@ -1729,7 +1729,7 @@ describe("BelongsToAssociationsTest", () => {
     registerModel(Account);
     const company = await Company.create({ name: "Acme", accounts_count: 0 });
     await Account.create({ company_id: company.id });
-    await updateCounterCaches(Company, company.id!, [{ name: "accounts", options: { counterCache: true, className: "Account", foreignKey: "company_id" } }]);
+    await updateCounterCaches(company, "increment");
     const reloaded = await Company.find(company.id!);
     expect((reloaded as any).readAttribute("accounts_count")).toBe(1);
   });
@@ -1855,7 +1855,7 @@ describe("BelongsToAssociationsTest", () => {
     registerModel(Account);
     const company = await Company.create({ name: "Acme", accounts_count: 0 });
     await Account.create({ company_id: company.id });
-    await updateCounterCaches(Company, company.id!, [{ name: "accounts", options: { counterCache: true, className: "Account", foreignKey: "company_id" } }]);
+    await updateCounterCaches(company, "increment");
     const reloaded = await Company.find(company.id!);
     expect((reloaded as any).readAttribute("accounts_count")).toBeGreaterThanOrEqual(1);
   });
@@ -1872,7 +1872,7 @@ describe("BelongsToAssociationsTest", () => {
     const company = await Company.create({ name: "Acme", accounts_count: 0 });
     await Account.create({ company_id: company.id });
     await Account.create({ company_id: company.id });
-    await updateCounterCaches(Company, company.id!, [{ name: "accounts", options: { counterCache: true, className: "Account", foreignKey: "company_id" } }]);
+    await updateCounterCaches(company, "increment");
     const reloaded = await Company.find(company.id!);
     expect((reloaded as any).readAttribute("accounts_count")).toBe(2);
   });
@@ -1888,7 +1888,7 @@ describe("BelongsToAssociationsTest", () => {
     registerModel(Account);
     const company = await Company.create({ name: "Acme", custom_accounts_count: 0 });
     await Account.create({ company_id: company.id });
-    await updateCounterCaches(Company, company.id!, [{ name: "accounts", options: { counterCache: "custom_accounts_count", className: "Account", foreignKey: "company_id" } }]);
+    await updateCounterCaches(company, "increment");
     const reloaded = await Company.find(company.id!);
     expect((reloaded as any).readAttribute("custom_accounts_count")).toBe(1);
   });
@@ -1924,7 +1924,7 @@ describe("BelongsToAssociationsTest", () => {
     const account = await Account.create({ company_id: co1.id });
     account.writeAttribute("company_id", co2.id);
     await account.save();
-    await touchBelongsToParents(account, [{ name: "company", options: { touch: true, className: "Company", foreignKey: "company_id" } }]);
+    await touchBelongsToParents(account);
     const reloaded = await Company.find(co2.id!);
     expect(reloaded).toBeDefined();
   });
@@ -2164,7 +2164,7 @@ describe("BelongsToAssociationsTest", () => {
     account.writeAttribute("credit_limit", 100);
     await account.save();
     // Counter cache count should still be based on number of records
-    await updateCounterCaches(Company, company.id!, [{ name: "accounts", options: { counterCache: true, className: "Account", foreignKey: "company_id" } }]);
+    await updateCounterCaches(company, "increment");
     const reloaded = await Company.find(company.id!);
     expect((reloaded as any).readAttribute("accounts_count")).toBe(1);
   });

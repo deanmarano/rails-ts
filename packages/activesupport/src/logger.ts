@@ -32,7 +32,13 @@ export interface LoggerOutput {
  */
 export class Logger {
   progname: string = "rails-ts";
-  formatter: ((severity: string, datetime: Date, progname: string, msg: string) => string) | null = null;
+  protected _formatter: ((severity: string, datetime: Date, progname: string, msg: string) => string) | null = null;
+  get formatter(): ((severity: string, datetime: Date, progname: string, msg: string) => string) | null {
+    return this._formatter;
+  }
+  set formatter(value: ((severity: string, datetime: Date, progname: string, msg: string) => string) | null) {
+    this._formatter = value;
+  }
 
   protected _level: number = 0; // DEBUG
   protected _localLevel: number | null = null;
@@ -116,11 +122,11 @@ export class Logger {
     return this.log(Logger.UNKNOWN, message);
   }
 
-  debug?(): boolean;
-  info?(): boolean;
-  warn?(): boolean;
-  error?(): boolean;
-  fatal?(): boolean;
+  readonly "debug?": boolean;
+  readonly "info?": boolean;
+  readonly "warn?": boolean;
+  readonly "error?": boolean;
+  readonly "fatal?": boolean;
 
   get debugEnabled(): boolean { return this.level <= Logger.DEBUG; }
   get infoEnabled(): boolean { return this.level <= Logger.INFO; }

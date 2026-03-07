@@ -389,7 +389,7 @@ export class HashWithIndifferentAccess<V = unknown> {
     if (rest.length === 0) return val;
     if (val === null || val === undefined) return undefined;
     if (val instanceof HashWithIndifferentAccess) {
-      return val.dig(...rest);
+      return val.dig(rest[0], ...rest.slice(1));
     }
     // For plain objects, fall through
     return undefined;

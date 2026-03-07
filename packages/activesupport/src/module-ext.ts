@@ -29,7 +29,7 @@ export function delegate(
     let methodName: string;
     if (prefix === true) {
       methodName = `${to}_${method}`;
-    } else if (prefix && prefix !== false) {
+    } else if (typeof prefix === "string" && prefix) {
       methodName = `${prefix}_${method}`;
     } else {
       methodName = method;

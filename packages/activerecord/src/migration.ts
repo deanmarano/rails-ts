@@ -1340,16 +1340,16 @@ export class MigrationContext {
 
   async reversible(
     fn: (dir: {
-      up: (cb: () => Promise<void>) => void;
-      down: (cb: () => Promise<void>) => void;
+      up: (cb: () => void | Promise<void>) => void;
+      down: (cb: () => void | Promise<void>) => void;
     }) => void
   ): Promise<void> {
-    let upFn: (() => Promise<void>) | null = null;
+    let upFn: (() => void | Promise<void>) | null = null;
     fn({
       up: (cb) => { upFn = cb; },
       down: () => {},
     });
-    if (upFn) await upFn();
+    if (upFn) await (upFn as any)();
   }
 
   async revert(fn: () => Promise<void>): Promise<void> {

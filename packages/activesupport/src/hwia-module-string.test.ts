@@ -1410,7 +1410,7 @@ describe("ModuleTest", () => {
     class Proxy { foo = new Foo(); }
     delegate(Proxy.prototype, "bar", { to: "foo" });
     const p = new Proxy() as Proxy & { bar: () => number };
-    expect(typeof (p as Record<string, unknown>)["bar"]).toBe("function");
+    expect(typeof ((p as unknown) as Record<string, unknown>)["bar"]).toBe("function");
   });
 
   it("delegate missing to respects superclass missing", () => {
@@ -1527,7 +1527,7 @@ describe("ModuleTest", () => {
     const w = new Widget() as Widget & { color: unknown };
     w.color = "red";
     expect(w.color).toBe("red");
-    expect((w as Record<string, unknown>)["_color_"]).toBe("red");
+    expect(((w as unknown) as Record<string, unknown>)["_color_"]).toBe("red");
   });
 
   it("isAnonymous — returns true for unnamed class", () => {
@@ -1784,7 +1784,7 @@ describe("StringInflectionsTest", () => {
     // StringInquirer is not implemented; basic string comparison works
     const role = "admin";
     expect(role === "admin").toBe(true);
-    expect(role === "user").toBe(false);
+    expect((role as string) === "user").toBe(false);
   });
 
   it("truncate", () => {
