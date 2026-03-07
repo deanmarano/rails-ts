@@ -20,6 +20,10 @@ export interface AssociationOptions {
   scope?: (rel: any) => any;
   required?: boolean;
   optional?: boolean;
+  beforeAdd?: ((owner: Base, record: Base) => void) | ((owner: Base, record: Base) => void)[];
+  afterAdd?: ((owner: Base, record: Base) => void) | ((owner: Base, record: Base) => void)[];
+  beforeRemove?: ((owner: Base, record: Base) => void) | ((owner: Base, record: Base) => void)[];
+  afterRemove?: ((owner: Base, record: Base) => void) | ((owner: Base, record: Base) => void)[];
 }
 
 export interface AssociationDefinition {
@@ -441,6 +445,19 @@ export async function processDependentAssociations(record: Base): Promise<void> 
 }
 
 /**
+ * Fire one or more association callbacks (before_add, after_add, etc.).
+ */
+function fireAssocCallbacks(
+  cbs: ((owner: Base, record: Base) => void) | ((owner: Base, record: Base) => void)[] | undefined,
+  owner: Base,
+  record: Base
+): void {
+  if (!cbs) return;
+  const arr = Array.isArray(cbs) ? cbs : [cbs];
+  for (const cb of arr) cb(owner, record);
+}
+
+/**
  * CollectionProxy — wraps a has_many association with convenience methods.
  *
  * Mirrors: ActiveRecord::Associations::CollectionProxy
@@ -526,8 +543,10 @@ export class CollectionProxy {
     const primaryKey = this._assocDef.options.primaryKey ?? ctor.primaryKey;
     const pkValue = this._record.readAttribute(primaryKey);
     for (const record of records) {
+      fireAssocCallbacks(this._assocDef.options.beforeAdd, this._record, record);
       record.writeAttribute(foreignKey, pkValue);
       await record.save();
+      fireAssocCallbacks(this._assocDef.options.afterAdd, this._record, record);
     }
   }
 
@@ -547,8 +566,10 @@ export class CollectionProxy {
     const ctor = this._record.constructor as typeof Base;
     const foreignKey = this._assocDef.options.foreignKey ?? `${underscore(ctor.name)}_id`;
     for (const record of records) {
+      fireAssocCallbacks(this._assocDef.options.beforeRemove, this._record, record);
       record.writeAttribute(foreignKey, null);
       await record.save();
+      fireAssocCallbacks(this._assocDef.options.afterRemove, this._record, record);
     }
   }
 

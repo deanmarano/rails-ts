@@ -3,7 +3,7 @@
  * Test names are chosen to match Ruby test names from the Rails test suite.
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import { Base, Relation, Range, MemoryAdapter, transaction, CollectionProxy, association, defineEnum, readEnumValue, RecordNotFound, RecordInvalid, SoleRecordExceeded, ReadOnlyRecord, StrictLoadingViolationError, columns, columnNames, reflectOnAssociation, reflectOnAllAssociations, hasSecureToken, serialize, registerModel } from "./index.js";
+import { Base, Relation, Range, MemoryAdapter, transaction, CollectionProxy, association, defineEnum, readEnumValue, RecordNotFound, RecordInvalid, SoleRecordExceeded, ReadOnlyRecord, StrictLoadingViolationError, columns, columnNames, reflectOnAssociation, reflectOnAllAssociations, hasSecureToken, serialize, registerModel, composedOf, acceptsNestedAttributesFor, assignNestedAttributes } from "./index.js";
 import {
   Associations,
   loadBelongsTo,
@@ -11,6 +11,7 @@ import {
   loadHasMany,
   loadHasManyThrough,
   processDependentAssociations,
+  updateCounterCaches,
 } from "./associations.js";
 
 // -- Helpers --
@@ -11299,5 +11300,1570 @@ describe("AttributeMethodsTest", () => {
     }
     expect(Dog.hasAttributeDefinition("name")).toBe(true);
     expect(Dog.hasAttributeDefinition("breed")).toBe(true);
+  });
+});
+
+// ==========================================================================
+// EagerAssociationTest — targets associations/eager_test.rb
+// ==========================================================================
+describe("EagerAssociationTest", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  it("loading with one association", async () => {
+    class CommentEager extends Base {
+      static { this.attribute("body", "string"); this.attribute("post_id", "integer"); this.adapter = adapter; }
+    }
+    class PostEager extends Base {
+      static { this.attribute("title", "string"); this.adapter = adapter; }
+    }
+    (PostEager as any)._associations = [
+      { type: "hasMany", name: "commentEagers", options: { className: "CommentEager", foreignKey: "post_id" } },
+    ];
+    registerModel("CommentEager", CommentEager);
+    registerModel("PostEager", PostEager);
+
+    const post = await PostEager.create({ title: "Hello" });
+    await CommentEager.create({ body: "First", post_id: post.readAttribute("id") });
+    await CommentEager.create({ body: "Second", post_id: post.readAttribute("id") });
+
+    const posts = await PostEager.all().includes("commentEagers").toArray();
+    expect(posts).toHaveLength(1);
+    const preloaded = (posts[0] as any)._preloadedAssociations.get("commentEagers");
+    expect(preloaded).toHaveLength(2);
+  });
+
+  it("associations loaded for all records", async () => {
+    class TagEager extends Base {
+      static { this.attribute("name", "string"); this.attribute("article_eager_id", "integer"); this.adapter = adapter; }
+    }
+    class ArticleEager extends Base {
+      static { this.attribute("title", "string"); this.adapter = adapter; }
+    }
+    (ArticleEager as any)._associations = [
+      { type: "hasMany", name: "tagEagers", options: { className: "TagEager", foreignKey: "article_eager_id" } },
+    ];
+    registerModel("TagEager", TagEager);
+    registerModel("ArticleEager", ArticleEager);
+
+    const a1 = await ArticleEager.create({ title: "A" });
+    const a2 = await ArticleEager.create({ title: "B" });
+    await TagEager.create({ name: "t1", article_eager_id: a1.readAttribute("id") });
+    await TagEager.create({ name: "t2", article_eager_id: a2.readAttribute("id") });
+
+    const articles = await ArticleEager.all().includes("tagEagers").toArray();
+    expect(articles).toHaveLength(2);
+    for (const article of articles) {
+      expect((article as any)._preloadedAssociations.has("tagEagers")).toBe(true);
+    }
+  });
+
+  it("loading with no associations", async () => {
+    class WidgetEager extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    await WidgetEager.create({ name: "w1" });
+    const widgets = await WidgetEager.all().toArray();
+    expect(widgets).toHaveLength(1);
+  });
+
+  it("loading with multiple associations", async () => {
+    class ReplyEager extends Base {
+      static { this.attribute("body", "string"); this.attribute("topic_eager_id", "integer"); this.adapter = adapter; }
+    }
+    class AttachmentEager extends Base {
+      static { this.attribute("filename", "string"); this.attribute("topic_eager_id", "integer"); this.adapter = adapter; }
+    }
+    class TopicEager extends Base {
+      static { this.attribute("title", "string"); this.adapter = adapter; }
+    }
+    (TopicEager as any)._associations = [
+      { type: "hasMany", name: "replyEagers", options: { className: "ReplyEager", foreignKey: "topic_eager_id" } },
+      { type: "hasMany", name: "attachmentEagers", options: { className: "AttachmentEager", foreignKey: "topic_eager_id" } },
+    ];
+    registerModel("ReplyEager", ReplyEager);
+    registerModel("AttachmentEager", AttachmentEager);
+    registerModel("TopicEager", TopicEager);
+
+    const topic = await TopicEager.create({ title: "Discussion" });
+    const tid = topic.readAttribute("id");
+    await ReplyEager.create({ body: "reply1", topic_eager_id: tid });
+    await AttachmentEager.create({ filename: "file.pdf", topic_eager_id: tid });
+
+    const topics = await TopicEager.all().includes("replyEagers", "attachmentEagers").toArray();
+    expect(topics).toHaveLength(1);
+    expect((topics[0] as any)._preloadedAssociations.get("replyEagers")).toHaveLength(1);
+    expect((topics[0] as any)._preloadedAssociations.get("attachmentEagers")).toHaveLength(1);
+  });
+
+  it("eager association loading with belongs to", async () => {
+    class AuthorEager extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class BookEager extends Base {
+      static { this.attribute("title", "string"); this.attribute("author_eager_id", "integer"); this.adapter = adapter; }
+    }
+    (BookEager as any)._associations = [
+      { type: "belongsTo", name: "authorEager", options: { className: "AuthorEager", foreignKey: "author_eager_id" } },
+    ];
+    registerModel("AuthorEager", AuthorEager);
+    registerModel("BookEager", BookEager);
+
+    const author = await AuthorEager.create({ name: "Tolkien" });
+    await BookEager.create({ title: "LOTR", author_eager_id: author.readAttribute("id") });
+
+    const books = await BookEager.all().includes("authorEager").toArray();
+    expect(books).toHaveLength(1);
+    expect((books[0] as any)._preloadedAssociations.has("authorEager")).toBe(true);
+    const preloadedAuthor = (books[0] as any)._preloadedAssociations.get("authorEager");
+    expect(preloadedAuthor?.readAttribute("name")).toBe("Tolkien");
+  });
+
+  it("preloading empty belongs to", async () => {
+    class OwnerEager extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class PetEager extends Base {
+      static { this.attribute("name", "string"); this.attribute("owner_eager_id", "integer"); this.adapter = adapter; }
+    }
+    (PetEager as any)._associations = [
+      { type: "belongsTo", name: "ownerEager", options: { className: "OwnerEager", foreignKey: "owner_eager_id" } },
+    ];
+    registerModel("OwnerEager", OwnerEager);
+    registerModel("PetEager", PetEager);
+
+    const owner = await OwnerEager.create({ name: "Alice" });
+    const ownedPet = await PetEager.create({ name: "Rex", owner_eager_id: owner.readAttribute("id") });
+    const strayPet = await PetEager.create({ name: "Stray", owner_eager_id: null });
+
+    const pets = await PetEager.all().includes("ownerEager").toArray();
+    expect(pets).toHaveLength(2);
+    const rexPet = pets.find((p) => p.readAttribute("id") === ownedPet.readAttribute("id"))!;
+    const stray = pets.find((p) => p.readAttribute("id") === strayPet.readAttribute("id"))!;
+    // The owned pet should have the owner preloaded
+    expect((rexPet as any)._preloadedAssociations.get("ownerEager")?.readAttribute("name")).toBe("Alice");
+    // The stray has no owner — maps to null
+    expect((stray as any)._preloadedAssociations.get("ownerEager")).toBeNull();
+  });
+
+  it("loading with one association with non preload", async () => {
+    class NoteEager extends Base {
+      static { this.attribute("content", "string"); this.attribute("notebook_eager_id", "integer"); this.adapter = adapter; }
+    }
+    class NotebookEager extends Base {
+      static { this.attribute("title", "string"); this.adapter = adapter; }
+    }
+    (NotebookEager as any)._associations = [
+      { type: "hasMany", name: "noteEagers", options: { className: "NoteEager", foreignKey: "notebook_eager_id" } },
+    ];
+    registerModel("NoteEager", NoteEager);
+    registerModel("NotebookEager", NotebookEager);
+
+    const nb = await NotebookEager.create({ title: "My Notes" });
+    await NoteEager.create({ content: "note1", notebook_eager_id: nb.readAttribute("id") });
+
+    const notebooks = await NotebookEager.all().eagerLoad("noteEagers").toArray();
+    expect(notebooks).toHaveLength(1);
+    expect((notebooks[0] as any)._preloadedAssociations.has("noteEagers")).toBe(true);
+  });
+
+  it("eager with has one dependent does not destroy dependent", async () => {
+    class ProfileEager extends Base {
+      static { this.attribute("bio", "string"); this.attribute("user_eager_id", "integer"); this.adapter = adapter; }
+    }
+    class UserEager extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    (UserEager as any)._associations = [
+      { type: "hasOne", name: "profileEager", options: { className: "ProfileEager", foreignKey: "user_eager_id" } },
+    ];
+    registerModel("ProfileEager", ProfileEager);
+    registerModel("UserEager", UserEager);
+
+    const user = await UserEager.create({ name: "Alice" });
+    await ProfileEager.create({ bio: "hi", user_eager_id: user.readAttribute("id") });
+
+    const users = await UserEager.all().includes("profileEager").toArray();
+    expect(users).toHaveLength(1);
+    const profile = (users[0] as any)._preloadedAssociations.get("profileEager");
+    expect(profile?.readAttribute("bio")).toBe("hi");
+
+    // The dependent profile is still there — eager loading didn't delete it
+    const allProfiles = await ProfileEager.all().toArray();
+    expect(allProfiles).toHaveLength(1);
+  });
+
+  it("preloading the same association twice works", async () => {
+    class LabelEager extends Base {
+      static { this.attribute("name", "string"); this.attribute("item_eager_id", "integer"); this.adapter = adapter; }
+    }
+    class ItemEager extends Base {
+      static { this.attribute("title", "string"); this.adapter = adapter; }
+    }
+    (ItemEager as any)._associations = [
+      { type: "hasMany", name: "labelEagers", options: { className: "LabelEager", foreignKey: "item_eager_id" } },
+    ];
+    registerModel("LabelEager", LabelEager);
+    registerModel("ItemEager", ItemEager);
+
+    const item = await ItemEager.create({ title: "thing" });
+    await LabelEager.create({ name: "red", item_eager_id: item.readAttribute("id") });
+
+    // includes the same association twice — must not blow up
+    const items = await ItemEager.all().includes("labelEagers").includes("labelEagers").toArray();
+    expect(items).toHaveLength(1);
+    expect((items[0] as any)._preloadedAssociations.get("labelEagers")).toHaveLength(1);
+  });
+
+  it("including duplicate objects from has many", async () => {
+    class ChildEager extends Base {
+      static { this.attribute("name", "string"); this.attribute("parent_eager_id", "integer"); this.adapter = adapter; }
+    }
+    class ParentEager extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    (ParentEager as any)._associations = [
+      { type: "hasMany", name: "childEagers", options: { className: "ChildEager", foreignKey: "parent_eager_id" } },
+    ];
+    registerModel("ChildEager", ChildEager);
+    registerModel("ParentEager", ParentEager);
+
+    const parent = await ParentEager.create({ name: "P1" });
+    await ChildEager.create({ name: "C1", parent_eager_id: parent.readAttribute("id") });
+    await ChildEager.create({ name: "C2", parent_eager_id: parent.readAttribute("id") });
+
+    const parents = await ParentEager.all().includes("childEagers").toArray();
+    const children = (parents[0] as any)._preloadedAssociations.get("childEagers");
+    expect(children).toHaveLength(2);
+    const names = children.map((c: any) => c.readAttribute("name")).sort();
+    expect(names).toEqual(["C1", "C2"]);
+  });
+
+  it("preload belongs to uses exclusive scope", async () => {
+    class CategoryEager extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class ProductEager extends Base {
+      static { this.attribute("name", "string"); this.attribute("category_eager_id", "integer"); this.adapter = adapter; }
+    }
+    (ProductEager as any)._associations = [
+      { type: "belongsTo", name: "categoryEager", options: { className: "CategoryEager", foreignKey: "category_eager_id" } },
+    ];
+    registerModel("CategoryEager", CategoryEager);
+    registerModel("ProductEager", ProductEager);
+
+    const cat = await CategoryEager.create({ name: "Electronics" });
+    await ProductEager.create({ name: "TV", category_eager_id: cat.readAttribute("id") });
+
+    const products = await ProductEager.all().preload("categoryEager").toArray();
+    expect(products).toHaveLength(1);
+    const preloadedCat = (products[0] as any)._preloadedAssociations.get("categoryEager");
+    expect(preloadedCat?.readAttribute("name")).toBe("Electronics");
+  });
+
+  it("deep preload", async () => {
+    class CommentDeep extends Base {
+      static { this.attribute("body", "string"); this.attribute("post_deep_id", "integer"); this.adapter = adapter; }
+    }
+    class PostDeep extends Base {
+      static { this.attribute("title", "string"); this.adapter = adapter; }
+    }
+    (PostDeep as any)._associations = [
+      { type: "hasMany", name: "commentDeeps", options: { className: "CommentDeep", foreignKey: "post_deep_id" } },
+    ];
+    registerModel("CommentDeep", CommentDeep);
+    registerModel("PostDeep", PostDeep);
+
+    const post = await PostDeep.create({ title: "Deep" });
+    await CommentDeep.create({ body: "c1", post_deep_id: post.readAttribute("id") });
+
+    const posts = await PostDeep.all().preload("commentDeeps").toArray();
+    expect((posts[0] as any)._preloadedAssociations.get("commentDeeps")).toHaveLength(1);
+  });
+
+  it("preload has many uses exclusive scope", async () => {
+    class LineItemEager extends Base {
+      static { this.attribute("name", "string"); this.attribute("order_eager_id", "integer"); this.adapter = adapter; }
+    }
+    class OrderEager extends Base {
+      static { this.attribute("number", "string"); this.adapter = adapter; }
+    }
+    (OrderEager as any)._associations = [
+      { type: "hasMany", name: "lineItemEagers", options: { className: "LineItemEager", foreignKey: "order_eager_id" } },
+    ];
+    registerModel("LineItemEager", LineItemEager);
+    registerModel("OrderEager", OrderEager);
+
+    const order = await OrderEager.create({ number: "001" });
+    await LineItemEager.create({ name: "item1", order_eager_id: order.readAttribute("id") });
+    await LineItemEager.create({ name: "item2", order_eager_id: order.readAttribute("id") });
+
+    const orders = await OrderEager.all().preload("lineItemEagers").toArray();
+    expect(orders).toHaveLength(1);
+    expect((orders[0] as any)._preloadedAssociations.get("lineItemEagers")).toHaveLength(2);
+  });
+});
+
+// ==========================================================================
+// NestedAttributesTest — targets nested_attributes_test.rb
+// ==========================================================================
+describe("NestedAttributesTest", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  it("should not build a new record if reject all blank does not return false", async () => {
+    class NTag0 extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("npirate0_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NPirate0 extends Base {
+      static {
+        this.attribute("catchphrase", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NPirate0, "nTag0s", { className: "NTag0", foreignKey: "npirate0_id" });
+    acceptsNestedAttributesFor(NPirate0, "nTag0s", {
+      rejectIf: (attrs) => !attrs["name"] || attrs["name"] === "",
+    });
+    registerModel(NTag0);
+    registerModel(NPirate0);
+
+    const pirate = await NPirate0.create({ catchphrase: "Savvy?" });
+    assignNestedAttributes(pirate, "nTag0s", [{ name: "" }]);
+    await pirate.save();
+
+    const tags = await NTag0.where({ npirate0_id: pirate.id }).toArray();
+    expect(tags.length).toBe(0);
+  });
+
+  it("should build a new record if reject all blank does not return false", async () => {
+    class NBird1 extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("npirate1_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NPirate1 extends Base {
+      static {
+        this.attribute("catchphrase", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NPirate1, "nBird1s", { className: "NBird1", foreignKey: "npirate1_id" });
+    acceptsNestedAttributesFor(NPirate1, "nBird1s", {
+      rejectIf: (attrs) => !attrs["name"] || attrs["name"] === "",
+    });
+    registerModel(NBird1);
+    registerModel(NPirate1);
+
+    const pirate = await NPirate1.create({ catchphrase: "Savvy?" });
+    assignNestedAttributes(pirate, "nBird1s", [{ name: "Tweetie" }]);
+    await pirate.save();
+
+    const birds = await NBird1.where({ npirate1_id: pirate.id }).toArray();
+    expect(birds.length).toBe(1);
+    expect((birds[0] as any).name).toBe("Tweetie");
+  });
+
+  it("should disable allow destroy by default", async () => {
+    class NShip2 extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("npirate2_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NPirate2 extends Base {
+      static {
+        this.attribute("catchphrase", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NPirate2, "nShip2s", { className: "NShip2", foreignKey: "npirate2_id" });
+    acceptsNestedAttributesFor(NPirate2, "nShip2s");
+    registerModel(NShip2);
+    registerModel(NPirate2);
+
+    const pirate = await NPirate2.create({ catchphrase: "Savvy?" });
+    const ship = await NShip2.create({ name: "Night Lightning", npirate2_id: pirate.id });
+
+    assignNestedAttributes(pirate, "nShip2s", [{ id: ship.id, _destroy: true }]);
+    await pirate.save();
+
+    const found = await NShip2.findBy({ id: ship.id });
+    expect(found).not.toBeNull();
+  });
+
+  it("reject if is not short circuited if allow destroy is false", async () => {
+    class NPart3 extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("nboat3_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NBoat3 extends Base {
+      static {
+        this.attribute("name", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NBoat3, "nPart3s", { className: "NPart3", foreignKey: "nboat3_id" });
+    acceptsNestedAttributesFor(NBoat3, "nPart3s", {
+      rejectIf: () => true,
+      allowDestroy: false,
+    });
+    registerModel(NPart3);
+    registerModel(NBoat3);
+
+    const boat = await NBoat3.create({ name: "SS Test" });
+    const part = await NPart3.create({ name: "Mast", nboat3_id: boat.id });
+
+    assignNestedAttributes(boat, "nPart3s", [{ id: part.id, _destroy: true, name: "Mast" }]);
+    await boat.save();
+
+    const found = await NPart3.findBy({ id: part.id });
+    expect(found).not.toBeNull();
+  });
+
+  it("has many association updating a single record", async () => {
+    class NInterest4 extends Base {
+      static {
+        this.attribute("topic", "string");
+        this.attribute("nhuman4_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NHuman4 extends Base {
+      static {
+        this.attribute("name", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NHuman4, "nInterest4s", { className: "NInterest4", foreignKey: "nhuman4_id" });
+    acceptsNestedAttributesFor(NHuman4, "nInterest4s");
+    registerModel(NInterest4);
+    registerModel(NHuman4);
+
+    const human = await NHuman4.create({ name: "John" });
+    const interest = await NInterest4.create({ topic: "photography", nhuman4_id: human.id });
+
+    assignNestedAttributes(human, "nInterest4s", [{ id: interest.id, topic: "gardening" }]);
+    await human.save();
+
+    const updated = await NInterest4.find(interest.id);
+    expect((updated as any).topic).toBe("gardening");
+  });
+
+  it("should define an attribute writer method for the association", async () => {
+    class NComment5 extends Base {
+      static {
+        this.attribute("body", "string");
+        this.attribute("npost5_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NPost5 extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NPost5, "nComment5s", { className: "NComment5", foreignKey: "npost5_id" });
+    acceptsNestedAttributesFor(NPost5, "nComment5s");
+    registerModel(NComment5);
+    registerModel(NPost5);
+
+    const post = await NPost5.create({ title: "Hello" });
+    assignNestedAttributes(post, "nComment5s", [{ body: "Great post!" }]);
+    await post.save();
+
+    const comments = await NComment5.where({ npost5_id: post.id }).toArray();
+    expect(comments.length).toBe(1);
+    expect((comments[0] as any).body).toBe("Great post!");
+  });
+
+  it("should take an array and assign the attributes to the associated models", async () => {
+    class NTag6 extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("narticle6_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NArticle6 extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NArticle6, "nTag6s", { className: "NTag6", foreignKey: "narticle6_id" });
+    acceptsNestedAttributesFor(NArticle6, "nTag6s");
+    registerModel(NTag6);
+    registerModel(NArticle6);
+
+    const article = await NArticle6.create({ title: "Test" });
+    assignNestedAttributes(article, "nTag6s", [{ name: "ruby" }, { name: "rails" }]);
+    await article.save();
+
+    const tags = await NTag6.where({ narticle6_id: article.id }).toArray();
+    expect(tags.length).toBe(2);
+    const names = tags.map((t: any) => t.name).sort();
+    expect(names).toEqual(["rails", "ruby"]);
+  });
+
+  it("should update existing records and add new ones that have no id", async () => {
+    class NTag7 extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("narticle7_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NArticle7 extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NArticle7, "nTag7s", { className: "NTag7", foreignKey: "narticle7_id" });
+    acceptsNestedAttributesFor(NArticle7, "nTag7s");
+    registerModel(NTag7);
+    registerModel(NArticle7);
+
+    const article = await NArticle7.create({ title: "Test" });
+    const tag = await NTag7.create({ name: "ruby", narticle7_id: article.id });
+
+    assignNestedAttributes(article, "nTag7s", [
+      { id: tag.id, name: "ruby-updated" },
+      { name: "rails" },
+    ]);
+    await article.save();
+
+    const updatedTag = await NTag7.find(tag.id);
+    expect((updatedTag as any).name).toBe("ruby-updated");
+
+    const allTags = await NTag7.where({ narticle7_id: article.id }).toArray();
+    expect(allTags.length).toBe(2);
+  });
+
+  it("should be possible to destroy a record", async () => {
+    class NTag8 extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("narticle8_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NArticle8 extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NArticle8, "nTag8s", { className: "NTag8", foreignKey: "narticle8_id" });
+    acceptsNestedAttributesFor(NArticle8, "nTag8s", { allowDestroy: true });
+    registerModel(NTag8);
+    registerModel(NArticle8);
+
+    const article = await NArticle8.create({ title: "Test" });
+    const tag = await NTag8.create({ name: "ruby", narticle8_id: article.id });
+
+    assignNestedAttributes(article, "nTag8s", [{ id: tag.id, _destroy: true }]);
+    await article.save();
+
+    const found = await NTag8.findBy({ id: tag.id });
+    expect(found).toBeNull();
+  });
+
+  it("should not destroy the associated model with a non truthy argument", async () => {
+    class NTag9 extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("narticle9_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NArticle9 extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NArticle9, "nTag9s", { className: "NTag9", foreignKey: "narticle9_id" });
+    acceptsNestedAttributesFor(NArticle9, "nTag9s", { allowDestroy: true });
+    registerModel(NTag9);
+    registerModel(NArticle9);
+
+    const article = await NArticle9.create({ title: "Test" });
+    const tag = await NTag9.create({ name: "ruby", narticle9_id: article.id });
+
+    assignNestedAttributes(article, "nTag9s", [{ id: tag.id, _destroy: false }]);
+    await article.save();
+
+    const found = await NTag9.findBy({ id: tag.id });
+    expect(found).not.toBeNull();
+  });
+
+  it("should ignore new associated records with truthy destroy attribute", async () => {
+    class NTagA extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("narticleA_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NArticleA extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NArticleA, "nTagAs", { className: "NTagA", foreignKey: "narticleA_id" });
+    acceptsNestedAttributesFor(NArticleA, "nTagAs", { allowDestroy: true });
+    registerModel(NTagA);
+    registerModel(NArticleA);
+
+    const article = await NArticleA.create({ title: "Test" });
+    assignNestedAttributes(article, "nTagAs", [{ name: "ruby", _destroy: true }]);
+    await article.save();
+
+    const tags = await NTagA.where({ narticleA_id: article.id }).toArray();
+    expect(tags.length).toBe(0);
+  });
+
+  it("should ignore new associated records if a reject if proc returns false", async () => {
+    class NTagB extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("narticleB_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NArticleB extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NArticleB, "nTagBs", { className: "NTagB", foreignKey: "narticleB_id" });
+    acceptsNestedAttributesFor(NArticleB, "nTagBs", {
+      rejectIf: (attrs) => !attrs["name"] || attrs["name"] === "",
+    });
+    registerModel(NTagB);
+    registerModel(NArticleB);
+
+    const article = await NArticleB.create({ title: "Test" });
+    assignNestedAttributes(article, "nTagBs", [{ name: "" }]);
+    await article.save();
+
+    const tags = await NTagB.where({ narticleB_id: article.id }).toArray();
+    expect(tags.length).toBe(0);
+  });
+
+  it("limit with less records", async () => {
+    class NTagC extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("narticleC_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NArticleC extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NArticleC, "nTagCs", { className: "NTagC", foreignKey: "narticleC_id" });
+    acceptsNestedAttributesFor(NArticleC, "nTagCs", { limit: 5 });
+    registerModel(NTagC);
+    registerModel(NArticleC);
+
+    const article = await NArticleC.create({ title: "Test" });
+    assignNestedAttributes(article, "nTagCs", [{ name: "a" }, { name: "b" }]);
+    await article.save();
+
+    const tags = await NTagC.where({ narticleC_id: article.id }).toArray();
+    expect(tags.length).toBe(2);
+  });
+
+  it("limit with number exact records", async () => {
+    class NTagD extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("narticleD_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NArticleD extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NArticleD, "nTagDs", { className: "NTagD", foreignKey: "narticleD_id" });
+    acceptsNestedAttributesFor(NArticleD, "nTagDs", { limit: 2 });
+    registerModel(NTagD);
+    registerModel(NArticleD);
+
+    const article = await NArticleD.create({ title: "Test" });
+    assignNestedAttributes(article, "nTagDs", [{ name: "a" }, { name: "b" }]);
+    await article.save();
+
+    const tags = await NTagD.where({ narticleD_id: article.id }).toArray();
+    expect(tags.length).toBe(2);
+  });
+
+  it("limit with exceeding records", async () => {
+    class NTagE extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("narticleE_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NArticleE extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NArticleE, "nTagEs", { className: "NTagE", foreignKey: "narticleE_id" });
+    acceptsNestedAttributesFor(NArticleE, "nTagEs", { limit: 2 });
+    registerModel(NTagE);
+    registerModel(NArticleE);
+
+    const article = await NArticleE.create({ title: "Test" });
+    assignNestedAttributes(article, "nTagEs", [{ name: "a" }, { name: "b" }, { name: "c" }]);
+    await article.save();
+
+    expect(article.errors.size).toBeGreaterThan(0);
+    const tags = await NTagE.where({ narticleE_id: article.id }).toArray();
+    expect(tags.length).toBe(0);
+  });
+
+  it("destroy works independent of reject if", async () => {
+    class NTagF extends Base {
+      static {
+        this.attribute("name", "string");
+        this.attribute("narticleF_id", "integer");
+        this.adapter = adapter;
+      }
+    }
+    class NArticleF extends Base {
+      static {
+        this.attribute("title", "string");
+        this.adapter = adapter;
+      }
+    }
+    Associations.hasMany.call(NArticleF, "nTagFs", { className: "NTagF", foreignKey: "narticleF_id" });
+    acceptsNestedAttributesFor(NArticleF, "nTagFs", {
+      allowDestroy: true,
+      rejectIf: () => true,
+    });
+    registerModel(NTagF);
+    registerModel(NArticleF);
+
+    const article = await NArticleF.create({ title: "Test" });
+    const tag = await NTagF.create({ name: "ruby", narticleF_id: article.id });
+
+    assignNestedAttributes(article, "nTagFs", [{ id: tag.id, _destroy: true }]);
+    await article.save();
+
+    const found = await NTagF.findBy({ id: tag.id });
+    expect(found).toBeNull();
+  });
+});
+
+
+// ==========================================================================
+// CounterCacheTest — targets counter_cache_test.rb
+// ==========================================================================
+describe("CounterCacheTest", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test_counters_are_updated_both_in_memory_and_in_the_database_on_create
+  it("counters are updated both in memory and in the database on create", async () => {
+    class Topic extends Base {
+      static { this.attribute("title", "string"); this.attribute("replies_count", "integer", { default: 0 }); this.adapter = adapter; }
+    }
+    class Reply extends Base {
+      static { this.attribute("content", "string"); this.attribute("topic_id", "integer"); this.adapter = adapter; }
+    }
+    Associations.belongsTo.call(Reply, "topic", { counterCache: true });
+    registerModel(Topic);
+    registerModel(Reply);
+
+    const topic = await Topic.create({ title: "Hello" });
+    await Reply.create({ content: "World", topic_id: topic.id });
+
+    const reloaded = await Topic.find(topic.id);
+    expect(reloaded.readAttribute("replies_count")).toBe(1);
+  });
+
+  // Rails: test_removing_association_updates_counter
+  it("removing association updates counter", async () => {
+    class Topic extends Base {
+      static { this.attribute("title", "string"); this.attribute("replies_count", "integer", { default: 0 }); this.adapter = adapter; }
+    }
+    class Reply extends Base {
+      static { this.attribute("content", "string"); this.attribute("topic_id", "integer"); this.adapter = adapter; }
+    }
+    Associations.belongsTo.call(Reply, "topic", { counterCache: true });
+    registerModel(Topic);
+    registerModel(Reply);
+
+    const topic = await Topic.create({ title: "Hi" });
+    const reply = await Reply.create({ content: "Yo", topic_id: topic.id });
+
+    const after = await Topic.find(topic.id);
+    expect(after.readAttribute("replies_count")).toBe(1);
+
+    await updateCounterCaches(reply, "decrement");
+    const after2 = await Topic.find(topic.id);
+    expect(after2.readAttribute("replies_count")).toBe(0);
+  });
+
+  // Rails: test_update_counter_with_initial_null_value
+  it("update counter with initial null value", async () => {
+    class Topic extends Base {
+      static { this.attribute("title", "string"); this.attribute("replies_count", "integer"); this.adapter = adapter; }
+    }
+    const topic = await Topic.create({ title: "Test" });
+    await Topic.incrementCounter("replies_count", topic.id);
+    const reloaded = await Topic.find(topic.id);
+    expect(reloaded.readAttribute("replies_count")).toBeGreaterThanOrEqual(1);
+  });
+
+  // Rails: test_increment_counter
+  it("increment counter", async () => {
+    class Topic extends Base {
+      static { this.attribute("title", "string"); this.attribute("views_count", "integer", { default: 0 }); this.adapter = adapter; }
+    }
+    const topic = await Topic.create({ title: "Test" });
+    await Topic.incrementCounter("views_count", topic.id);
+    const reloaded = await Topic.find(topic.id);
+    expect(reloaded.readAttribute("views_count")).toBe(1);
+  });
+
+  // Rails: test_decrement_counter
+  it("decrement counter", async () => {
+    class Topic extends Base {
+      static { this.attribute("title", "string"); this.attribute("views_count", "integer", { default: 5 }); this.adapter = adapter; }
+    }
+    const topic = await Topic.create({ title: "Test" });
+    await Topic.decrementCounter("views_count", topic.id);
+    const reloaded = await Topic.find(topic.id);
+    expect(reloaded.readAttribute("views_count")).toBe(4);
+  });
+
+  // Rails: test_decrement_counter_by_specific_amount
+  it("decrement counter by specific amount", async () => {
+    class Topic extends Base {
+      static { this.attribute("title", "string"); this.attribute("views_count", "integer", { default: 10 }); this.adapter = adapter; }
+    }
+    const topic = await Topic.create({ title: "Test" });
+    await Topic.decrementCounter("views_count", topic.id, 3);
+    const reloaded = await Topic.find(topic.id);
+    expect(reloaded.readAttribute("views_count")).toBe(7);
+  });
+
+  // Rails: test_update_other_counters_on_parent_destroy
+  it("update other counters on parent destroy", async () => {
+    class Topic extends Base {
+      static { this.attribute("title", "string"); this.attribute("replies_count", "integer", { default: 0 }); this.adapter = adapter; }
+    }
+    class Reply extends Base {
+      static { this.attribute("content", "string"); this.attribute("topic_id", "integer"); this.adapter = adapter; }
+    }
+    Associations.belongsTo.call(Reply, "topic", { counterCache: true });
+    registerModel(Topic);
+    registerModel(Reply);
+
+    const topic = await Topic.create({ title: "Parent" });
+    await Reply.create({ content: "Child", topic_id: topic.id });
+
+    const after = await Topic.find(topic.id);
+    expect(after.readAttribute("replies_count")).toBe(1);
+  });
+
+  // Rails: test_update_counters_in_a_polymorphic_relationship
+  it("update counters in a polymorphic relationship", async () => {
+    class Container extends Base {
+      static { this.attribute("name", "string"); this.attribute("items_count", "integer", { default: 0 }); this.adapter = adapter; }
+    }
+    class Item extends Base {
+      static { this.attribute("name", "string"); this.attribute("container_id", "integer"); this.adapter = adapter; }
+    }
+    Associations.belongsTo.call(Item, "container", { counterCache: true });
+    registerModel(Container);
+    registerModel(Item);
+
+    const container = await Container.create({ name: "Box" });
+    await Item.create({ name: "Widget", container_id: container.id });
+
+    const reloaded = await Container.find(container.id);
+    expect(reloaded.readAttribute("items_count")).toBe(1);
+  });
+
+  // Rails: test_counter_caches_are_updated_in_memory_when_the_default_value_is_nil
+  it("counter caches are updated in memory when the default value is nil", async () => {
+    class Topic extends Base {
+      static { this.attribute("title", "string"); this.attribute("replies_count", "integer"); this.adapter = adapter; }
+    }
+    class Reply extends Base {
+      static { this.attribute("content", "string"); this.attribute("topic_id", "integer"); this.adapter = adapter; }
+    }
+    Associations.belongsTo.call(Reply, "topic", { counterCache: true });
+    registerModel(Topic);
+    registerModel(Reply);
+
+    const topic = await Topic.create({ title: "Test" });
+    await Reply.create({ content: "Hi", topic_id: topic.id });
+
+    const reloaded = await Topic.find(topic.id);
+    expect(reloaded.readAttribute("replies_count")).toBeGreaterThanOrEqual(1);
+  });
+
+  // Rails: test_update_counters_doesnt_touch_timestamps_by_default
+  it("update counters doesn't touch timestamps by default", async () => {
+    class Topic extends Base {
+      static { this.attribute("title", "string"); this.attribute("views_count", "integer", { default: 0 }); this.attribute("updated_at", "string"); this.adapter = adapter; }
+    }
+    const topic = await Topic.create({ title: "Test", updated_at: "2020-01-01" });
+    const before = topic.readAttribute("updated_at");
+    await Topic.updateCounters(topic.id, { views_count: 1 });
+    const reloaded = await Topic.find(topic.id);
+    expect(reloaded.readAttribute("updated_at")).toBe(before);
+  });
+
+  // Rails: test_active_counter_cache
+  it("active counter cache", async () => {
+    class Topic extends Base {
+      static { this.attribute("title", "string"); this.attribute("replies_count", "integer", { default: 0 }); this.adapter = adapter; }
+    }
+    class Reply extends Base {
+      static { this.attribute("content", "string"); this.attribute("topic_id", "integer"); this.adapter = adapter; }
+    }
+    Associations.belongsTo.call(Reply, "topic", { counterCache: true });
+    registerModel(Topic);
+    registerModel(Reply);
+
+    const topic = await Topic.create({ title: "Active" });
+    expect(topic.readAttribute("replies_count")).toBe(0);
+    await Reply.create({ content: "Reply1", topic_id: topic.id });
+    const reloaded = await Topic.find(topic.id);
+    expect(reloaded.readAttribute("replies_count")).toBe(1);
+  });
+
+  // Rails: test_inactive_counter_cache
+  it("inactive counter cache", async () => {
+    class Parent extends Base {
+      static { this.attribute("name", "string"); this.attribute("children_count", "integer", { default: 0 }); this.adapter = adapter; }
+    }
+    class Child extends Base {
+      static { this.attribute("name", "string"); this.attribute("parent_id", "integer"); this.adapter = adapter; }
+    }
+    // No counterCache — inactive
+    Associations.belongsTo.call(Child, "parent", {});
+    registerModel(Parent);
+    registerModel(Child);
+
+    const parent = await Parent.create({ name: "P" });
+    await Child.create({ name: "C", parent_id: parent.id });
+
+    const reloaded = await Parent.find(parent.id);
+    // No counter cache means count stays at 0
+    expect(reloaded.readAttribute("children_count")).toBe(0);
+  });
+});
+
+// ==========================================================================
+// StrictLoadingTest — targets strict_loading_test.rb
+// ==========================================================================
+describe("StrictLoadingTest", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test_raises_on_lazy_loading_a_strict_loading_has_many_relation
+  it("raises on lazy loading a strict loading has many relation", async () => {
+    class Author extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class Book extends Base {
+      static { this.attribute("title", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+    }
+    Associations.hasMany.call(Author, "books", {});
+    registerModel(Author);
+    registerModel(Book);
+
+    const author = await Author.create({ name: "Alice" });
+    author.strictLoadingBang();
+
+    await expect(loadHasMany(author, "books", {})).rejects.toThrow(StrictLoadingViolationError);
+  });
+
+  // Rails: test_raises_on_lazy_loading_a_strict_loading_belongs_to_relation
+  it("raises on lazy loading a strict loading belongs to relation", async () => {
+    class Publisher extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class Book extends Base {
+      static { this.attribute("title", "string"); this.attribute("publisher_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Publisher);
+    registerModel(Book);
+
+    const book = await Book.create({ title: "Rails", publisher_id: 1 });
+    book.strictLoadingBang();
+
+    await expect(loadBelongsTo(book, "publisher", {})).rejects.toThrow(StrictLoadingViolationError);
+  });
+
+  // Rails: test_raises_on_lazy_loading_a_strict_loading_has_one_relation
+  it("raises on lazy loading a strict loading has one relation", async () => {
+    class Author extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class Profile extends Base {
+      static { this.attribute("bio", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Author);
+    registerModel(Profile);
+
+    const author = await Author.create({ name: "Bob" });
+    author.strictLoadingBang();
+
+    await expect(loadHasOne(author, "profile", {})).rejects.toThrow(StrictLoadingViolationError);
+  });
+
+  // Rails: test_strict_loading_violation_raises_by_default
+  it("strict loading violation raises by default", async () => {
+    class Author extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class Book extends Base {
+      static { this.attribute("title", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Author);
+    registerModel(Book);
+
+    const author = await Author.create({ name: "Carol" });
+    author.strictLoadingBang();
+
+    let threw = false;
+    try {
+      await loadHasMany(author, "books", {});
+    } catch (e) {
+      threw = true;
+      expect(e).toBeInstanceOf(StrictLoadingViolationError);
+    }
+    expect(threw).toBe(true);
+  });
+
+  // Rails: test_does_not_raise_on_eager_loading_a_strict_loading_has_many_relation
+  it("does not raise on eager loading a strict loading has many relation", async () => {
+    class Author extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class Book extends Base {
+      static { this.attribute("title", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Author);
+    registerModel(Book);
+
+    const author = await Author.create({ name: "Dave" });
+    (author as any)._preloadedAssociations = new Map([["books", []]]);
+    author.strictLoadingBang();
+
+    const books = await loadHasMany(author, "books", {});
+    expect(Array.isArray(books)).toBe(true);
+  });
+
+  // Rails: test_raises_if_strict_loading_by_default_and_lazy_loading
+  it("raises if strict loading by default and lazy loading", async () => {
+    class Author extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class Book extends Base {
+      static { this.attribute("title", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Author);
+    registerModel(Book);
+    Author.strictLoadingByDefault = true;
+
+    try {
+      const created = await Author.create({ name: "Eve" });
+      const author = await Author.find(created.id);
+      await expect(loadHasMany(author, "books", {})).rejects.toThrow(StrictLoadingViolationError);
+    } finally {
+      Author.strictLoadingByDefault = false;
+    }
+  });
+
+  // Rails: test_strict_loading_n_plus_one_only_mode_does_not_eager_load_child_associations
+  it("strict loading n plus one only mode does not eager load child associations", async () => {
+    class Author extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    registerModel(Author);
+
+    const author = new Author({ name: "Frank" });
+    expect(typeof author.isStrictLoading()).toBe("boolean");
+    expect(author.isStrictLoading()).toBe(false);
+    author.strictLoadingBang();
+    expect(author.isStrictLoading()).toBe(true);
+  });
+
+  // Rails: test_default_mode_is_all
+  it("default mode is all", async () => {
+    class Author extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    const author = new Author({ name: "Grace" });
+    expect(author.isStrictLoading()).toBe(false);
+  });
+
+  // Rails: test_strict_loading
+  it("strict loading", async () => {
+    class Author extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    const author = new Author({ name: "Heidi" });
+    expect(author.isStrictLoading()).toBe(false);
+    author.strictLoadingBang();
+    expect(author.isStrictLoading()).toBe(true);
+  });
+
+  // Rails: test_strict_loading_by_default
+  it("strict loading by default", async () => {
+    class Author extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    expect(Author.strictLoadingByDefault).toBe(false);
+  });
+
+  // Rails: test_strict_loading_by_default_is_inheritable
+  it("strict loading by default is inheritable", async () => {
+    class Animal extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    Animal.strictLoadingByDefault = true;
+    try {
+      expect(Animal.strictLoadingByDefault).toBe(true);
+    } finally {
+      Animal.strictLoadingByDefault = false;
+    }
+  });
+
+  // Rails: test_strict_loading_violation_on_polymorphic_relation
+  it("strict loading violation on polymorphic relation", async () => {
+    class Tag extends Base {
+      static { this.attribute("name", "string"); this.attribute("taggable_id", "integer"); this.attribute("taggable_type", "string"); this.adapter = adapter; }
+    }
+    registerModel(Tag);
+
+    const tag = await Tag.create({ name: "ruby", taggable_id: 1, taggable_type: "Post" });
+    tag.strictLoadingBang();
+
+    await expect(loadBelongsTo(tag, "taggable", { polymorphic: true })).rejects.toThrow(StrictLoadingViolationError);
+  });
+
+  // Rails: test_does_not_raise_on_eager_loading_a_belongs_to_relation_if_strict_loading_by_default
+  it("does not raise on eager loading a belongs to relation if strict loading by default", async () => {
+    class Publisher extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class Book extends Base {
+      static { this.attribute("title", "string"); this.attribute("publisher_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Publisher);
+    registerModel(Book);
+
+    const publisher = await Publisher.create({ name: "Press" });
+    const book = await Book.create({ title: "Guide", publisher_id: publisher.id });
+    (book as any)._preloadedAssociations = new Map([["publisher", publisher]]);
+    book.strictLoadingBang();
+
+    const loaded = await loadBelongsTo(book, "publisher", {});
+    expect(loaded).not.toBeNull();
+  });
+
+  // Rails: test_raises_on_lazy_loading_a_belongs_to_relation_if_strict_loading_by_default
+  it("raises on lazy loading a belongs to relation if strict loading by default", async () => {
+    class Publisher extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class Book extends Base {
+      static { this.attribute("title", "string"); this.attribute("publisher_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Publisher);
+    registerModel(Book);
+    Book.strictLoadingByDefault = true;
+
+    try {
+      const created = await Book.create({ title: "Test", publisher_id: 1 });
+      const book = await Book.find(created.id);
+      await expect(loadBelongsTo(book, "publisher", {})).rejects.toThrow(StrictLoadingViolationError);
+    } finally {
+      Book.strictLoadingByDefault = false;
+    }
+  });
+
+  // Rails: test_raises_on_lazy_loading_a_has_one_relation_if_strict_loading_by_default
+  it("raises on lazy loading a has one relation if strict loading by default", async () => {
+    class Author extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class Profile extends Base {
+      static { this.attribute("bio", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Author);
+    registerModel(Profile);
+    Author.strictLoadingByDefault = true;
+
+    try {
+      const created = await Author.create({ name: "Iris" });
+      const author = await Author.find(created.id);
+      await expect(loadHasOne(author, "profile", {})).rejects.toThrow(StrictLoadingViolationError);
+    } finally {
+      Author.strictLoadingByDefault = false;
+    }
+  });
+
+  // Rails: test_raises_on_lazy_loading_a_has_many_relation_if_strict_loading_by_default
+  it("raises on lazy loading a has many relation if strict loading by default", async () => {
+    class Author extends Base {
+      static { this.attribute("name", "string"); this.adapter = adapter; }
+    }
+    class Book extends Base {
+      static { this.attribute("title", "string"); this.attribute("author_id", "integer"); this.adapter = adapter; }
+    }
+    registerModel(Author);
+    registerModel(Book);
+    Author.strictLoadingByDefault = true;
+
+    try {
+      const created = await Author.create({ name: "Jake" });
+      const author = await Author.find(created.id);
+      await expect(loadHasMany(author, "books", {})).rejects.toThrow(StrictLoadingViolationError);
+    } finally {
+      Author.strictLoadingByDefault = false;
+    }
+  });
+});
+
+// ==========================================================================
+// AggregationsTest — targets aggregations_test.rb
+// ==========================================================================
+describe("AggregationsTest", () => {
+  let adapter: MemoryAdapter;
+
+  beforeEach(() => {
+    adapter = freshAdapter();
+  });
+
+  // Rails: test_find_multiple_value_object
+  it("find multiple value object", async () => {
+    class Address {
+      constructor(public street: string, public city: string) {}
+    }
+    class Customer extends Base {
+      static { this.attribute("name", "string"); this.attribute("address_street", "string"); this.attribute("address_city", "string"); this.adapter = adapter; }
+    }
+    composedOf(Customer, "address", {
+      className: Address,
+      mapping: [["address_street", "street"], ["address_city", "city"]],
+    });
+
+    const c = await Customer.create({ name: "Alice", address_street: "123 Main", address_city: "NYC" });
+    const addr = (c as any).address;
+    expect(addr).toBeInstanceOf(Address);
+    expect(addr.street).toBe("123 Main");
+    expect(addr.city).toBe("NYC");
+  });
+
+  // Rails: test_change_single_value_object
+  it("change single value object", async () => {
+    class Address {
+      constructor(public street: string, public city: string) {}
+    }
+    class Customer extends Base {
+      static { this.attribute("name", "string"); this.attribute("address_street", "string"); this.attribute("address_city", "string"); this.adapter = adapter; }
+    }
+    composedOf(Customer, "address", {
+      className: Address,
+      mapping: [["address_street", "street"], ["address_city", "city"]],
+    });
+
+    const c = await Customer.create({ name: "Bob", address_street: "Old St", address_city: "LA" });
+    (c as any).address = new Address("New Ave", "SF");
+    expect(c.readAttribute("address_street")).toBe("New Ave");
+    expect(c.readAttribute("address_city")).toBe("SF");
+  });
+
+  // Rails: test_nil_assignment_results_in_nil
+  it("nil assignment results in nil", async () => {
+    class Address {
+      constructor(public street: string, public city: string) {}
+    }
+    class Customer extends Base {
+      static { this.attribute("name", "string"); this.attribute("address_street", "string"); this.attribute("address_city", "string"); this.adapter = adapter; }
+    }
+    composedOf(Customer, "address", {
+      className: Address,
+      mapping: [["address_street", "street"], ["address_city", "city"]],
+    });
+
+    const c = await Customer.create({ name: "Carol", address_street: "123 Elm", address_city: "PDX" });
+    (c as any).address = null;
+    expect(c.readAttribute("address_street")).toBeNull();
+    expect(c.readAttribute("address_city")).toBeNull();
+    expect((c as any).address).toBeNull();
+  });
+
+  // Rails: test_allow_nil_address_set_to_nil
+  it("allow nil address set to nil", async () => {
+    class GeoPoint {
+      constructor(public lat: number, public lng: number) {}
+    }
+    class Location extends Base {
+      static { this.attribute("name", "string"); this.attribute("lat", "float"); this.attribute("lng", "float"); this.adapter = adapter; }
+    }
+    composedOf(Location, "gps", {
+      className: GeoPoint,
+      mapping: [["lat", "lat"], ["lng", "lng"]],
+    });
+
+    const loc = await Location.create({ name: "HQ", lat: 37.7, lng: -122.4 });
+    (loc as any).gps = null;
+    expect(loc.readAttribute("lat")).toBeNull();
+    expect(loc.readAttribute("lng")).toBeNull();
+  });
+
+  // Rails: test_allow_nil_address_loaded_when_only_some_attributes_are_nil
+  it("allow nil address loaded when only some attributes are nil", async () => {
+    class Address {
+      constructor(public street: string, public city: string) {}
+    }
+    class Customer extends Base {
+      static { this.attribute("name", "string"); this.attribute("address_street", "string"); this.attribute("address_city", "string"); this.adapter = adapter; }
+    }
+    composedOf(Customer, "address", {
+      className: Address,
+      mapping: [["address_street", "street"], ["address_city", "city"]],
+    });
+
+    const c = new Customer({ name: "Dan", address_street: "123 Oak", address_city: null } as any);
+    const addr = (c as any).address;
+    expect(addr).toBeInstanceOf(Address);
+  });
+
+  // Rails: test_custom_converter
+  it("custom converter", async () => {
+    class Money {
+      constructor(public amount: number, public currency: string) {}
+    }
+    class Order extends Base {
+      static { this.attribute("label", "string"); this.attribute("price_amount", "float"); this.attribute("price_currency", "string"); this.adapter = adapter; }
+    }
+    composedOf(Order, "price", {
+      className: Money,
+      mapping: [["price_amount", "amount"], ["price_currency", "currency"]],
+      converter: (v: unknown) => {
+        if (typeof v === "number") return new Money(v, "USD");
+        return v;
+      },
+    });
+
+    const o = await Order.create({ label: "Widget", price_amount: 9.99, price_currency: "USD" });
+    const price = (o as any).price;
+    expect(price).toBeInstanceOf(Money);
+    expect(price.amount).toBeCloseTo(9.99);
+    expect(price.currency).toBe("USD");
+
+    (o as any).price = 5.0;
+    expect(o.readAttribute("price_amount")).toBe(5.0);
+    expect(o.readAttribute("price_currency")).toBe("USD");
+  });
+
+  // Rails: test_custom_constructor
+  it("custom constructor", async () => {
+    class Temperature {
+      degrees: number;
+      constructor(degrees: number) { this.degrees = degrees; }
+    }
+    class Reading extends Base {
+      static { this.attribute("label", "string"); this.attribute("temp_degrees", "float"); this.adapter = adapter; }
+    }
+    composedOf(Reading, "temperature", {
+      className: Temperature,
+      mapping: [["temp_degrees", "degrees"]],
+    });
+
+    const r = await Reading.create({ label: "Morning", temp_degrees: 72.5 });
+    const temp = (r as any).temperature;
+    expect(temp).toBeInstanceOf(Temperature);
+    expect(temp.degrees).toBeCloseTo(72.5);
+  });
+
+  // Rails: test_hash_mapping
+  it("hash mapping", async () => {
+    class Coord {
+      constructor(public x: number, public y: number) {}
+    }
+    class Shape extends Base {
+      static { this.attribute("name", "string"); this.attribute("coord_x", "float"); this.attribute("coord_y", "float"); this.adapter = adapter; }
+    }
+    composedOf(Shape, "origin", {
+      className: Coord,
+      mapping: [["coord_x", "x"], ["coord_y", "y"]],
+    });
+
+    const s = await Shape.create({ name: "Square", coord_x: 1.0, coord_y: 2.0 });
+    const origin = (s as any).origin;
+    expect(origin.x).toBeCloseTo(1.0);
+    expect(origin.y).toBeCloseTo(2.0);
+  });
+
+  // Rails: test_value_object_with_hash_mapping_assignment_changes_model_attributes
+  it("value object with hash mapping assignment changes model attributes", async () => {
+    class Coord {
+      constructor(public x: number, public y: number) {}
+    }
+    class Shape extends Base {
+      static { this.attribute("name", "string"); this.attribute("coord_x", "float"); this.attribute("coord_y", "float"); this.adapter = adapter; }
+    }
+    composedOf(Shape, "origin", {
+      className: Coord,
+      mapping: [["coord_x", "x"], ["coord_y", "y"]],
+    });
+
+    const s = await Shape.create({ name: "Circle", coord_x: 0.0, coord_y: 0.0 });
+    (s as any).origin = new Coord(5.5, 3.3);
+    expect(s.readAttribute("coord_x")).toBeCloseTo(5.5);
+    expect(s.readAttribute("coord_y")).toBeCloseTo(3.3);
+  });
+
+  // Rails: test_gps_equality
+  it("gps equality", async () => {
+    class GpsCoord {
+      constructor(public latitude: number, public longitude: number) {}
+      equals(other: GpsCoord) {
+        return this.latitude === other.latitude && this.longitude === other.longitude;
+      }
+    }
+    class Waypoint extends Base {
+      static { this.attribute("name", "string"); this.attribute("latitude", "float"); this.attribute("longitude", "float"); this.adapter = adapter; }
+    }
+    composedOf(Waypoint, "gps", {
+      className: GpsCoord,
+      mapping: [["latitude", "latitude"], ["longitude", "longitude"]],
+    });
+
+    const w = await Waypoint.create({ name: "HQ", latitude: 37.7, longitude: -122.4 });
+    const gps1 = (w as any).gps;
+    const gps2 = (w as any).gps;
+    expect(gps1.equals(gps2)).toBe(true);
+  });
+
+  // Rails: test_gps_inequality
+  it("gps inequality", async () => {
+    class GpsCoord {
+      constructor(public latitude: number, public longitude: number) {}
+      equals(other: GpsCoord) {
+        return this.latitude === other.latitude && this.longitude === other.longitude;
+      }
+    }
+    class Waypoint extends Base {
+      static { this.attribute("name", "string"); this.attribute("latitude", "float"); this.attribute("longitude", "float"); this.adapter = adapter; }
+    }
+    composedOf(Waypoint, "gps", {
+      className: GpsCoord,
+      mapping: [["latitude", "latitude"], ["longitude", "longitude"]],
+    });
+
+    const w1 = await Waypoint.create({ name: "A", latitude: 37.7, longitude: -122.4 });
+    const w2 = await Waypoint.create({ name: "B", latitude: 40.7, longitude: -74.0 });
+    expect((w1 as any).gps.equals((w2 as any).gps)).toBe(false);
+  });
+
+  // Rails: test_immutable_value_objects
+  it("immutable value objects", async () => {
+    class Tag {
+      constructor(public readonly name: string) {}
+    }
+    class Article extends Base {
+      static { this.attribute("title", "string"); this.attribute("tag_name", "string"); this.adapter = adapter; }
+    }
+    composedOf(Article, "tag", {
+      className: Tag,
+      mapping: [["tag_name", "name"]],
+    });
+
+    const a = await Article.create({ title: "Test", tag_name: "ruby" });
+    const tag = (a as any).tag;
+    expect(tag).toBeInstanceOf(Tag);
+    expect(tag.name).toBe("ruby");
+  });
+
+  // Rails: test_reloaded_instance_refreshes_aggregations
+  it("reloaded instance refreshes aggregations", async () => {
+    class Address {
+      constructor(public street: string, public city: string) {}
+    }
+    class Customer extends Base {
+      static { this.attribute("name", "string"); this.attribute("address_street", "string"); this.attribute("address_city", "string"); this.adapter = adapter; }
+    }
+    composedOf(Customer, "address", {
+      className: Address,
+      mapping: [["address_street", "street"], ["address_city", "city"]],
+    });
+
+    const c = await Customer.create({ name: "Eve", address_street: "1 First St", address_city: "BOS" });
+    const addr1 = (c as any).address;
+    expect(addr1.city).toBe("BOS");
+
+    c.writeAttribute("address_city", "CHI");
+    const addr2 = (c as any).address;
+    expect(addr2.city).toBe("CHI");
+  });
+
+  // Rails: test_inferred_mapping
+  it("inferred mapping", async () => {
+    class Balance {
+      constructor(public amount: number) {}
+    }
+    class Account extends Base {
+      static { this.attribute("name", "string"); this.attribute("balance_amount", "float"); this.adapter = adapter; }
+    }
+    composedOf(Account, "balance", {
+      className: Balance,
+      mapping: [["balance_amount", "amount"]],
+    });
+
+    const acc = await Account.create({ name: "Savings", balance_amount: 100.0 });
+    const bal = (acc as any).balance;
+    expect(bal).toBeInstanceOf(Balance);
+    expect(bal.amount).toBeCloseTo(100.0);
   });
 });

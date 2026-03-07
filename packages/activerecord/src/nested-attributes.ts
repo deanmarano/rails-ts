@@ -136,20 +136,24 @@ async function processNestedAttributes(record: Base): Promise<void> {
     }
 
     for (const attrs of attrsList) {
-      // Check rejectIf
-      if (config.options.rejectIf && config.options.rejectIf(attrs)) {
-        continue;
-      }
-
       const { _destroy, id, ...childAttrs } = attrs as any;
 
+      // Check _destroy before rejectIf — destroy should work regardless of rejectIf
       if (_destroy && config.options.allowDestroy) {
         // Destroy existing record
         if (id) {
           const existing = await (targetModel as any).find(id);
           if (existing) await existing.destroy();
         }
-      } else if (id) {
+        continue;
+      }
+
+      // Check rejectIf only for create/update, not destroy
+      if (config.options.rejectIf && config.options.rejectIf(attrs)) {
+        continue;
+      }
+
+      if (id) {
         // Update existing record
         const existing = await (targetModel as any).find(id);
         if (existing) {
