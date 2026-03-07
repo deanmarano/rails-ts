@@ -564,88 +564,93 @@ describe("HasManyAssociationsTest", () => {
     expect(remaining.length).toBe(0);
   });
 
-  it.skip("destroy all", async () => {
-    class Author extends Base {
+  it("destroy all", async () => {
+    class DestroyAllAuthor extends Base {
       static { this.attribute("name", "string"); this.adapter = adapter; }
     }
-    class Post extends Base {
+    class DestroyAllPost extends Base {
       static { this.attribute("author_id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
     }
-    registerModel(Author);
-    registerModel(Post);
-    const author = await Author.create({ name: "Alice" });
-    await Post.create({ author_id: author.id, title: "A" });
-    await Post.create({ author_id: author.id, title: "B" });
+    registerModel(DestroyAllAuthor);
+    registerModel(DestroyAllPost);
+    Associations.hasMany.call(DestroyAllAuthor, "destroy_all_posts", { className: "DestroyAllPost", foreignKey: "author_id", dependent: "destroy" });
+    const author = await DestroyAllAuthor.create({ name: "Alice" });
+    await DestroyAllPost.create({ author_id: author.id, title: "A" });
+    await DestroyAllPost.create({ author_id: author.id, title: "B" });
     await processDependentAssociations(author);
-    const remaining = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id" });
+    const remaining = await loadHasMany(author, "destroy_all_posts", { className: "DestroyAllPost", foreignKey: "author_id" });
     expect(remaining.length).toBe(0);
   });
 
-  it.skip("delete all", async () => {
-    class Author extends Base {
+  it("delete all", async () => {
+    class DeleteAllAuthor extends Base {
       static { this.attribute("name", "string"); this.adapter = adapter; }
     }
-    class Post extends Base {
+    class DeleteAllPost extends Base {
       static { this.attribute("author_id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
     }
-    registerModel(Author);
-    registerModel(Post);
-    const author = await Author.create({ name: "Alice" });
-    await Post.create({ author_id: author.id, title: "A" });
-    await Post.create({ author_id: author.id, title: "B" });
+    registerModel(DeleteAllAuthor);
+    registerModel(DeleteAllPost);
+    Associations.hasMany.call(DeleteAllAuthor, "delete_all_posts", { className: "DeleteAllPost", foreignKey: "author_id", dependent: "delete" });
+    const author = await DeleteAllAuthor.create({ name: "Alice" });
+    await DeleteAllPost.create({ author_id: author.id, title: "A" });
+    await DeleteAllPost.create({ author_id: author.id, title: "B" });
     await processDependentAssociations(author);
-    const remaining = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id" });
+    const remaining = await loadHasMany(author, "delete_all_posts", { className: "DeleteAllPost", foreignKey: "author_id" });
     expect(remaining.length).toBe(0);
   });
 
-  it.skip("delete all with not yet loaded association collection", async () => {
-    class Author extends Base {
+  it("delete all with not yet loaded association collection", async () => {
+    class DeleteAllUnloadedAuthor extends Base {
       static { this.attribute("name", "string"); this.adapter = adapter; }
     }
-    class Post extends Base {
+    class DeleteAllUnloadedPost extends Base {
       static { this.attribute("author_id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
     }
-    registerModel(Author);
-    registerModel(Post);
-    const author = await Author.create({ name: "Alice" });
-    await Post.create({ author_id: author.id, title: "A" });
+    registerModel(DeleteAllUnloadedAuthor);
+    registerModel(DeleteAllUnloadedPost);
+    Associations.hasMany.call(DeleteAllUnloadedAuthor, "delete_all_unloaded_posts", { className: "DeleteAllUnloadedPost", foreignKey: "author_id", dependent: "destroy" });
+    const author = await DeleteAllUnloadedAuthor.create({ name: "Alice" });
+    await DeleteAllUnloadedPost.create({ author_id: author.id, title: "A" });
     // delete all without pre-loading the collection
     await processDependentAssociations(author);
-    const remaining = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id" });
+    const remaining = await loadHasMany(author, "delete_all_unloaded_posts", { className: "DeleteAllUnloadedPost", foreignKey: "author_id" });
     expect(remaining.length).toBe(0);
   });
 
-  it.skip("depends and nullify", async () => {
-    class Author extends Base {
+  it("depends and nullify", async () => {
+    class NullifyAuthor extends Base {
       static { this.attribute("name", "string"); this.adapter = adapter; }
     }
-    class Post extends Base {
+    class NullifyPost extends Base {
       static { this.attribute("author_id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
     }
-    registerModel(Author);
-    registerModel(Post);
-    const author = await Author.create({ name: "Alice" });
-    const post = await Post.create({ author_id: author.id, title: "A" });
+    registerModel(NullifyAuthor);
+    registerModel(NullifyPost);
+    Associations.hasMany.call(NullifyAuthor, "nullify_posts", { className: "NullifyPost", foreignKey: "author_id", dependent: "nullify" });
+    const author = await NullifyAuthor.create({ name: "Alice" });
+    const post = await NullifyPost.create({ author_id: author.id, title: "A" });
     await processDependentAssociations(author);
-    const reloaded = await Post.find(post.id!);
+    const reloaded = await NullifyPost.find(post.id!);
     expect((reloaded as any).readAttribute("author_id")).toBeNull();
   });
 
   // -- Dependence --
 
-  it.skip("dependence", async () => {
-    class Author extends Base {
+  it("dependence", async () => {
+    class DepAuthor extends Base {
       static { this.attribute("name", "string"); this.adapter = adapter; }
     }
-    class Post extends Base {
+    class DepPost extends Base {
       static { this.attribute("author_id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
     }
-    registerModel(Author);
-    registerModel(Post);
-    const author = await Author.create({ name: "Alice" });
-    await Post.create({ author_id: author.id, title: "A" });
+    registerModel(DepAuthor);
+    registerModel(DepPost);
+    Associations.hasMany.call(DepAuthor, "dep_posts", { className: "DepPost", foreignKey: "author_id", dependent: "destroy" });
+    const author = await DepAuthor.create({ name: "Alice" });
+    await DepPost.create({ author_id: author.id, title: "A" });
     await processDependentAssociations(author);
-    const remaining = await Post.where({ author_id: author.id }).toArray();
+    const remaining = await DepPost.where({ author_id: author.id }).toArray();
     expect(remaining.length).toBe(0);
   });
 
@@ -685,7 +690,7 @@ describe("HasManyAssociationsTest", () => {
     expect(ids).toContain(p1.id);
   });
 
-  it.skip("get ids for association on new record does not try to find records", async () => {
+  it("get ids for association on new record does not try to find records", async () => {
     class Author extends Base {
       static { this.attribute("name", "string"); this.adapter = adapter; }
     }
@@ -697,7 +702,7 @@ describe("HasManyAssociationsTest", () => {
     const author = Author.new({ name: "New" });
     expect(author.isNewRecord()).toBe(true);
     // A new record shouldn't have any associated IDs
-    expect(author.id).toBeUndefined();
+    expect(author.id == null).toBe(true);
   });
 
   // -- Included in collection --
@@ -736,37 +741,38 @@ describe("HasManyAssociationsTest", () => {
 
   // -- Clearing --
 
-  it.skip("clearing an association collection", async () => {
-    class Author extends Base {
+  it("clearing an association collection", async () => {
+    class ClearAuthor extends Base {
       static { this.attribute("name", "string"); this.adapter = adapter; }
     }
-    class Post extends Base {
+    class ClearPost extends Base {
       static { this.attribute("author_id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
     }
-    registerModel(Author);
-    registerModel(Post);
-    const author = await Author.create({ name: "Alice" });
-    await Post.create({ author_id: author.id, title: "A" });
-    await Post.create({ author_id: author.id, title: "B" });
-    // Nullify/delete all
+    registerModel(ClearAuthor);
+    registerModel(ClearPost);
+    Associations.hasMany.call(ClearAuthor, "clear_posts", { className: "ClearPost", foreignKey: "author_id", dependent: "destroy" });
+    const author = await ClearAuthor.create({ name: "Alice" });
+    await ClearPost.create({ author_id: author.id, title: "A" });
+    await ClearPost.create({ author_id: author.id, title: "B" });
     await processDependentAssociations(author);
-    const posts = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id" });
+    const posts = await loadHasMany(author, "clear_posts", { className: "ClearPost", foreignKey: "author_id" });
     expect(posts.length).toBe(0);
   });
 
-  it.skip("clearing a dependent association collection", async () => {
-    class Author extends Base {
+  it("clearing a dependent association collection", async () => {
+    class ClearDepAuthor extends Base {
       static { this.attribute("name", "string"); this.adapter = adapter; }
     }
-    class Post extends Base {
+    class ClearDepPost extends Base {
       static { this.attribute("author_id", "integer"); this.attribute("title", "string"); this.adapter = adapter; }
     }
-    registerModel(Author);
-    registerModel(Post);
-    const author = await Author.create({ name: "Alice" });
-    await Post.create({ author_id: author.id, title: "A" });
+    registerModel(ClearDepAuthor);
+    registerModel(ClearDepPost);
+    Associations.hasMany.call(ClearDepAuthor, "clear_dep_posts", { className: "ClearDepPost", foreignKey: "author_id", dependent: "destroy" });
+    const author = await ClearDepAuthor.create({ name: "Alice" });
+    await ClearDepPost.create({ author_id: author.id, title: "A" });
     await processDependentAssociations(author);
-    const remaining = await loadHasMany(author, "posts", { className: "Post", foreignKey: "author_id" });
+    const remaining = await loadHasMany(author, "clear_dep_posts", { className: "ClearDepPost", foreignKey: "author_id" });
     expect(remaining.length).toBe(0);
   });
 
@@ -903,7 +909,7 @@ describe("HasManyAssociationsTest", () => {
 
   // -- Has many on new record --
 
-  it.skip("has many associations on new records use null relations", async () => {
+  it("has many associations on new records use null relations", async () => {
     class Author extends Base {
       static { this.attribute("name", "string"); this.adapter = adapter; }
     }
@@ -915,7 +921,7 @@ describe("HasManyAssociationsTest", () => {
     const author = Author.new({ name: "New" });
     expect(author.isNewRecord()).toBe(true);
     // New records have no id; any query would return 0 results
-    expect(author.id).toBeUndefined();
+    expect(author.id == null).toBe(true);
   });
 
   // -- Calling size/empty --
