@@ -671,6 +671,16 @@ export const TEST_FILE_MAP: Record<string, FileMap> = {
     "message_verifier_test.rb": [
       { file: "security.test.ts", describeBlock: "MessageVerifierTest" },
     ],
+    "cache/stores/memory_store_test.rb": [
+      { file: "cache.test.ts", describeBlock: "MemoryStoreTest" },
+      { file: "cache.test.ts", describeBlock: "MemoryStorePruningTest" },
+    ],
+    "cache/stores/null_store_test.rb": [
+      { file: "cache.test.ts", describeBlock: "NullStoreTest" },
+    ],
+    "cache/stores/file_store_test.rb": [
+      { file: "cache.test.ts", describeBlock: "FileStoreTest" },
+    ],
     "deprecation_test.rb": [
       { file: "deprecation.test.ts", describeBlock: "DeprecationTest" },
       { file: "hwia-module-string.test.ts", describeBlock: "DeprecationTest" },
@@ -2786,7 +2796,7 @@ export const TEST_OVERRIDES: Record<string, string | null> = {
   "BenchmarkableTest > outside level": null,
 
   // --- broadcast_logger_test.rb ---
-  "BroadcastLoggerTest > # adds the message to all loggers": null,
+  "BroadcastLoggerTest > # adds the message to all loggers": "BroadcastLoggerTest > #debug adds the message to all loggers",
   "BroadcastLoggerTest > #close broadcasts to all loggers": "BroadcastLoggerTest > #close broadcasts to all loggers",
   "BroadcastLoggerTest > #<< shovels the value into all loggers": null,
   "BroadcastLoggerTest > #level= assigns the level to all loggers": "BroadcastLoggerTest > #level= assigns the level to all loggers",
@@ -2795,7 +2805,7 @@ export const TEST_OVERRIDES: Record<string, string | null> = {
   "BroadcastLoggerTest > #progname= sets the progname on the Broadcast logger but doesn't modify the inner loggers": "BroadcastLoggerTest > #progname= sets the progname on the Broadcast logger but doesn't modify the inner loggers",
   "BroadcastLoggerTest > #formatter= assigns to all the loggers": null,
   "BroadcastLoggerTest > #local_level= assigns the local_level to all loggers": "BroadcastLoggerTest > #local_level= assigns the local_level to all loggers",
-  "BroadcastLoggerTest > severity methods get called on all loggers": null,
+  "BroadcastLoggerTest > severity methods get called on all loggers": "BroadcastLoggerTest > logging always returns true",
   "BroadcastLoggerTest > #silence does not break custom loggers": null,
   "BroadcastLoggerTest > #silence silences all loggers below the default level of ERROR": "BroadcastLoggerTest > #silence silences all loggers below the default level of ERROR",
   "BroadcastLoggerTest > #silence does not silence at or above ERROR": "BroadcastLoggerTest > #silence does not silence at or above ERROR",
@@ -4987,11 +4997,11 @@ export const TEST_OVERRIDES: Record<string, string | null> = {
 
   // --- message_encryptor_test.rb ---
   "MessageEncryptorTest > encrypting twice yields differing cipher text": "MessageEncryptorTest > encrypting twice yields differing cipher text",
-  "MessageEncryptorTest > messing with either encrypted values causes failure": null,
-  "MessageEncryptorTest > messing with verified values causes failures": null,
+  "MessageEncryptorTest > messing with either encrypted values causes failure": "MessageEncryptorTest > raises on tampered encrypted value",
+  "MessageEncryptorTest > messing with verified values causes failures": "MessageEncryptorTest > raises on tampered data",
   "MessageEncryptorTest > signed round tripping": "MessageEncryptorTest > signed round tripping",
   "MessageEncryptorTest > backwards compat for 64 bytes key": null,
-  "MessageEncryptorTest > alternative serialization method": null,
+  "MessageEncryptorTest > alternative serialization method": "MessageEncryptorTest > alternative serializer",
   "MessageEncryptorTest > message obeys strict encoding": null,
   "MessageEncryptorTest > supports URL-safe encoding when using authenticated encryption": null,
   "MessageEncryptorTest > supports URL-safe encoding when using unauthenticated encryption": null,
@@ -5019,13 +5029,13 @@ export const TEST_OVERRIDES: Record<string, string | null> = {
   "MessagePackSerializerTest > raises friendly error when dumping an unsupported object": null,
 
   // --- message_verifier_test.rb ---
-  "MessageVerifierTest > valid message": null,
-  "MessageVerifierTest > simple round tripping": null,
-  "MessageVerifierTest > round tripping nil": null,
-  "MessageVerifierTest > verified returns false on invalid message": null,
-  "MessageVerifierTest > verify exception on invalid message": null,
-  "MessageVerifierTest > supports URL-safe encoding": null,
-  "MessageVerifierTest > URL-safe and URL-unsafe can decode each other messages": null,
+  "MessageVerifierTest > valid message": "MessageVerifierTest > valid_message returns false on invalid",
+  "MessageVerifierTest > simple round tripping": "MessageVerifierTest > simple round-trip",
+  "MessageVerifierTest > round tripping nil": "MessageVerifierTest > round-tripping nil",
+  "MessageVerifierTest > verified returns false on invalid message": "MessageVerifierTest > verified returns null for invalid message",
+  "MessageVerifierTest > verify exception on invalid message": "MessageVerifierTest > verify raises InvalidSignature on invalid message",
+  "MessageVerifierTest > supports URL-safe encoding": "MessageVerifierTest > url_safe encoding produces URL-safe tokens",
+  "MessageVerifierTest > URL-safe and URL-unsafe can decode each other messages": "MessageVerifierTest > URL-safe and URL-unsafe can decode each other",
   "MessageVerifierTest > alternative serialization method": null,
   "MessageVerifierTest > verify with parse json times": null,
   "MessageVerifierTest > raise error when secret is nil": null,
