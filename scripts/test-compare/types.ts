@@ -45,7 +45,7 @@ export interface TestManifest {
 
 // --- Comparison results ---
 
-export type TestStatus = "matched" | "missing" | "extra";
+export type TestStatus = "matched" | "missing" | "skipped" | "extra";
 
 export interface TestComparison {
   rubyPath: string;
@@ -62,6 +62,7 @@ export interface FileComparison {
   tsFile: string | null;
   tsDescribeBlock: string | null;
   matched: number;
+  skipped: number;
   missing: number;
   extra: number;
   tests: TestComparison[];
@@ -71,6 +72,7 @@ export interface PackageComparison {
   package: string;
   files: FileComparison[];
   matched: number;
+  skipped: number;
   missing: number;
   extra: number;
   coveragePercent: number;
@@ -82,6 +84,7 @@ export interface TestComparisonResult {
   summary: {
     totalRubyTests: number;
     matched: number;
+    skipped: number;
     missing: number;
     extra: number;
     coveragePercent: number;

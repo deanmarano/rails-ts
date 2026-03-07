@@ -52,6 +52,7 @@ function main() {
     summary: {
       totalRubyTests: 0,
       matched: 0,
+      skipped: 0,
       missing: 0,
       extra: 0,
       coveragePercent: 0,
@@ -66,8 +67,9 @@ function main() {
     const pkgComparison = comparePackage(pkg, rubyPkg, tsPkg, tsLookup);
     result.packages[pkg] = pkgComparison;
 
-    result.summary.totalRubyTests += pkgComparison.matched + pkgComparison.missing;
+    result.summary.totalRubyTests += pkgComparison.matched + pkgComparison.skipped + pkgComparison.missing;
     result.summary.matched += pkgComparison.matched;
+    result.summary.skipped += pkgComparison.skipped;
     result.summary.missing += pkgComparison.missing;
     result.summary.extra += pkgComparison.extra;
   }
@@ -160,6 +162,7 @@ function comparePackage(
 ): PackageComparison {
   const fileComparisons: FileComparison[] = [];
   let totalMatched = 0;
+  let totalSkipped = 0;
   let totalMissing = 0;
   let totalExtra = 0;
 
@@ -189,6 +192,7 @@ function comparePackage(
       tsFile: tsTarget?.file || null,
       tsDescribeBlock: tsTarget?.describeBlock || null,
       matched: 0,
+      skipped: 0,
       missing: 0,
       extra: 0,
       tests: [],
@@ -212,12 +216,15 @@ function comparePackage(
 
       if (comparison.status === "matched") {
         fileComp.matched++;
+      } else if (comparison.status === "skipped") {
+        fileComp.skipped++;
       } else {
         fileComp.missing++;
       }
     }
 
     totalMatched += fileComp.matched;
+    totalSkipped += fileComp.skipped;
     totalMissing += fileComp.missing;
 
     fileComparisons.push(fileComp);
@@ -235,7 +242,7 @@ function comparePackage(
     }
   }
 
-  const totalRuby = totalMatched + totalMissing;
+  const totalRuby = totalMatched + totalSkipped + totalMissing;
   const coverage = totalRuby > 0
     ? Math.round((totalMatched / totalRuby) * 1000) / 10
     : 0;
@@ -244,6 +251,7 @@ function comparePackage(
     package: pkg,
     files: fileComparisons,
     matched: totalMatched,
+    skipped: totalSkipped,
     missing: totalMissing,
     extra: totalExtra,
     coveragePercent: coverage,
@@ -261,10 +269,10 @@ function matchRubyTest(
       return {
         rubyPath: rubyTest.path,
         tsPath: null,
-        status: "matched",
+        status: "skipped",
         matchConfidence: "override",
         rubyFile: rubyTest.file,
-        notes: "Skipped via override (Ruby-only feature)",
+        notes: "Null override — not yet implemented in TS",
       };
     }
     const tsMatch = tsTests.find((t) => t.path === overrideResult);
@@ -348,29 +356,31 @@ function generateMarkdown(result: TestComparisonResult): string {
   lines.push("| Metric | Count |");
   lines.push("|--------|-------|");
   lines.push(`| Total Ruby tests | ${result.summary.totalRubyTests} |`);
-  lines.push(`| Matched | ${result.summary.matched} |`);
+  lines.push(`| Matched (real TS tests) | ${result.summary.matched} |`);
+  lines.push(`| Skipped (null overrides) | ${result.summary.skipped} |`);
   lines.push(`| Missing | ${result.summary.missing} |`);
   lines.push(`| Extra (TS only) | ${result.summary.extra} |`);
-  lines.push(`| **Coverage** | **${result.summary.coveragePercent}%** |`);
+  lines.push(`| **Real coverage** | **${result.summary.coveragePercent}%** |`);
   lines.push("");
 
   for (const [pkg, pkgComp] of Object.entries(result.packages)) {
     lines.push(`## ${pkg}`);
     lines.push("");
-    lines.push(`Coverage: ${pkgComp.coveragePercent}% (${pkgComp.matched} matched, ${pkgComp.missing} missing, ${pkgComp.extra} extra)`);
+    lines.push(`Coverage: ${pkgComp.coveragePercent}% (${pkgComp.matched} matched, ${pkgComp.skipped} skipped, ${pkgComp.missing} missing, ${pkgComp.extra} extra)`);
     lines.push("");
 
     for (const fileComp of pkgComp.files) {
       if (fileComp.tests.length === 0) continue;
 
-      const total = fileComp.matched + fileComp.missing;
+      const total = fileComp.matched + fileComp.skipped + fileComp.missing;
       const coverage = total > 0 ? Math.round((fileComp.matched / total) * 100) : 0;
       lines.push(`### ${fileComp.rubyFile}`);
       lines.push(`TS target: ${fileComp.tsFile || "unmapped"} > ${fileComp.tsDescribeBlock || "—"}`);
-      lines.push(`Coverage: ${coverage}% (${fileComp.matched}/${total})`);
+      lines.push(`Coverage: ${coverage}% (${fileComp.matched} matched, ${fileComp.skipped} skipped, ${fileComp.missing} missing)`);
       lines.push("");
 
       const missing = fileComp.tests.filter((t) => t.status === "missing");
+      const skipped = fileComp.tests.filter((t) => t.status === "skipped");
       const matched = fileComp.tests.filter((t) => t.status === "matched");
 
       if (matched.length > 0) {
@@ -379,6 +389,18 @@ function generateMarkdown(result: TestComparisonResult): string {
         lines.push("");
         for (const t of matched) {
           lines.push(`- \`${t.rubyPath}\` → \`${t.tsPath}\` (${t.matchConfidence})`);
+        }
+        lines.push("");
+        lines.push("</details>");
+        lines.push("");
+      }
+
+      if (skipped.length > 0) {
+        lines.push("<details>");
+        lines.push(`<summary>Skipped / null override (${skipped.length})</summary>`);
+        lines.push("");
+        for (const t of skipped) {
+          lines.push(`- \`${t.rubyPath}\``);
         }
         lines.push("");
         lines.push("</details>");
@@ -404,15 +426,16 @@ function printSummary(result: TestComparisonResult) {
   console.log("========================================\n");
 
   console.log(`  Total Ruby tests:   ${result.summary.totalRubyTests}`);
-  console.log(`  Matched:            ${result.summary.matched}`);
+  console.log(`  Matched (real):     ${result.summary.matched}`);
+  console.log(`  Skipped (nulls):    ${result.summary.skipped}`);
   console.log(`  Missing:            ${result.summary.missing}`);
   console.log(`  Extra (TS only):    ${result.summary.extra}`);
-  console.log(`  Coverage:           ${result.summary.coveragePercent}%`);
+  console.log(`  Real coverage:      ${result.summary.coveragePercent}%`);
   console.log("");
 
   for (const [pkg, pkgComp] of Object.entries(result.packages)) {
-    const total = pkgComp.matched + pkgComp.missing;
-    console.log(`  ${pkg}: ${pkgComp.coveragePercent}% (${pkgComp.matched}/${total})`);
+    const total = pkgComp.matched + pkgComp.skipped + pkgComp.missing;
+    console.log(`  ${pkg}: ${pkgComp.coveragePercent}% (${pkgComp.matched} real / ${total} total, ${pkgComp.skipped} skipped)`);
 
     // Show top unmapped files
     const unmappedFiles = pkgComp.files
