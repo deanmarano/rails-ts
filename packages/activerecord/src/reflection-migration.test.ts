@@ -34,54 +34,51 @@ describe("ReflectionTest", () => {
     expect(Post.name).toBe("Post");
   });
 
-  it.skip("column string type and limit", () => {
+  it("column string type and limit", () => {
     class Article extends Base {
       static { this.attribute("title", "string"); this.adapter = adapter; }
     }
     const cols = (Article as any).columnsHash();
-    const title = cols.find((c: any) => c.name === "title");
-    expect(title).toBeDefined();
-    expect(title!.type).toBe("string");
+    expect(cols["title"]).toBeDefined();
+    expect(cols["title"].type).toBe("string");
   });
 
-  it.skip("column null not null", () => {
+  it("column null not null", () => {
     class Article extends Base {
       static { this.attribute("title", "string"); this.adapter = adapter; }
     }
     const cols = (Article as any).columnsHash();
-    expect(cols.length).toBeGreaterThan(0);
+    expect(Object.keys(cols).length).toBeGreaterThan(0);
   });
 
-  it.skip("human name for column", () => {
+  it("human name for column", () => {
     class Article extends Base {
       static { this.attribute("body_text", "string"); this.adapter = adapter; }
     }
     const cols = (Article as any).columnsHash();
-    const col = cols.find((c: any) => c.name === "body_text");
-    expect(col).toBeDefined();
-    expect(col!.name).toBe("body_text");
+    expect(cols["body_text"]).toBeDefined();
+    expect(cols["body_text"].name).toBe("body_text");
   });
 
-  it.skip("integer columns", () => {
+  it("integer columns", () => {
     class Article extends Base {
       static { this.attribute("views", "integer"); this.adapter = adapter; }
     }
     const cols = (Article as any).columnsHash();
-    const views = cols.find((c: any) => c.name === "views");
-    expect(views).toBeDefined();
-    expect(views!.type).toBe("integer");
+    expect(cols["views"]).toBeDefined();
+    expect(cols["views"].type).toBe("integer");
   });
 
-  it.skip("non existent columns return null object", () => {
+  it("non existent columns return null object", () => {
     class Article extends Base {
       static { this.attribute("title", "string"); this.adapter = adapter; }
     }
     const cols = (Article as any).columnsHash();
-    const nonExistent = cols.find((c: any) => c.name === "does_not_exist");
+    const nonExistent = cols["does_not_exist"];
     expect(nonExistent).toBeUndefined();
   });
 
-  it.skip("has many reflection", () => {
+  it("has many reflection", () => {
     class Comment extends Base {
       static { this.attribute("post_id", "integer"); this.adapter = adapter; }
     }
@@ -98,7 +95,7 @@ describe("ReflectionTest", () => {
     expect(reflection!.name).toBe("comments");
   });
 
-  it.skip("has one reflection", () => {
+  it("has one reflection", () => {
     class Profile extends Base {
       static { this.attribute("user_id", "integer"); this.adapter = adapter; }
     }
@@ -114,7 +111,7 @@ describe("ReflectionTest", () => {
     expect(reflection!.macro).toBe("hasOne");
   });
 
-  it.skip("belongs to inferred foreign key from assoc name", () => {
+  it("belongs to inferred foreign key from assoc name", () => {
     class Author extends Base {
       static { this.attribute("name", "string"); this.adapter = adapter; }
     }
@@ -131,7 +128,7 @@ describe("ReflectionTest", () => {
     expect(reflection!.foreignKey).toBe("author_id");
   });
 
-  it.skip("reflections should return keys as strings", () => {
+  it("reflections should return keys as strings", () => {
     class Comment extends Base {
       static { this.attribute("post_id", "integer"); this.adapter = adapter; }
     }
@@ -147,7 +144,7 @@ describe("ReflectionTest", () => {
     reflections.forEach((r) => expect(typeof r.name).toBe("string"));
   });
 
-  it.skip("has many through reflection", () => {
+  it("has many through reflection", () => {
     class Tag extends Base {
       static { this.attribute("name", "string"); this.adapter = adapter; }
     }
@@ -171,7 +168,7 @@ describe("ReflectionTest", () => {
     expect(reflection).not.toBeNull();
   });
 
-  it.skip("type", () => {
+  it("type", () => {
     class Comment extends Base {
       static { this.attribute("post_id", "integer"); this.adapter = adapter; }
     }
@@ -186,7 +183,7 @@ describe("ReflectionTest", () => {
     expect(reflection!.macro).toBe("hasMany");
   });
 
-  it.skip("collection association", () => {
+  it("collection association", () => {
     class Comment extends Base {
       static { this.attribute("post_id", "integer"); this.adapter = adapter; }
     }
@@ -198,10 +195,10 @@ describe("ReflectionTest", () => {
       }
     }
     const reflection = reflectOnAssociation(Post, "comments");
-    expect(reflection!.isCollection).toBe(true);
+    expect(reflection!.isCollection()).toBe(true);
   });
 
-  it.skip("foreign key", () => {
+  it("foreign key", () => {
     class Author extends Base {
       static { this.attribute("name", "string"); this.adapter = adapter; }
     }
@@ -216,7 +213,7 @@ describe("ReflectionTest", () => {
     expect(reflection!.foreignKey).toBe("author_id");
   });
 
-  it.skip("foreign key is inferred from model name", () => {
+  it("foreign key is inferred from model name", () => {
     class Post extends Base {
       static { this.attribute("title", "string"); this.adapter = adapter; }
     }
