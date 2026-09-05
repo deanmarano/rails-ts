@@ -2169,11 +2169,11 @@ function ensureAbstractAdapterMixinsApplied(): void {
     "insert",
     "update",
     "delete",
-    "execInsertAll",
     "truncate",
     "truncateTables",
     "rollbackToSavepoint",
     "rollbackDbTransaction",
     "restartDbTransaction",
+    "execInsertAll",
   );
 }
