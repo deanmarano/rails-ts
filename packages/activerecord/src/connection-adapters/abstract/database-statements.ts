@@ -27,6 +27,8 @@ import {
   ActiveRecordError,
   Rollback,
   FixtureError,
+  ConnectionNotEstablished,
+  ConnectionFailed,
 } from "../../errors.js";
 
 import type { Quoting } from "./quoting.js";
@@ -569,9 +571,13 @@ export async function commitDbTransaction(): Promise<void> {}
 
 export async function rollbackDbTransaction(this: DatabaseStatementsHost | void): Promise<void> {
   const host = this as unknown as DatabaseStatementsHost;
-  await (host?.execRollbackDbTransaction
-    ? host.execRollbackDbTransaction.call(host)
-    : execRollbackDbTransaction.call(this));
+  try {
+    await (host?.execRollbackDbTransaction
+      ? host.execRollbackDbTransaction.call(host)
+      : execRollbackDbTransaction.call(this));
+  } catch (e) {
+    if (!(e instanceof ConnectionNotEstablished) && !(e instanceof ConnectionFailed)) throw e;
+  }
 }
 
 export async function execRollbackDbTransaction(): Promise<void> {}

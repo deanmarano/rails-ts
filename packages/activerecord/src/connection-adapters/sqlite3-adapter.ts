@@ -45,7 +45,6 @@ import {
   NotNullViolation,
   NoDatabaseError,
   ConnectionNotEstablished,
-  ConnectionFailed,
   DatabaseConnectionError,
   StatementTimeout,
 } from "../errors.js";
@@ -411,14 +410,6 @@ export class SQLite3Adapter extends AbstractAdapter implements DatabaseAdapter {
       return this._transactionManager.commitTransaction();
     }
     return this.commitDbTransaction();
-  }
-
-  async rollbackDbTransaction(): Promise<void> {
-    try {
-      await this.execRollbackDbTransaction();
-    } catch (e) {
-      if (!(e instanceof ConnectionNotEstablished) && !(e instanceof ConnectionFailed)) throw e;
-    }
   }
 
   async rollback(): Promise<void> {
@@ -1848,7 +1839,7 @@ function isInvalidAlterTableType(type: string, options: Record<string, unknown>)
   );
 }
 
-dirtiesQueryCache(SQLite3Adapter, "rollbackDbTransaction", "rollbackToSavepoint");
+dirtiesQueryCache(SQLite3Adapter, "rollbackToSavepoint");
 SQLite3Adapter.prototype.beginDbTransaction = sqliteBeginDbTransaction;
 SQLite3Adapter.prototype.beginDeferredTransaction = sqliteBeginDeferredTransaction;
 SQLite3Adapter.prototype.beginIsolatedDbTransaction = sqliteBeginIsolatedDbTransaction;
