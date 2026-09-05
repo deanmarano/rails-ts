@@ -4,7 +4,7 @@ import {
   type DateOrTime,
   inTimeZone,
 } from "@blazetrails/activesupport/core-ext/date-and-time/zones";
-import { Temporal } from "@blazetrails/date";
+import { Temporal, Time as RubyTime } from "@blazetrails/date";
 import { classAttribute, included } from "@blazetrails/activesupport";
 import { isUtc } from "../type/internal/timezone.js";
 type ValueTypeInstance = InstanceType<typeof ValueType>;
@@ -65,13 +65,7 @@ export class TimeZoneConverter extends ValueType<unknown> {
     if (isPlainObject(value)) {
       return setTimeZoneWithoutConversion(this._subtype.cast(value), this._subtypeIsUtc);
     }
-    if (value instanceof TimeWithZone) {
-      const casted = this._subtype.cast(
-        (this._subtype as TimeValueSubtype).userInputInTimeZone(value),
-      );
-      return casted != null && casted !== false ? casted : this._subtype.cast(value);
-    }
-    if (value instanceof RubyTime) {
+    if (value instanceof TimeWithZone || value instanceof RubyTime) {
       const casted = this._subtype.cast(
         (this._subtype as TimeValueSubtype).userInputInTimeZone(value),
       );
@@ -123,18 +117,8 @@ export class TimeZoneConverter extends ValueType<unknown> {
   }
 
   override isChanged(oldValue: unknown, newValue: unknown, _raw?: unknown): boolean {
-    const oldInstant =
-      oldValue instanceof TimeWithZone
-        ? oldValue.utc().toTime().toInstant()
-        : oldValue instanceof Temporal.Instant
-          ? oldValue
-          : null;
-    const newInstant =
-      newValue instanceof TimeWithZone
-        ? newValue.utc().toTime().toInstant()
-        : newValue instanceof Temporal.Instant
-          ? newValue
-          : null;
+    const oldInstant = toInstantOrNull(oldValue);
+    const newInstant = toInstantOrNull(newValue);
     if (oldInstant !== null && newInstant !== null) {
       return (
         this._nsAtPrecision(oldInstant.epochNanoseconds) !==
@@ -187,6 +171,14 @@ function isInfinite(value: unknown): boolean {
     return result != null && result !== false;
   }
   return value === Infinity || value === -Infinity;
+}
+
+/** @internal */
+function toInstantOrNull(value: unknown): Temporal.Instant | null {
+  if (value instanceof TimeWithZone) return value.utc().toTime().toInstant();
+  if (value instanceof RubyTime) return value.toTime().toInstant();
+  if (value instanceof Temporal.Instant) return value;
+  return null;
 }
 
 /** @internal */

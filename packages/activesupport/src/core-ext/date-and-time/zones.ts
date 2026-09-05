@@ -43,7 +43,9 @@ export function inTimeZone(
   if (timeZone) {
     return timeWithZone(dateOrTime, time, timeZone);
   }
-  return time !== null ? asInstant(time) : toTime(dateOrTime as Temporal.PlainDate);
+  if (time === null) return toTime(dateOrTime as Temporal.PlainDate);
+  // boundary: a Ruby ::Time is returned as `self`; the zoneless Temporal values trails also admits carry no zone to keep.
+  return time instanceof RubyTime ? time : asInstant(time);
 }
 
 /** @internal */
