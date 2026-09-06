@@ -287,10 +287,10 @@ export class IO {
   }
 
   /**
-   * `vendor/ruby/io.c:13474` `rb_io_set_encoding` in its one-argument form —
-   * the external encoding the stream reads and writes through, which
-   * {@link binmode} also sets but which carries no `FMODE_BINMODE` of its own.
-   * It answers the stream.
+   * `vendor/ruby/io.c:13474` `rb_io_set_encoding` — the external encoding the
+   * stream reads and writes through, which {@link binmode} also sets but which
+   * carries no `FMODE_BINMODE` of its own, and, in the two-argument form, the
+   * internal one it transcodes to. It answers the stream.
    *
    * `io_encoding_set` (`vendor/ruby/io.c:11659`) records whatever
    * `find_encoding` answered, so a name that resolves to
@@ -302,16 +302,16 @@ export class IO {
    * @noRailsEquivalent PERMANENT — Ruby core `IO#set_encoding`
    * (`vendor/ruby/io.c:13474`).
    */
-  setEncoding(v1: Encoding | string, v2?: Encoding | string): this {
+  setEncoding(extEnc: Encoding | string, intEnc?: Encoding | string): this {
     let enc: Encoding | null;
     let enc2: Encoding | null;
-    if (v2 != null) {
-      enc2 = Encoding.find(v1);
-      if (v2 === "-") {
+    if (intEnc != null) {
+      enc2 = Encoding.find(extEnc);
+      if (intEnc === "-") {
         enc = enc2;
         enc2 = null;
       } else {
-        enc = Encoding.find(v2);
+        enc = Encoding.find(intEnc);
         if (enc === enc2) enc2 = null;
       }
       if (enc2 === Encoding.ASCII_8BIT) {
@@ -319,7 +319,7 @@ export class IO {
         enc2 = null;
       }
     } else {
-      enc = Encoding.find(v1);
+      enc = Encoding.find(extEnc);
       enc2 = null;
     }
     this.enc = enc;
