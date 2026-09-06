@@ -110,28 +110,6 @@ export class TimeZoneConverter extends ValueType<unknown> {
     return this._subtype.isValueConstructedByMassAssignment(value);
   }
 
-  override isChanged(oldValue: unknown, newValue: unknown, _raw?: unknown): boolean {
-    const oldInstant = toInstantOrNull(oldValue);
-    const newInstant = toInstantOrNull(newValue);
-    if (oldInstant !== null && newInstant !== null) {
-      return (
-        this._nsAtPrecision(oldInstant.epochNanoseconds) !==
-        this._nsAtPrecision(newInstant.epochNanoseconds)
-      );
-    }
-    return oldValue !== newValue;
-  }
-
-  private _nsAtPrecision(ns: bigint): bigint {
-    const raw = this._subtype.precision ?? 6;
-    const p = Number.isInteger(raw) && raw >= 0 && raw <= 9 ? raw : 6;
-    const mod = 10n ** BigInt(9 - p);
-    let subsec = ns % 1_000_000_000n;
-    if (subsec < 0n) subsec += 1_000_000_000n;
-    const roundedOff = subsec % mod;
-    return ns - roundedOff;
-  }
-
   override equals(other: ValueType): boolean {
     if (!(other instanceof TimeZoneConverter)) return false;
     const sub = this._subtype;
@@ -165,14 +143,6 @@ function isInfinite(value: unknown): boolean {
     return result != null && result !== false;
   }
   return value === Infinity || value === -Infinity;
-}
-
-/** @internal */
-function toInstantOrNull(value: unknown): Temporal.Instant | null {
-  if (value instanceof TimeWithZone) return value.utc().toTime().toInstant();
-  if (value instanceof RubyTime) return value.toTime().toInstant();
-  if (value instanceof Temporal.Instant) return value;
-  return null;
 }
 
 /** @internal */

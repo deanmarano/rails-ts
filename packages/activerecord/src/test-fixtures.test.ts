@@ -218,9 +218,11 @@ describe("useFixtures by registry name", () => {
   it("loads authors by label with the expected attributes", async () => {
     const david = authors("david");
     expect(Number(david.id)).toBe(1);
-    const [row] = (await Base.adapter.execute(
-      `SELECT name FROM ${Base.adapter.quoteTableName(Author.tableName)} WHERE id = 1`,
-    ))!;
+    const [row] = (
+      await Base.adapter.selectAll(
+        `SELECT name FROM ${Base.adapter.quoteTableName(Author.tableName)} WHERE id = 1`,
+      )
+    ).toArray();
     expect((row as { name: string }).name).toBe("David");
   });
 
@@ -229,13 +231,17 @@ describe("useFixtures by registry name", () => {
   });
 
   it("resolves cross-fixture ref() to the target fixture's declared id", async () => {
-    const [a] = (await Base.adapter.execute(
-      `SELECT author_address_id FROM ${Base.adapter.quoteTableName(Author.tableName)} WHERE id = 1`,
-    ))!;
+    const [a] = (
+      await Base.adapter.selectAll(
+        `SELECT author_address_id FROM ${Base.adapter.quoteTableName(Author.tableName)} WHERE id = 1`,
+      )
+    ).toArray();
     expect(Number((a as { author_address_id: unknown }).author_address_id)).toBe(1);
-    const [p] = (await Base.adapter.execute(
-      `SELECT author_id FROM ${Base.adapter.quoteTableName(Post.tableName)} WHERE id = 1`,
-    ))!;
+    const [p] = (
+      await Base.adapter.selectAll(
+        `SELECT author_id FROM ${Base.adapter.quoteTableName(Post.tableName)} WHERE id = 1`,
+      )
+    ).toArray();
     expect(Number((p as { author_id: unknown }).author_id)).toBe(1);
   });
 
@@ -274,21 +280,27 @@ describe("useFixtures seeds HABTM join tables (no model class)", () => {
 
   it("seeds every label-less join row (HABTM rows carry no id/label column)", async () => {
     expect(categoriesPosts.all().length).toBe(8);
-    const [{ n }] = (await Base.adapter.execute(
-      `SELECT COUNT(*) AS n FROM ${Base.adapter.quoteTableName("categories_posts")}`,
-    )) as [{ n: number }];
+    const [{ n }] = (
+      await Base.adapter.selectAll(
+        `SELECT COUNT(*) AS n FROM ${Base.adapter.quoteTableName("categories_posts")}`,
+      )
+    ).toArray() as [{ n: number }];
     expect(Number(n)).toBe(8);
   });
 
   it("persists FK pairs that match a real Category and Post", async () => {
     for (const row of categoriesPosts.all()) {
       const r = row as { category_id: number; post_id: number };
-      const [cat] = (await Base.adapter.execute(
-        `SELECT id FROM ${Base.adapter.quoteTableName("categories")} WHERE id = ${r.category_id}`,
-      ))!;
-      const [post] = (await Base.adapter.execute(
-        `SELECT id FROM ${Base.adapter.quoteTableName("posts")} WHERE id = ${r.post_id}`,
-      ))!;
+      const [cat] = (
+        await Base.adapter.selectAll(
+          `SELECT id FROM ${Base.adapter.quoteTableName("categories")} WHERE id = ${r.category_id}`,
+        )
+      ).toArray();
+      const [post] = (
+        await Base.adapter.selectAll(
+          `SELECT id FROM ${Base.adapter.quoteTableName("posts")} WHERE id = ${r.post_id}`,
+        )
+      ).toArray();
       expect(cat, `category_id ${r.category_id} must reference a real Category`).toBeDefined();
       expect(post, `post_id ${r.post_id} must reference a real Post`).toBeDefined();
     }
@@ -342,9 +354,11 @@ describe("useFixtures auto-stamps NOT NULL timestamps", () => {
 
   it("fills created_at/updated_at for a row that omits them", async () => {
     const id = people("michael").id;
-    const [row] = (await Base.adapter.execute(
-      `SELECT created_at, updated_at FROM ${Base.adapter.quoteTableName("people")} WHERE id = ${id}`,
-    ))!;
+    const [row] = (
+      await Base.adapter.selectAll(
+        `SELECT created_at, updated_at FROM ${Base.adapter.quoteTableName("people")} WHERE id = ${id}`,
+      )
+    ).toArray();
     const r = row as { created_at: unknown; updated_at: unknown };
     expect(r.created_at).not.toBeNull();
     expect(r.created_at).not.toBeUndefined();
@@ -363,9 +377,11 @@ describe("useFixtures with a string primary key", () => {
   it("loads a record keyed by its declared string primary key", async () => {
     const luke = subscribers("first");
     expect(luke.readAttribute("nick")).toBe("alterself");
-    const [row] = (await Base.adapter.execute(
-      `SELECT name FROM ${Base.adapter.quoteTableName("subscribers")} WHERE nick = 'alterself'`,
-    ))!;
+    const [row] = (
+      await Base.adapter.selectAll(
+        `SELECT name FROM ${Base.adapter.quoteTableName("subscribers")} WHERE nick = 'alterself'`,
+      )
+    ).toArray();
     expect((row as { name: string }).name).toBe("Luke Holden");
   });
 
@@ -394,9 +410,11 @@ describe("useFixtures reconciles the PK column against the schema", () => {
     const special = bulbs("special");
     expect(special.readAttribute("ID")).not.toBeNull();
     expect(special.readAttribute("ID")).not.toBeUndefined();
-    const [row] = (await Base.adapter.execute(
-      `SELECT name FROM ${Base.adapter.quoteTableName("bulbs")} WHERE ${Base.adapter.quoteColumnName("ID")} = ${special.readAttribute("ID")}`,
-    ))!;
+    const [row] = (
+      await Base.adapter.selectAll(
+        `SELECT name FROM ${Base.adapter.quoteTableName("bulbs")} WHERE ${Base.adapter.quoteColumnName("ID")} = ${special.readAttribute("ID")}`,
+      )
+    ).toArray();
     expect((row as { name: string }).name).toBe("special");
   });
 
@@ -408,9 +426,9 @@ describe("useFixtures reconciles the PK column against the schema", () => {
   it("seeds an id-less table without a PK column", async () => {
     const m = mateys("blackbeard_to_redbeard");
     expect(m.readAttribute("weight")).toBe(10);
-    const rows = (await Base.adapter.execute(
-      `SELECT weight FROM ${Base.adapter.quoteTableName("mateys")}`,
-    ))!;
+    const rows = (
+      await Base.adapter.selectAll(`SELECT weight FROM ${Base.adapter.quoteTableName("mateys")}`)
+    ).toArray();
     expect(rows.length).toBe(1);
   });
 });
@@ -475,9 +493,11 @@ describe("useFixtures resolves STI subclasses on standalone load", () => {
   });
 
   it("resolves the subclass-only `breed` enum via the row's STI class", async () => {
-    const [row] = (await Base.adapter.execute(
-      `SELECT breed FROM ${Base.adapter.quoteTableName("parrots")} WHERE name = 'Curious George'`,
-    )) as { breed: number }[];
+    const [row] = (
+      await Base.adapter.selectAll(
+        `SELECT breed FROM ${Base.adapter.quoteTableName("parrots")} WHERE name = 'Curious George'`,
+      )
+    ).toArray() as { breed: number }[];
     expect(row.breed).toBe(1);
     expect(parrots("george").readAttribute("breed")).toBe("australian");
     expect(parrots("louis").readAttribute("breed")).toBe("african");
@@ -599,9 +619,11 @@ describe("fixtures() loads multiple same-table fixture sets in one call", () => 
   });
 
   it("inserts both sets' rows into the shared table", async () => {
-    const rows = (await Base.adapter.execute(
-      `SELECT name FROM ${Base.adapter.quoteTableName("parrots")} ORDER BY name`,
-    )) as { name: string }[];
+    const rows = (
+      await Base.adapter.selectAll(
+        `SELECT name FROM ${Base.adapter.quoteTableName("parrots")} ORDER BY name`,
+      )
+    ).toArray() as { name: string }[];
     const names = rows.map((r) => r.name);
     expect(names).toContain("Dusty DeadBird");
     expect(names).toContain("Dusty Bluebird");

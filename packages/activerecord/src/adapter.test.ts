@@ -410,7 +410,7 @@ describe("AdapterTest", () => {
   it("database related exceptions are translated to statement invalid", async () => {
     const error = await Base.connection.execute("This is a syntax error").catch((e) => e);
     expect(error).toBeInstanceOf(StatementInvalid);
-    expect(error.cause).toBeInstanceOf(Error);
+    expect((error as Error).cause).toBeInstanceOf(Error);
   });
 
   it("select all always return activerecord result", async () => {

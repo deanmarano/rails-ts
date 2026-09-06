@@ -482,6 +482,7 @@ export const InstanceMethods = {
     return basicObjRespondTo(this, method);
   },
 
+  /** @missingRailsCall super — PERMANENT */
   respondTo(
     this: InstanceMethodsHost,
     method: string,

@@ -175,15 +175,15 @@ describe("MigrationTest", () => {
       await adapter.executeMutation(
         `INSERT INTO ${adapter.quoteTableName("pre_old_suf")} (${adapter.quoteColumnName("content")}) VALUES ('hello world')`,
       );
-      const before = (await adapter.execute(
-        `SELECT * FROM ${adapter.quoteTableName("pre_old_suf")}`,
-      ))!;
+      const before = (
+        await adapter.selectAll(`SELECT * FROM ${adapter.quoteTableName("pre_old_suf")}`)
+      ).toArray();
       expect(before[0].content).toBe("hello world");
 
       await migration.renameTable("old", "new");
-      const after = (await adapter.execute(
-        `SELECT * FROM ${adapter.quoteTableName("pre_new_suf")}`,
-      ))!;
+      const after = (
+        await adapter.selectAll(`SELECT * FROM ${adapter.quoteTableName("pre_new_suf")}`)
+      ).toArray();
       expect(after[0].content).toBe("hello world");
     } finally {
       Base.tableNamePrefix = "";
@@ -1042,7 +1042,7 @@ describe("MigrationTest", () => {
     try {
       await migrator.migrate();
 
-      const rows = (await adapter.execute(internalMetadataExistsSql(adapterType)))!;
+      const rows = (await adapter.selectAll(internalMetadataExistsSql(adapterType))).toArray();
       expect(Number(rows[0]?.cnt ?? 0)).toBe(0);
     } finally {
       pool.dbConfig = originalDbConfig;
@@ -1171,7 +1171,7 @@ describe("MigrationTest", () => {
       const qt = adapter.quoteTableName("prefix_reminders_suffix");
       const qc = adapter.quoteColumnName("content");
       await adapter.executeMutation(`INSERT INTO ${qt} (${qc}) VALUES ('hello')`);
-      const rows = (await adapter.execute(`SELECT * FROM ${qt}`))!;
+      const rows = (await adapter.selectAll(`SELECT * FROM ${qt}`)).toArray();
       expect(rows).toHaveLength(1);
 
       await runMigration(m, "down");
@@ -1201,7 +1201,7 @@ describe("MigrationTest", () => {
     await adapter.createTable("table_from_query_testings", {
       as: `SELECT person_id FROM people_src WHERE person_id = 1`,
     });
-    const rows = (await adapter.execute(`SELECT * FROM table_from_query_testings`))!;
+    const rows = (await adapter.selectAll(`SELECT * FROM table_from_query_testings`)).toArray();
     expect(rows).toHaveLength(1);
     expect(await adapter.columnExists("table_from_query_testings", "person_id")).toBe(true);
 
@@ -1223,7 +1223,7 @@ describe("MigrationTest", () => {
     const c = `${t}.${adapter.quoteColumnName("person_id")}`;
     const sql = `SELECT ${c} FROM ${t} WHERE ${c} = 1`;
     await adapter.createTable("table_from_query_testings2", { as: sql });
-    const rows = (await adapter.execute(`SELECT * FROM table_from_query_testings2`))!;
+    const rows = (await adapter.selectAll(`SELECT * FROM table_from_query_testings2`)).toArray();
     expect(rows).toHaveLength(1);
 
     await adapter.dropTable("table_from_query_testings2", "people_src2");
@@ -1605,7 +1605,7 @@ describe("MigrationTest", () => {
       await bulkAdapter.executeMutation(
         `INSERT INTO "bk1" ("name", "age", "email") VALUES ('test', 25, 'a@b.c')`,
       );
-      const rows = (await bulkAdapter.execute(`SELECT * FROM "bk1"`))!;
+      const rows = (await bulkAdapter.selectAll(`SELECT * FROM "bk1"`)).toArray();
       expect(rows.length).toBe(1);
       expect(rows[0].age).toBe(25);
       expect(rows[0].email).toBe("a@b.c");
@@ -1631,7 +1631,7 @@ describe("MigrationTest", () => {
         })(),
       ).up();
       await bulkAdapter.executeMutation(`INSERT INTO "bk2" ("new_c") VALUES ('test')`);
-      const rows = (await bulkAdapter.execute(`SELECT * FROM "bk2"`))!;
+      const rows = (await bulkAdapter.selectAll(`SELECT * FROM "bk2"`)).toArray();
       expect(rows.length).toBe(1);
       expect(rows[0].new_c).toBe("test");
     });
@@ -1657,7 +1657,7 @@ describe("MigrationTest", () => {
         })(),
       ).up();
       await bulkAdapter.executeMutation(`INSERT INTO "bk3" ("a") VALUES ('test')`);
-      const rows = (await bulkAdapter.execute(`SELECT * FROM "bk3"`))!;
+      const rows = (await bulkAdapter.selectAll(`SELECT * FROM "bk3"`)).toArray();
       expect(rows.length).toBe(1);
     });
 
@@ -1683,7 +1683,7 @@ describe("MigrationTest", () => {
       await bulkAdapter.executeMutation(
         `INSERT INTO "bk4" ("x", "created_at", "updated_at") VALUES ('test', '2023-01-01', '2023-01-01')`,
       );
-      const rows = (await bulkAdapter.execute(`SELECT * FROM "bk4"`))!;
+      const rows = (await bulkAdapter.selectAll(`SELECT * FROM "bk4"`)).toArray();
       expect(rows.length).toBe(1);
       const createdAt = rows[0].created_at;
       const dateStr =
@@ -1715,7 +1715,7 @@ describe("MigrationTest", () => {
         })(),
       ).up();
       await bulkAdapter.executeMutation(`INSERT INTO "bk5" ("x") VALUES ('test')`);
-      const rows = (await bulkAdapter.execute(`SELECT * FROM "bk5"`))!;
+      const rows = (await bulkAdapter.selectAll(`SELECT * FROM "bk5"`)).toArray();
       expect(rows.length).toBe(1);
     });
 
@@ -1739,7 +1739,7 @@ describe("MigrationTest", () => {
         })(),
       ).up();
       await bulkAdapter.executeMutation(`INSERT INTO "bk6" ("email") VALUES ('test@test.com')`);
-      const rows = (await bulkAdapter.execute(`SELECT * FROM "bk6"`))!;
+      const rows = (await bulkAdapter.selectAll(`SELECT * FROM "bk6"`)).toArray();
       expect(rows.length).toBe(1);
     });
 
@@ -1764,7 +1764,7 @@ describe("MigrationTest", () => {
         })(),
       ).up();
       await bulkAdapter.executeMutation(`INSERT INTO "bk7" ("email") VALUES ('test@test.com')`);
-      const rows = (await bulkAdapter.execute(`SELECT * FROM "bk7"`))!;
+      const rows = (await bulkAdapter.selectAll(`SELECT * FROM "bk7"`)).toArray();
       expect(rows.length).toBe(1);
     });
 
@@ -1816,12 +1816,12 @@ describe("MigrationTest", () => {
       await rvAdapter.executeMutation(
         `INSERT INTO "rv_bulk" ("name", "extra") VALUES ('test', 'val')`,
       );
-      const rows = (await rvAdapter.execute(`SELECT * FROM "rv_bulk"`))!;
+      const rows = (await rvAdapter.selectAll(`SELECT * FROM "rv_bulk"`)).toArray();
       expect(rows.length).toBe(1);
       expect(rows[0].extra).toBe("val");
       await m.down();
       try {
-        const after = (await rvAdapter.execute(`SELECT * FROM "rv_bulk"`))!;
+        const after = (await rvAdapter.selectAll(`SELECT * FROM "rv_bulk"`)).toArray();
         expect(after.length).toBe(0);
       } catch {}
     });
