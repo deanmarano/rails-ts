@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { ArgumentError } from "@blazetrails/activemodel";
 import {
   combineMultiStatements,
+  isWriteQuery,
   isMaxAllowedPacketReached,
   maxAllowedPacket,
   type MaxAllowedPacketHost,
@@ -54,5 +56,29 @@ describe("MySQL::DatabaseStatements max_allowed_packet", () => {
     await expect(
       isMaxAllowedPacketReached.call(host, "SELECT 1234567890", undefined),
     ).rejects.toThrow(/Fixtures set is too large 17\./);
+  });
+});
+
+describe("Mysql2::DatabaseStatements#isWriteQuery", () => {
+  it("retries the match against the bytes when the first match raises ArgumentError", () => {
+    let matches = 0;
+    const sql = {
+      toString() {
+        if (matches++ === 0) throw new ArgumentError("invalid byte sequence in UTF-8");
+        return "SELECT 1";
+      },
+    } as unknown as string;
+
+    expect(isWriteQuery(sql)).toBe(false);
+  });
+
+  it("re-raises anything but ArgumentError", () => {
+    const sql = {
+      toString() {
+        throw new TypeError("boom");
+      },
+    } as unknown as string;
+
+    expect(() => isWriteQuery(sql)).toThrow(TypeError);
   });
 });

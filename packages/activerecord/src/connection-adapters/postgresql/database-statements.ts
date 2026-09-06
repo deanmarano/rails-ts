@@ -12,7 +12,7 @@ import {
   type ExplainOption,
 } from "../abstract/database-statements.js";
 import { ExplainPrettyPrinter } from "./explain-pretty-printer.js";
-import { fetch, isEmpty } from "@blazetrails/ruby-compat";
+import { b, fetch, isEmpty } from "@blazetrails/ruby-compat";
 import type { StatementPool } from "../statement-pool.js";
 import { AbstractAdapter } from "../abstract-adapter.js";
 
@@ -53,7 +53,12 @@ export async function explain(
 }
 
 export function isWriteQuery(sql: string): boolean {
-  return !READ_QUERY.test(sql);
+  try {
+    return !READ_QUERY.test(sql);
+  } catch (error) {
+    if (!(error instanceof ArgumentError)) throw error;
+    return !READ_QUERY.test(b(sql));
+  }
 }
 
 /** @internal */
