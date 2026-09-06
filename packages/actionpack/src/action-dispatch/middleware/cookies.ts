@@ -169,7 +169,7 @@ export class CookieJar implements Iterable<[string, string]> {
     }
 
     const request = this._request as unknown as { host?: string } | undefined;
-    if (options.domain === "all") {
+    if (options.domain === ":all" || options.domain === "all") {
       let cookieDomain = "";
       const host = request?.host ?? "";
       const dotSplittedHost = host.split(".");
@@ -499,6 +499,11 @@ function capitalize(s: string): string {
 /** @internal */
 export const COOKIES_KEY = "action_dispatch.cookies";
 
+type CookiesRequest = RequestCookieMethodsHost & {
+  isHaveCookieJar(): boolean;
+  cookieJar(): CookieJar;
+};
+
 export class Cookies {
   private app: RackApp;
 
@@ -507,10 +512,7 @@ export class Cookies {
   }
 
   async call(env: RackEnv): Promise<RackResponse> {
-    const request = new _RequestCtor!(env) as RequestCookieMethodsHost & {
-      isHaveCookieJar(): boolean;
-      cookieJar(): CookieJar;
-    };
+    const request = new _RequestCtor!(env) as CookiesRequest;
     let response: RackResponse | Response = await this.app(env);
 
     if (request.isHaveCookieJar()) {
