@@ -347,6 +347,22 @@ describe("FileUtils", () => {
     expect(nodeFs.readFileSync(nodePath.join(dest, "file"), "utf-8")).toEqual("contents");
   });
 
+  it("copy_entry applies a directory's metadata after its children are written", () => {
+    const src = nodePath.join(root, "dir");
+    const dest = nodePath.join(root, "copy");
+    nodeFs.mkdirSync(src);
+    nodeFs.mkdirSync(nodePath.join(src, "nested"));
+    nodeFs.writeFileSync(nodePath.join(src, "nested", "file"), "contents");
+    const mtime = new Date(Date.UTC(2002, 3, 5, 6, 7, 8));
+    nodeFs.utimesSync(nodePath.join(src, "nested"), mtime, mtime);
+    nodeFs.utimesSync(src, mtime, mtime);
+
+    FileUtils.copyEntry(src, dest, true);
+
+    expect(nodeFs.statSync(dest).mtime.getTime()).toEqual(mtime.getTime());
+    expect(nodeFs.statSync(nodePath.join(dest, "nested")).mtime.getTime()).toEqual(mtime.getTime());
+  });
+
   it.each([
     ["a device file", "isCharacterDevice", "cannot handle device file"],
     ["a device file", "isBlockDevice", "cannot handle device file"],

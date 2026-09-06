@@ -24,52 +24,6 @@ function isSystemCallError(error: unknown): boolean {
   return typeof (error as { code?: unknown } | null | undefined)?.code === "string";
 }
 
-/**
- * `Entry_#directory?` (`vendor/ruby/lib/fileutils.rb:2123-2126`), which
- * `lstat!`s — a symlink to a directory is an entry to unlink, not a tree to
- * descend. An adapter with no `lstatSync` falls back to `statSync`, which
- * follows the link and cannot draw that distinction.
- */
-function isDirectoryEntry(path: string): boolean {
-  const fs = getFs();
-  try {
-    return (fs.lstatSync ? fs.lstatSync(path) : fs.statSync(path)).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-/** `Entry_#postorder_traverse` (`vendor/ruby/lib/fileutils.rb:2364-2382`). */
-function* postorderTraverse(path: string): Generator<string> {
-  if (isDirectoryEntry(path)) {
-    let children: string[];
-    try {
-      children = getFs().readdirSync(path);
-    } catch (error) {
-      if ((error as { code?: string }).code !== "EACCES") throw error;
-      yield path;
-      return;
-    }
-
-    for (const ent of children) {
-      yield* postorderTraverse(getPath().join(path, ent));
-    }
-  }
-  yield path;
-}
-
-/**
- * `Entry_#remove` (`vendor/ruby/lib/fileutils.rb:2314-2320`), whose
- * `remove_dir1` and `remove_file` are `Dir.rmdir` and `File.unlink`.
- */
-function entryRemove(path: string): void {
-  if (isDirectoryEntry(path)) {
-    getFs().rmdirSync(removeTrailingSlash(path));
-  } else {
-    getFs().unlinkSync(path);
-  }
-}
-
 /** `Entry_#exist?` / `#directory?` (`vendor/ruby/lib/fileutils.rb:2109,2123`). */
 function statOrNull(path: string): FsStatResult | null {
   try {
@@ -169,15 +123,11 @@ function fuEachSrcDest(
   });
 }
 
-/**
- * `Entry_#lstat` (`vendor/ruby/lib/fileutils.rb:2192-2198`) — `File.stat` under
- * `dereference?`, `File.lstat` otherwise. An adapter with no `lstatSync` cannot
- * draw the distinction and stats either way.
- */
-function entryLstat(path: string, dereference: boolean): FsStatResult {
-  const fs = getFs();
-  if (dereference || !fs.lstatSync) return fs.statSync(path);
-  return fs.lstatSync(path);
+/** `Entry_#join` (`vendor/ruby/lib/fileutils.rb:2432-2446`). */
+function join(dir: string | null, base: string | null): string {
+  if (base == null || base === ".") return dir as string;
+  if (dir == null || dir === ".") return base;
+  return File.join(dir, base);
 }
 
 /**
@@ -231,41 +181,6 @@ function fileSymlink(old: string, newName: string): void {
   symlinkSync(old, newName);
 }
 
-/** `Entry_#copy_metadata` (`vendor/ruby/lib/fileutils.rb:2285-2312`). */
-function copyMetadata(src: string, path: string, dereference: boolean): void {
-  const st = entryLstat(src, dereference);
-  const symlink = st.isSymbolicLink?.() === true;
-  if (!symlink) {
-    fileUtime(st.atime, st.mtime, path);
-  }
-  let mode = st.mode ?? 0o644;
-  try {
-    if (symlink) {
-      try {
-        fileLchown(st.uid, st.gid, path);
-      } catch (error) {
-        if (!(error instanceof NotImplementedError)) throw error;
-      }
-    } else {
-      getFs().chownSync?.(path, st.uid, st.gid);
-    }
-  } catch (error) {
-    const code = (error as { code?: string }).code;
-    if (code !== "EPERM" && code !== "EACCES") throw error;
-    mode &= 0o1777;
-  }
-  if (symlink) {
-    try {
-      fileLchmod(mode, path);
-    } catch (error) {
-      const code = (error as { code?: string }).code;
-      if (!(error instanceof NotImplementedError) && code !== "EOPNOTSUPP") throw error;
-    }
-  } else {
-    getFs().chmodSync?.(path, mode);
-  }
-}
-
 /**
  * `File.utime` (`vendor/ruby/file.c:2983`). `utimesSync` is optional on the
  * backend contract, and an adapter without one still has to raise `ENOENT` for
@@ -281,6 +196,246 @@ function fileUtime(atime: Date, mtime: Date, path: string): void {
     return;
   }
   getFs().statSync(path);
+}
+
+/**
+ * `Entry_` (`vendor/ruby/lib/fileutils.rb:2069-2459`), the one directory-tree
+ * walker every recursive `FileUtils` body is written against: `copy_entry`
+ * (`fileutils.rb:1044-1052`) hands it two procs, `remove_entry`
+ * (`fileutils.rb:1450`) traverses it in postorder.
+ *
+ * `stat` / `stat!` / `link` / `platform_support` and the `chardev?`-through-
+ * `door?` predicates are only reachable from members no Rails body sends, and
+ * `fu_windows?` is false for every backend here, so `platform_support`'s retry
+ * has no arm to select. `Entry_#copy`'s special-file arms read the backend's
+ * own `FsStatResult` predicates in their place.
+ */
+class Entry_ {
+  private readonly _prefix: string | null = null;
+  private readonly _rel: string | null = null;
+  private readonly _path: string | null = null;
+  private readonly _deref: boolean;
+  private _lstat: FsStatResult | null = null;
+
+  /** `Entry_#initialize` (`vendor/ruby/lib/fileutils.rb:2072-2083`). */
+  constructor(a: string, b: string | null = null, deref = false) {
+    if (b != null) {
+      this._prefix = a;
+      this._rel = b;
+    } else {
+      this._path = a;
+    }
+    this._deref = deref;
+  }
+
+  /** `Entry_#path` (`vendor/ruby/lib/fileutils.rb:2089-2095`). */
+  get path(): string {
+    if (this._path != null) {
+      return this._path;
+    } else {
+      return join(this.prefix, this.rel);
+    }
+  }
+
+  /** `Entry_#prefix` (`vendor/ruby/lib/fileutils.rb:2097-2099`). */
+  get prefix(): string | null {
+    return this._prefix ?? this._path;
+  }
+
+  /** `Entry_#rel` (`vendor/ruby/lib/fileutils.rb:2101-2103`). */
+  get rel(): string | null {
+    return this._rel;
+  }
+
+  /** `Entry_#dereference?` (`vendor/ruby/lib/fileutils.rb:2105-2107`). */
+  get isDereference(): boolean {
+    return this._deref;
+  }
+
+  /** `Entry_#file?` (`vendor/ruby/lib/fileutils.rb:2118-2121`). */
+  get isFile(): boolean {
+    const s = this.lstatQ();
+    return s != null && s.isFile();
+  }
+
+  /** `Entry_#directory?` (`vendor/ruby/lib/fileutils.rb:2123-2126`). */
+  get isDirectory(): boolean {
+    const s = this.lstatQ();
+    return s != null && s.isDirectory();
+  }
+
+  /** `Entry_#symlink?` (`vendor/ruby/lib/fileutils.rb:2128-2131`). */
+  get isSymlink(): boolean {
+    const s = this.lstatQ();
+    return s != null && s.isSymbolicLink?.() === true;
+  }
+
+  /** `Entry_#entries` (`vendor/ruby/lib/fileutils.rb:2159-2167`). */
+  entries(): Entry_[] {
+    const files = Dir.children(this.path);
+
+    return files.map((n) => new Entry_(this.prefix as string, join(this.rel, n)));
+  }
+
+  /**
+   * `Entry_#lstat` (`vendor/ruby/lib/fileutils.rb:2192-2198`) — `File.stat`
+   * under `dereference?`, `File.lstat` otherwise. An adapter with no
+   * `lstatSync` cannot draw the distinction and stats either way.
+   */
+  lstat(): FsStatResult {
+    const fs = getFs();
+    if (this.isDereference || !fs.lstatSync) {
+      return (this._lstat ??= fs.statSync(this.path));
+    } else {
+      return (this._lstat ??= fs.lstatSync(this.path));
+    }
+  }
+
+  /** `Entry_#lstat!` (`vendor/ruby/lib/fileutils.rb:2200-2204`). */
+  lstatQ(): FsStatResult | null {
+    try {
+      return this.lstat();
+    } catch (error) {
+      if (!isSystemCallError(error)) throw error;
+      return null;
+    }
+  }
+
+  /**
+   * `Entry_#copy` (`vendor/ruby/lib/fileutils.rb:2239-2274`).
+   *
+   * The `socket?` and `pipe?` arms each raise before their copy under an
+   * interpreter that answers no `UNIXServer` (`fileutils.rb:2258-2263`) and no
+   * `File.mkfifo` (`fileutils.rb:2267`); neither constant exists here, so those
+   * are the arms taken. `door?` (`:2269`) is Solaris-only and no backend answers
+   * a predicate for it, so a door reaches the true `else` (`:2273`).
+   */
+  copy(dest: string): void {
+    const st = this.lstat();
+    if (this.isFile) {
+      this.copyFile(dest);
+    } else if (this.isDirectory) {
+      if (!File.isExist(dest) && descendantDirectory(dest, this.path)) {
+        throw new ArgumentError(`cannot copy directory ${this.path} to itself ${dest}`);
+      }
+      try {
+        Dir.mkdir(dest);
+      } catch (error) {
+        if (!File.isDirectory(dest)) throw error;
+      }
+    } else if (this.isSymlink) {
+      fileSymlink(fileReadlink(this.path), dest);
+    } else if (st.isCharacterDevice?.() === true || st.isBlockDevice?.() === true) {
+      throw new Error("cannot handle device file");
+    } else if (st.isSocket?.() === true) {
+      throw new Error("cannot handle socket");
+    } else if (st.isFIFO?.() === true) {
+      throw new Error("cannot handle FIFO");
+    } else {
+      throw new Error(`unknown file type: ${this.path}`);
+    }
+  }
+
+  /** `Entry_#copy_file` (`vendor/ruby/lib/fileutils.rb:2277-2283`). */
+  copyFile(dest: string): void {
+    getFs().copyFileSync(this.path, dest);
+  }
+
+  /** `Entry_#copy_metadata` (`vendor/ruby/lib/fileutils.rb:2285-2312`). */
+  copyMetadata(path: string): void {
+    const st = this.lstat();
+    const symlink = st.isSymbolicLink?.() === true;
+    if (!symlink) {
+      fileUtime(st.atime, st.mtime, path);
+    }
+    let mode = st.mode ?? 0o644;
+    try {
+      if (symlink) {
+        try {
+          fileLchown(st.uid, st.gid, path);
+        } catch (error) {
+          if (!(error instanceof NotImplementedError)) throw error;
+        }
+      } else {
+        getFs().chownSync?.(path, st.uid, st.gid);
+      }
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code !== "EPERM" && code !== "EACCES") throw error;
+      mode &= 0o1777;
+    }
+    if (symlink) {
+      try {
+        fileLchmod(mode, path);
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (!(error instanceof NotImplementedError) && code !== "EOPNOTSUPP") throw error;
+      }
+    } else {
+      getFs().chmodSync?.(path, mode);
+    }
+  }
+
+  /** `Entry_#remove` (`vendor/ruby/lib/fileutils.rb:2314-2320`). */
+  remove(): void {
+    if (this.isDirectory) {
+      this.removeDir1();
+    } else {
+      this.removeFile();
+    }
+  }
+
+  /** `Entry_#remove_dir1` (`vendor/ruby/lib/fileutils.rb:2322-2326`). */
+  removeDir1(): void {
+    getFs().rmdirSync(removeTrailingSlash(this.path));
+  }
+
+  /** `Entry_#remove_file` (`vendor/ruby/lib/fileutils.rb:2328-2332`). */
+  removeFile(): void {
+    getFs().unlinkSync(this.path);
+  }
+
+  /** `Entry_#postorder_traverse` (`vendor/ruby/lib/fileutils.rb:2364-2382`). */
+  postorderTraverse(yieldFn: (ent: Entry_) => void): void {
+    if (this.isDirectory) {
+      let children: Entry_[];
+      try {
+        children = this.entries();
+      } catch (error) {
+        if ((error as { code?: string }).code !== "EACCES") throw error;
+        yieldFn(this);
+        return;
+      }
+
+      for (const ent of children) {
+        ent.postorderTraverse((e) => {
+          yieldFn(e);
+        });
+      }
+    }
+    yieldFn(this);
+  }
+
+  /** `Entry_#preorder_traverse` (`vendor/ruby/lib/fileutils.rb:2354-2360`). */
+  preorderTraverse(yieldFn: (ent: Entry_) => void): void {
+    const stack: Entry_[] = [this];
+    let ent: Entry_ | undefined;
+    while ((ent = stack.pop()) != null) {
+      yieldFn(ent);
+      if (ent.isDirectory) stack.push(...ent.entries().reverse());
+    }
+  }
+
+  /** `Entry_#wrap_traverse` (`vendor/ruby/lib/fileutils.rb:2386-2393`). */
+  wrapTraverse(pre: (ent: Entry_) => void, post: (ent: Entry_) => void): void {
+    pre(this);
+    if (this.isDirectory) {
+      for (const ent of this.entries()) {
+        ent.wrapTraverse(pre, post);
+      }
+    }
+    post(this);
+  }
 }
 
 /**
@@ -429,42 +584,18 @@ export class FileUtils {
       src = File.realpath(src);
     }
 
-    if (removeDestination && (File.isFile(dest) || File.isSymlink(dest))) File.delete(dest);
-
-    const ent = entryLstat(src, false);
-    if (ent.isFile()) {
-      FileUtils.copyFile(src, dest, preserve, false);
-    } else if (ent.isDirectory()) {
-      if (!File.isExist(dest) && descendantDirectory(dest, src)) {
-        throw new ArgumentError(`cannot copy directory ${src} to itself ${dest}`);
-      }
-      try {
-        Dir.mkdir(dest);
-      } catch (error) {
-        if (!File.isDirectory(dest)) throw error;
-      }
-      for (const name of getFs().readdirSync(src)) {
-        FileUtils.copyEntry(
-          getPath().join(src, name),
-          getPath().join(dest, name),
-          preserve,
-          false,
-          removeDestination,
-        );
-      }
-      if (preserve) copyMetadata(src, dest, false);
-    } else if (ent.isSymbolicLink?.() === true) {
-      fileSymlink(fileReadlink(src), dest);
-      if (preserve) copyMetadata(src, dest, false);
-    } else if (ent.isCharacterDevice?.() === true || ent.isBlockDevice?.() === true) {
-      throw new Error("cannot handle device file");
-    } else if (ent.isSocket?.() === true) {
-      throw new Error("cannot handle socket");
-    } else if (ent.isFIFO?.() === true) {
-      throw new Error("cannot handle FIFO");
-    } else {
-      throw new Error(`unknown file type: ${src}`);
-    }
+    new Entry_(src, null, false).wrapTraverse(
+      (ent) => {
+        const destent = new Entry_(dest, ent.rel, false);
+        if (removeDestination && (File.isFile(destent.path) || File.isSymlink(destent.path)))
+          File.delete(destent.path);
+        ent.copy(destent.path);
+      },
+      (ent) => {
+        const destent = new Entry_(dest, ent.rel, false);
+        if (preserve) ent.copyMetadata(destent.path);
+      },
+    );
   }
 
   /** `FileUtils.copy_file` (`vendor/ruby/lib/fileutils.rb:1076-1080`), whose
@@ -476,8 +607,9 @@ export class FileUtils {
    * @noRailsEquivalent PERMANENT — Ruby stdlib `FileUtils` module function.
    */
   static copyFile(src: string, dest: string, preserve = false, dereference = true): void {
-    getFs().copyFileSync(src, dest);
-    if (preserve) copyMetadata(src, dest, dereference);
+    const ent = new Entry_(src, null, dereference);
+    ent.copyFile(dest);
+    if (preserve) ent.copyMetadata(dest);
   }
 
   /** `FileUtils.mv` (`vendor/ruby/lib/fileutils.rb:1157-1183`). Ruby's `secure:`
@@ -576,13 +708,13 @@ export class FileUtils {
    */
   static removeEntry(path: string, force = false): void {
     try {
-      for (const ent of postorderTraverse(path)) {
+      new Entry_(path).postorderTraverse((ent) => {
         try {
-          entryRemove(ent);
+          ent.remove();
         } catch (error) {
           if (force !== true) throw error;
         }
-      }
+      });
     } catch (error) {
       if (force !== true) throw error;
     }
@@ -593,7 +725,7 @@ export class FileUtils {
    */
   static removeFile(path: string, force = false): void {
     try {
-      getFs().unlinkSync(path);
+      new Entry_(path).removeFile();
     } catch (error) {
       if (force !== true) throw error;
     }
