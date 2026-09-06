@@ -22,7 +22,6 @@ import { NotImplementedError } from "../../errors.js";
 import { ActiveRecord } from "../../ar-config.js";
 import {
   defaultSqlTimezone,
-  formatInstantForSql,
   formatPlainDateTimeForSql,
   formatPlainDateForSql,
 } from "./sql-datetime.js";
@@ -288,9 +287,14 @@ export function quotedDate(value: TemporalDateLike): string {
     }
   }
 
-  if (value instanceof TimeWithZone || value instanceof RubyTime) value = instantOf(value);
+  if (
+    value instanceof TimeWithZone ||
+    value instanceof RubyTime ||
+    value instanceof Temporal.Instant
+  ) {
+    value = getutc(value);
+  }
 
-  if (value instanceof Temporal.Instant) return formatInstantForSql(value);
   if (value instanceof Temporal.ZonedDateTime)
     return formatPlainDateTimeForSql(value.toPlainDateTime());
   if (value instanceof Temporal.PlainDateTime) return formatPlainDateTimeForSql(value);
