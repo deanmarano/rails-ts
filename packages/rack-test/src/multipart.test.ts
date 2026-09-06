@@ -1,5 +1,5 @@
 import { include, type Included } from "@blazetrails/activesupport";
-import type { MockResponse, RackApp, Request } from "@blazetrails/rack";
+import type { MockResponse, RackApp, Request, UploadedFileInfo } from "@blazetrails/rack";
 import { Encoding, File, forceEncoding, Tempfile } from "@blazetrails/ruby-compat";
 import { beforeEach, describe, expect, it } from "vitest";
 import { FAKE_APP } from "./fixtures/fake-app.js";
@@ -44,14 +44,6 @@ const lastRequest = (): Request => spec.lastRequest();
 const fixturePath = (name: string): string => spec.fixturePath(name);
 const firstTestFilePath = (): string => spec.firstTestFilePath();
 const uploadedFile = (): UploadedFile => spec.uploadedFile();
-
-interface UploadHash {
-  filename: string;
-  type: string;
-  name: string;
-  head: string;
-  tempfile: unknown;
-}
 
 describe("Rack::Test::Session uploading one file", () => {
   it("sends the multipart/form-data content type if no content type is specified", async () => {
@@ -111,37 +103,37 @@ describe("Rack::Test::Session uploading one file", () => {
 
   it("sends files with the filename", async () => {
     await post("/", { photo: uploadedFile() });
-    expect((lastRequest().POST["photo"] as UploadHash).filename).toBe("foo.txt");
+    expect(lastRequest().POST["photo"].filename).toBe("foo.txt");
   });
 
   it("sends files with the text/plain MIME type by default", async () => {
     await post("/", { photo: uploadedFile() });
-    expect((lastRequest().POST["photo"] as UploadHash).type).toBe("text/plain");
+    expect(lastRequest().POST["photo"].type).toBe("text/plain");
   });
 
   it("sends files with the right name", async () => {
     await post("/", { photo: uploadedFile() });
-    expect((lastRequest().POST["photo"] as UploadHash).name).toBe("photo");
+    expect(lastRequest().POST["photo"].name).toBe("photo");
   });
 
   it("allows overriding the content type", async () => {
     await post("/", { photo: new UploadedFile(firstTestFilePath(), "image/jpeg") });
-    expect((lastRequest().POST["photo"] as UploadHash).type).toBe("image/jpeg");
+    expect(lastRequest().POST["photo"].type).toBe("image/jpeg");
   });
 
   it("sends files with a content-length in the header", async () => {
     await post("/", { photo: uploadedFile() });
-    expect((lastRequest().POST["photo"] as UploadHash).head).toContain("content-length: 4");
+    expect(lastRequest().POST["photo"].head).toContain("content-length: 4");
   });
 
   it("sends files as Tempfiles", async () => {
     await post("/", { photo: uploadedFile() });
-    expect((lastRequest().POST["photo"] as UploadHash).tempfile!.constructor).toBe(Tempfile);
+    expect(lastRequest().POST["photo"].tempfile.constructor).toBe(Tempfile);
   });
 
   it("escapes spaces in filenames properly", async () => {
     await post("/", { photo: new UploadedFile(fixturePath("space case.txt")) });
-    expect((lastRequest().POST["photo"] as UploadHash).filename).toBe("space case.txt");
+    expect(lastRequest().POST["photo"].filename).toBe("space case.txt");
   });
 });
 
@@ -157,23 +149,21 @@ describe("uploading two files", () => {
 
   it("sends files with the filename", async () => {
     await post("/", { photos: [uploadedFile(), secondUploadedFile()] });
-    expect((lastRequest().POST["photos"] as UploadHash[]).map((photo) => photo.filename)).toEqual([
-      "foo.txt",
-      "bar.txt",
-    ]);
+    expect(
+      (lastRequest().POST["photos"] as UploadedFileInfo[]).map((photo) => photo.filename),
+    ).toEqual(["foo.txt", "bar.txt"]);
   });
 
   it("sends files with the text/plain MIME type by default", async () => {
     await post("/", { photos: [uploadedFile(), secondUploadedFile()] });
-    expect((lastRequest().POST["photos"] as UploadHash[]).map((photo) => photo.type)).toEqual([
-      "text/plain",
-      "text/plain",
-    ]);
+    expect((lastRequest().POST["photos"] as UploadedFileInfo[]).map((photo) => photo.type)).toEqual(
+      ["text/plain", "text/plain"],
+    );
   });
 
   it("sends files with the right names", async () => {
     await post("/", { photos: [uploadedFile(), secondUploadedFile()] });
-    for (const photo of lastRequest().POST["photos"] as UploadHash[]) {
+    for (const photo of lastRequest().POST["photos"] as UploadedFileInfo[]) {
       expect(photo.name).toBe("photos[]");
     }
   });
@@ -182,23 +172,22 @@ describe("uploading two files", () => {
     const imageFile = new UploadedFile(firstTestFilePath(), "image/jpeg");
 
     await post("/", { photos: [uploadedFile(), imageFile] });
-    expect((lastRequest().POST["photos"] as UploadHash[]).map((photo) => photo.type)).toEqual([
-      "text/plain",
-      "image/jpeg",
-    ]);
+    expect((lastRequest().POST["photos"] as UploadedFileInfo[]).map((photo) => photo.type)).toEqual(
+      ["text/plain", "image/jpeg"],
+    );
   });
 
   it("sends files with a content-length in the header", async () => {
     await post("/", { photos: [uploadedFile(), secondUploadedFile()] });
-    for (const photo of lastRequest().POST["photos"] as UploadHash[]) {
+    for (const photo of lastRequest().POST["photos"] as UploadedFileInfo[]) {
       expect(photo.head).toContain("content-length: 4");
     }
   });
 
   it("sends both files as Tempfiles", async () => {
     await post("/", { photos: [uploadedFile(), secondUploadedFile()] });
-    for (const photo of lastRequest().POST["photos"] as UploadHash[]) {
-      expect(photo.tempfile!.constructor).toBe(Tempfile);
+    for (const photo of lastRequest().POST["photos"] as UploadedFileInfo[]) {
+      expect(photo.tempfile.constructor).toBe(Tempfile);
     }
   });
 });
