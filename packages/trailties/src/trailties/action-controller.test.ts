@@ -50,7 +50,7 @@ describe("ActionController::Trailtie", () => {
   });
 });
 
-describe("action_controller.include_all_helpers", () => {
+describe("action_controller.set_helpers_path", () => {
   let root: string;
   let savedConfig: ActionControllerConfig;
 
@@ -94,6 +94,46 @@ describe("action_controller.include_all_helpers", () => {
     expect(typeof methods.bareA).toBe("function");
     expect(typeof methods.stratego).toBe("function");
     expect(typeof methods.foobar).toBe("function");
+  });
+
+  it("sets helpersPath on the controller from config.helpersPaths", async () => {
+    const base = receivingController();
+    await runTrailtieInitializers(Trailtie, app);
+    runLoadHooks("action_controller", base);
+
+    expect((base as ActionController.HelpersPathControllerClass).helpersPath).toEqual([root]);
+  });
+
+  it("test_all_helpers_with_alternate_helper_dir", async () => {
+    const alternate = mkdtempSync(join(tmpdir(), "alternate-helpers-"));
+    writeFileSync(
+      join(alternate, "foo-helper.ts"),
+      "export const FooHelper = { baz: () => 'baz' };",
+    );
+    app.config.helpersPaths = [alternate];
+    const base = receivingController();
+
+    try {
+      await runTrailtieInitializers(Trailtie, app);
+      runLoadHooks("action_controller", base);
+
+      expect(base._helpers?.bareA).toBeUndefined();
+      expect(typeof base._helpers!.baz).toBe("function");
+    } finally {
+      rmSync(alternate, { recursive: true, force: true });
+    }
+  });
+
+  it("raises when the file does not export the helper constant Rails would name", async () => {
+    writeFileSync(join(root, "typo-helper.ts"), "export const TypoHelpeR = { oops: () => 1 };");
+    const base = receivingController();
+
+    await runTrailtieInitializers(Trailtie, app);
+
+    expect(() => runLoadHooks("action_controller", base)).toThrow(
+      "uninitialized constant TypoHelper",
+    );
+    expect(base._helpers?.oops).toBeUndefined();
   });
 
   it("includes nothing when config.actionController.includeAllHelpers is false", async () => {

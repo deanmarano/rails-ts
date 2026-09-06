@@ -42,10 +42,14 @@ export class Trailtie extends BaseTrailtie {
     } satisfies ActionControllerConfig);
 
     this.initializer("action_controller.set_configs", (app) => {
+      const options = this.config.get("actionController") as ActionControllerConfig;
+
       onLoad("action_controller", (base: AbstractController.RoutesHelpersControllerClass) => {
         const routes = (app as TrailtieApp).routes();
         include(base as unknown as new (...args: never[]) => unknown, routes.mountedHelpers());
         AbstractController.withRoutesHelpers(routes)(base);
+        (base as ActionController.HelpersPathControllerClass).includeAllHelpers =
+          options.includeAllHelpers;
       });
     });
 
@@ -57,24 +61,24 @@ export class Trailtie extends BaseTrailtie {
       },
     );
 
-    /** @noRailsEquivalent CONVERGEABLE port-action-controller-helpers-and-the-inherited-hook */
     this.initializer(
-      "action_controller.include_all_helpers",
+      "action_controller.set_helpers_path",
       { after: "prepend_helpers_path" },
       async (app) => {
-        const config = this.config.get("actionController") as ActionControllerConfig;
-        if (!config.includeAllHelpers) return;
-
         const helpersPaths = (app as TrailtieApp).config.helpersPaths;
-        if (helpersPaths.length === 0) return;
+        ActionController.setHelpersPath(helpersPaths);
 
-        const constants = await helperConstants(helpersPaths);
-        const modules = await AbstractController.helperModulesFromPaths(helpersPaths, {
-          resolve: (name) => constants.get(name),
-        });
+        const names = await ActionController.loadApplicationHelperNames();
+        ActionController.setApplicationHelpers(names, await helperConstants(helpersPaths));
 
         onLoad("action_controller", (base: unknown) => {
-          AbstractController.helper(base as AbstractController.HelpersClassMethods, ...modules);
+          const klass = base as ActionController.HelpersPathControllerClass;
+          klass.helpersPath = ActionController.helpersPath();
+
+          /** @noRailsEquivalent CONVERGEABLE port-action-controller-helpers-and-the-inherited-hook */
+          if (klass.includeAllHelpers) {
+            AbstractController.helper(klass, ...ActionController.modulesForHelpers(["all"]));
+          }
         });
       },
     );
@@ -102,8 +106,7 @@ async function helperConstants(
       const name = `${camelize([...namespace, stem].join("/"))}Helper`;
       const mod = (await import(path.pathToFileURL!(full).href)) as Record<string, unknown>;
 
-      const exported =
-        mod[demodulize(name)] ?? Object.entries(mod).find(([key]) => key.endsWith("Helper"))?.[1];
+      const exported = mod[demodulize(name)];
       if (exported && typeof exported === "object") {
         constants.set(name, exported as AbstractController.HelperMethodsModule);
       }

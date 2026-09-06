@@ -189,6 +189,9 @@ export class Base extends Metal {
 
   static _routes: ViewContextRoutes | null = null;
 
+  static helpersPath: string[] = [];
+  static includeAllHelpers = true;
+
   static inheritViewContextClassQ = inheritViewContextClassQ;
   static buildViewContextClass = buildViewContextClass;
   static viewContextClass = viewContextClass;

@@ -1,14 +1,20 @@
-import { underscore } from "@blazetrails/activesupport";
+import { helper, type HelpersClassMethods } from "../../abstract-controller/helpers.js";
+import { helpersPath, modulesForHelpers } from "../metal/helpers.js";
 
-export function resolveHelperPath(controllerName: string): string {
-  const base = controllerName.replace(/Controller$/, "");
-  return underscore(base) + "_helper";
+export interface HelpersPathControllerClass extends HelpersClassMethods {
+  helpersPath?: string[];
+  includeAllHelpers?: boolean;
 }
 
-export function inheritedWithHelpers(
-  klass: { name: string },
-  helperLoader?: (path: string) => unknown,
+export function inherited(
+  klass: HelpersPathControllerClass,
+  base: HelpersPathControllerClass,
 ): void {
-  const path = resolveHelperPath(klass.name);
-  helperLoader?.(path);
+  if (!("helpersPath" in klass)) return;
+
+  klass.helpersPath = helpersPath();
+
+  if (Object.getPrototypeOf(klass) === base && base.includeAllHelpers) {
+    helper(klass, ...modulesForHelpers(["all"]));
+  }
 }
