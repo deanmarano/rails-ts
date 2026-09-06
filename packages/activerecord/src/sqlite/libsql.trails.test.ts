@@ -658,4 +658,11 @@ describe("SqliteDriver — libsql binds unsupplied placeholders as NULL", () => 
     const stmt = await driver.prepare("EXPLAIN QUERY PLAN SELECT * FROM doodads WHERE id = ?");
     expect((await stmt.all()).length).toBeGreaterThan(0);
   });
+
+  it("does not raise on an ordinary query given a short bind list", async () => {
+    const select = await driver.prepare("SELECT * FROM doodads WHERE name = ? AND id = ?");
+    expect(await select.all(["alpha"])).toEqual([]);
+    const update = await driver.prepare("UPDATE doodads SET name = ? WHERE id = ?");
+    expect((await update.run(["beta"])).changes).toBe(0);
+  });
 });

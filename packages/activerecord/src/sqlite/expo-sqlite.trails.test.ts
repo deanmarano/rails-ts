@@ -162,5 +162,12 @@ describe.skipIf(!isExpoSqliteAvailable)(
       const stmt = await conn.prepare("EXPLAIN QUERY PLAN SELECT * FROM doodads WHERE id = ?");
       expect((await stmt.all()).length).toBeGreaterThan(0);
     });
+
+    it("does not raise on an ordinary query given a short bind list", async () => {
+      const select = await conn.prepare("SELECT * FROM doodads WHERE name = ? AND id = ?");
+      expect(await select.all(["alpha"])).toEqual([]);
+      const update = await conn.prepare("UPDATE doodads SET name = ? WHERE id = ?");
+      expect((await update.run(["beta"])).changes).toBe(0);
+    });
   },
 );
