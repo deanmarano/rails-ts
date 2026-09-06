@@ -1,4 +1,8 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { File, FileUtils } from "@blazetrails/ruby-compat";
 import {
   takeScreenshot,
   takeFailedScreenshot,
@@ -186,6 +190,18 @@ describe("ActionDispatch::SystemTesting::TestHelpers::ScreenshotHelper", () => {
 
   it("inlineBase64 encodes a string", () => {
     expect(inlineBase64("hello")).toBe(Buffer.from("hello").toString("base64"));
+  });
+
+  it("displayImage reads the screenshot off disk in inline mode", () => {
+    const bytes = Uint8Array.from([0x89, 0x50, 0x4e, 0x47]);
+    const dir = File.join(mkdtempSync(join(tmpdir(), "trails-screenshot-")), "tmp", "screenshots");
+    FileUtils.mkdirP(dir);
+    File.binwrite(File.join(dir, `${imageName.call(host)}.png`), "\u0089PNG");
+    vi.stubEnv("CAPYBARA_SAVE_PATH", dir);
+    vi.spyOn(globalThis.process, "cwd").mockReturnValue("");
+
+    const msg = displayImage.call(host, { html: false, screenshotOutput: "inline" });
+    expect(msg).toContain(Buffer.from(bytes).toString("base64"));
   });
 
   it("displayImage shows screenshot path in simple mode", () => {

@@ -88,6 +88,37 @@ describe("IO", () => {
     expect(File.binread(path)).toBe("h\u00c3\u00a9llo");
   });
 
+  it("read answers the mode string's external encoding, and write transcodes to it", () => {
+    // vendor/ruby/io.c:6883-6886 — everything after the mode's `:` is the encoding.
+    const path = join(mkdtempSync(join(tmpdir(), "trails-io-")), "latin1.txt");
+    writeFileSync(path, Uint8Array.from([0x68, 0xe9, 0x6c]));
+    File.open(path, "r:ISO-8859-1", (file) => {
+      expect(file.externalEncoding()).toBe(Encoding.find("ISO-8859-1"));
+      expect(file.read()).toBe("hél");
+    });
+    const binary = File.open(path, "r", { externalEncoding: "ASCII-8BIT" });
+    expect(binary.read()).toBe("h\u00e9l");
+    binary.close();
+  });
+
+  it("write raises rather than sending the bytes of an encoding the stream did not ask for", () => {
+    // vendor/ruby/io.c:1904 do_writeconv — TextEncoder produces UTF-8 and nothing else.
+    const path = join(mkdtempSync(join(tmpdir(), "trails-io-")), "conv.txt");
+    const file = File.open(path, "w:ISO-8859-1");
+    expect(() => file.write("hél")).toThrow("code converter not found (UTF-8 to ISO-8859-1)");
+    file.close();
+  });
+
+  it("read falls back to Encoding.default_external where the stream carries none", () => {
+    // vendor/ruby/io.c:1010 io_read_encoding.
+    const path = join(mkdtempSync(join(tmpdir(), "trails-io-")), "default.txt");
+    writeFileSync(path, "héllo");
+    const file = File.open(path, "r");
+    expect(file.externalEncoding()).toBeNull();
+    expect(file.read()).toBe("héllo");
+    file.close();
+  });
+
   it("set_encoding('internal') leaves no external encoding while default_internal is unset", () => {
     const path = join(mkdtempSync(join(tmpdir(), "trails-io-")), "enc.txt");
     const file = File.open(path, "w+");

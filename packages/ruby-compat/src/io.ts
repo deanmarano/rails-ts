@@ -2,6 +2,7 @@ import { Encoding } from "./encoding.js";
 import { getFs, type FsStatResult } from "./fs-adapter.js";
 import { EOFError } from "./eof-error.js";
 import { IOError } from "./io-error.js";
+import { NotImplementedError } from "./not-implemented-error.js";
 
 /** The `rb_exec_recursive` guard `io_puts_ary` (`vendor/ruby/io.c:8880`) is called through. */
 const putsAryInFlight = new Set<unknown[]>();
@@ -88,6 +89,37 @@ function binaryBytes(string: string): Uint8Array {
   const buffer = new Uint8Array(string.length);
   for (let i = 0; i < string.length; i++) buffer[i] = string.charCodeAt(i) & 0xff;
   return buffer;
+}
+
+/**
+ * `io_enc_str` (`vendor/ruby/io.c:3123`), which tags the String a read
+ * assembled with `io_read_encoding` (`io.c:1010`). ASCII-8BIT is the one
+ * encoding assembled a character at a time (see {@link binaryString}); every
+ * other reaches the platform decoder its registry row names, and an encoding
+ * whose row has no decoder at all surfaces as that decoder's own `RangeError`
+ * rather than being read in the wrong one.
+ */
+function ioEncStr(bytes: Uint8Array, length: number, enc: Encoding): string {
+  if (enc === Encoding.ASCII_8BIT) return binaryString(bytes, length);
+  return new TextDecoder(enc.decoderLabel as string).decode(bytes.subarray(0, length));
+}
+
+/**
+ * `do_writeconv` (`vendor/ruby/io.c:1904`) over `NEED_WRITECONV`
+ * (`io.c:714`): a stream carrying an external encoding other than ASCII-8BIT
+ * transcodes the String to it (`common_encoding`, `io.c:1925-1926`), and one
+ * carrying none — or carrying ASCII-8BIT — writes the String's own bytes.
+ * `TextEncoder` produces UTF-8 and nothing else, so UTF-8 is the only
+ * `common_encoding` the transcode arm can reach and any other raises where
+ * `rb_econv_open` would (`code converter not found`) rather than writing the
+ * bytes of an encoding the stream did not ask for.
+ */
+function doWriteconv(string: string, enc: Encoding | null): Uint8Array {
+  if (enc === Encoding.ASCII_8BIT) return binaryBytes(string);
+  if (enc !== null && enc !== Encoding.UTF_8) {
+    throw new NotImplementedError(`code converter not found (UTF-8 to ${enc})`);
+  }
+  return new TextEncoder().encode(string);
 }
 
 /**
@@ -377,8 +409,8 @@ export class IO {
    * `FsAdapter` contract has no member for, so the bytes come in chunks.
    *
    * This is the arm that answers the external encoding — `io_enc_str`
-   * (`io.c:3349`) over `io_read_encoding` (`io.c:3358`), UTF-8 for trails —
-   * where the `length` arm answers ASCII-8BIT whatever the mode. A binary
+   * (`io.c:3123`) over `io_read_encoding` (`io.c:1010`) — where the `length`
+   * arm answers ASCII-8BIT whatever the mode. A binary
    * stream keeps the bytes. The chunks are joined before decoding because a
    * multi-byte character can straddle two of them.
    */
@@ -399,9 +431,19 @@ export class IO {
       bytes.set(chunk, at);
       at += chunk.length;
     }
-    return this.enc === Encoding.ASCII_8BIT
-      ? binaryString(bytes, total)
-      : new TextDecoder().decode(bytes);
+    return ioEncStr(bytes, total, this.ioReadEncoding());
+  }
+
+  /**
+   * `io_read_encoding` (`vendor/ruby/io.c:1010`) — the encoding a read tags
+   * its String with: the stream's own external encoding, or
+   * `Encoding.default_external` where none was recorded.
+   */
+  private ioReadEncoding(): Encoding {
+    if (this.enc) {
+      return this.enc;
+    }
+    return Encoding.defaultExternal;
   }
 
   /**
@@ -441,15 +483,14 @@ export class IO {
    * `vendor/ruby/io.c:2263` `io_write_m` in its one-argument form, which
    * answers the number of bytes written. On a binary stream — {@link binmode},
    * or a mode carrying `b` (`rb_io_binmode`, `io.c:6311`) — `string` is an
-   * ASCII-8BIT String and its characters go out as bytes; otherwise it is
-   * transcoded to the external encoding, which for trails is always UTF-8.
+   * ASCII-8BIT String and its characters go out as bytes; otherwise
+   * `do_writeconv` (`io.c:1904`) transcodes it to the external encoding.
    *
    * @noRailsEquivalent PERMANENT — Ruby core `IO#write`
    * (`vendor/ruby/io.c:2263`).
    */
   write(string: string): number {
-    const buffer =
-      this.enc === Encoding.ASCII_8BIT ? binaryBytes(string) : new TextEncoder().encode(string);
+    const buffer = doWriteconv(string, this.enc);
     let n = 0;
     while (n < buffer.length) {
       n += getFs().writeSync(this.fd, buffer, n, buffer.length - n, this._pos + n);

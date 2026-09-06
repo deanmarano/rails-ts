@@ -1,3 +1,4 @@
+import { Encoding } from "./encoding.js";
 import { getFs, getPath } from "./fs-adapter.js";
 import type { FsStatResult } from "./fs-adapter.js";
 import { IO } from "./io.js";
@@ -288,25 +289,42 @@ export class File extends IO {
    *
    * `rb_io_s_open` takes the `opt` hash Ruby's `File.open(filename, mode, opt)`
    * form passes through to `open(2)`, of which `perm:` is the mode
-   * `Tempfile#initialize` sets to `0600` (`vendor/ruby/lib/tempfile.rb:158`).
+   * `Tempfile#initialize` sets to `0600` (`vendor/ruby/lib/tempfile.rb:158`)
+   * and `external_encoding:` the stream's external encoding
+   * (`rb_io_extract_encoding_option`, `io.c:6725,6750`).
    * Ruby's block is a block and its `opt` a trailing argument; TypeScript has
    * only the one trailing position for both, so the third parameter is either,
    * discriminated by `typeof`.
    *
+   * The mode string carries that encoding too — everything after the first
+   * `:` is `parse_mode_enc`'s `"enc"` or `"enc2:enc"` (`io.c:6667,6883-6886`),
+   * of which the external encoding is the part before the last `:`.
+   *
    * @noRailsEquivalent PERMANENT — Ruby core `File.open`
    * (`vendor/ruby/io.c:8148`).
    */
-  static open(fileName: string, mode: string, opt?: { perm?: number }): File;
+  static open(
+    fileName: string,
+    mode: string,
+    opt?: { perm?: number; externalEncoding?: Encoding | string },
+  ): File;
   static open<T>(fileName: string, mode: string, block: (file: File) => T): T;
   static open<T>(
     fileName: string,
     mode: string,
-    blockOrOpt?: ((file: File) => T) | { perm?: number },
+    blockOrOpt?: ((file: File) => T) | { perm?: number; externalEncoding?: Encoding | string },
   ): T | File {
     const block = typeof blockOrOpt === "function" ? blockOrOpt : undefined;
     const opt = typeof blockOrOpt === "function" ? undefined : blockOrOpt;
-    const file = new File(getFs().openSync(fileName, mode.replace(/b/g, ""), opt?.perm), fileName);
-    if (mode.includes("b")) file.binmode();
+    const colon = mode.indexOf(":");
+    const estr = colon === -1 ? null : mode.slice(colon + 1);
+    const vmode = colon === -1 ? mode : mode.slice(0, colon);
+    const file = new File(getFs().openSync(fileName, vmode.replace(/b/g, ""), opt?.perm), fileName);
+    if (vmode.includes("b")) file.binmode();
+    if (estr !== null) {
+      const p = estr.lastIndexOf(":");
+      file.setEncoding(p === -1 ? estr : estr.slice(0, p));
+    } else if (opt?.externalEncoding != null) file.setEncoding(opt.externalEncoding);
     if (!block) return file;
     try {
       return block(file);
@@ -316,12 +334,19 @@ export class File extends IO {
   }
 
   /**
-   * `vendor/ruby/io.c:12200` `rb_io_s_read`, in its whole-file form.
+   * `vendor/ruby/io.c:12200` `rb_io_s_read`, in its whole-file form. Its `opt`
+   * hash reaches `open_key_args` (`io.c:12163`) and so
+   * `rb_io_extract_encoding_option` (`io.c:6725`), where `encoding:` names the
+   * external encoding the read tags its String with (`io_enc_str`,
+   * `io.c:3123`) — `ASCII-8BIT` being the one that answers the file's bytes.
    *
    * @noRailsEquivalent PERMANENT — Ruby core `File.read` (`IO.read`,
    * `vendor/ruby/io.c:12200`).
    */
-  static read(name: string): string {
+  static read(name: string, opt?: { encoding?: Encoding | string }): string {
+    if (opt?.encoding != null && Encoding.find(opt.encoding) === Encoding.ASCII_8BIT) {
+      return File.binread(name);
+    }
     return getFs().readFileSync(name, "utf-8");
   }
 
