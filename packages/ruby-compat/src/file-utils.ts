@@ -196,8 +196,15 @@ class Entry_ {
   private readonly _deref: boolean;
   private _lstat: FsStatResult | null = null;
 
-  /** `Entry_::S_IF_DOOR` (`vendor/ruby/lib/fileutils.rb:2153`). */
-  static readonly S_IF_DOOR = 0xd000;
+  /**
+   * `Entry_::S_IF_DOOR` (`vendor/ruby/lib/fileutils.rb:2153`), the file-type
+   * bits `door?` masks a mode against. `private` because `Entry_` itself is
+   * Ruby's `internal use only` class and `door?` is its only reader: a public
+   * constant in a file no Rails file maps onto is measured extra surface, and
+   * a `@noRailsEquivalent` receipt cannot reach it — a literal constant is
+   * collected by `extractFileConstants`, which carries no tag.
+   */
+  private static readonly S_IF_DOOR = 0xd000;
 
   /** `Entry_#initialize` (`vendor/ruby/lib/fileutils.rb:2072-2083`). */
   constructor(a: string, b: string | null = null, deref = false) {
