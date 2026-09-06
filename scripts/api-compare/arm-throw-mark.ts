@@ -23,8 +23,15 @@
  * The two artefact classes the audit named are suppressed AT THE SOURCE rather
  * than budgeted here: `throw(:abort)` / `throw(:exception, …)` ported through
  * the settled halt helper folds onto the `throw` construct
- * (compare.ts:TS_CONSTRUCT_SKELETON_NAMES). `if`, `loop`, `try` and `rescue`
- * stay report-only; `parity:api:arms:report` is unchanged.
+ * (compare.ts:TS_CONSTRUCT_SKELETON_NAMES).
+ *
+ * The other class — Ruby-only guards with no JS counterpart — is a PERMANENT
+ * FLOOR, not debt, and the audit proposes no action on it (its Gap 5). Those
+ * four rows sit in the seeded marks and will never converge, so a file whose
+ * mark is held up by one is not a burndown target; do not go hunting them.
+ *
+ * `if`, `loop`, `try` and `rescue` stay report-only;
+ * `parity:api:arms:report` is unchanged.
  *
  * Hard rules: no node:* imports, no process.*, async fs only, no third-party
  * runtime deps.

@@ -269,7 +269,17 @@ the audit report `arm-mismatch-noise-floor-20260906T022720Z.md`.
 | missing `throw`  | 69  | 11.6%    | **gates**   |
 
 `if` is 1,891 of the 2,141 rows, so `if` IS the noise floor and the two figures
-above are the same finding twice. The missing-`throw` stratum is the opposite:
+above are the same finding twice. The strata overlap — a row differing by both
+an `if` and a `throw` is in both, which is why they sum to 2,953 over 2,141 —
+and they miss the 45 rows whose difference is empty by construction (19 `order`,
+26 `raise-class`).
+
+The `throw` figure is robust to the one judgement call that moves it. The audit
+scores a delegation to a **trails-invented** helper as a real divergence, per
+CLAUDE.md's Decomposition rule; read the lenient way, counting every helper
+delegation as a lowering artefact, the stratum's non-real rate is 30.4% rather
+than 11.6%. **Both readings clear the ⅓ tripwire**, so this gate does not rest
+on that call. The missing-`throw` stratum is the opposite:
 all 69 of its rows were read in full — **61 real, 8 lowering artefact, 0
 extraction bugs** — and the 95% interval on the non-real rate, 4.1%–19.1%, sits
 entirely under this RFC's pre-committed ⅓ tripwire. A dropped raise is a real
@@ -291,15 +301,22 @@ The eight artefacts were two named classes and nothing else:
 - **Ruby-only guards with no JS counterpart** — `require "bcrypt" rescue
 LoadError` (`secure_password.rb:120-124`), `constantize` / `NameError`
   (`request.rb:98-103`), and the raise-to-build-a-backtrace trick
-  (`error_reporter.rb:258-263`). These are NOT folded, and could not be: each is
-  one Ruby construct with no TS token at all — there is no `require` to fail, no
-  `NameError` to rescue, and no interpreter that fills a backtrace on raise — so
-  there is nothing on the port's side to fold the Ruby `throw` onto, the way the
-  halt helper folds. Unlike the helper class they are also per-row rather than a
-  shape: a rule broad enough to cover all three would drop real dropped raises
-  with them. They stay in the population and are carried by the seeded mark, to
-  be converged or receipted one at a time by RFC 0113's burndown — which is what
-  the mark is for.
+  (`error_reporter.rb:258-263`) — and `singleton_class?`
+  (`attribute_accessors.rb:56`), which makes four, the dominant residual class
+  in this stratum. These are NOT folded. Each is a different Ruby construct with
+  no TS token at all — there is no `require` to fail, no `NameError` to rescue,
+  no singleton class, and no interpreter that fills a backtrace on raise — so
+  there is nothing on the port's side to fold the Ruby `throw` onto the way the
+  halt helper folds, and no single rule covers all four without dropping real
+  raises with them.
+
+  The audit's own Gap 5 is the disposition, and it is stronger than "not yet
+  suppressed": **no action proposed — these have no JS counterpart at all, so
+  there is nothing to converge; they are a permanent floor, not debt.** (Gap 1's
+  passing "both suppressible at the source" is loose phrasing, superseded by the
+  entry that examines the class.) So the four rows sit in the seeded marks
+  permanently. A file whose mark is held up by one of them is not a burndown
+  target — the mark for it cannot reach zero, and that is correct, not stale.
 
 ### The seed run
 
