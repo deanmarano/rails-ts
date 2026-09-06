@@ -45,10 +45,14 @@ function currentSession(this: MethodsHost): Session {
   return (this._rackTestCurrentSession ??= rackTestSession.call(this));
 }
 
-function withSession<T>(this: MethodsHost, name: unknown, block: (session: Session) => T): T {
+async function withSession<T>(
+  this: MethodsHost,
+  name: unknown,
+  block: (session: Session) => T,
+): Promise<Awaited<T>> {
   const session = this._rackTestCurrentSession;
   try {
-    return block((this._rackTestCurrentSession = rackTestSession.call(this, name)));
+    return await block((this._rackTestCurrentSession = rackTestSession.call(this, name)));
   } finally {
     this._rackTestCurrentSession = session;
   }

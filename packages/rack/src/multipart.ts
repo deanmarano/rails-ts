@@ -1,3 +1,4 @@
+import { File as RubyFile, Tempfile } from "@blazetrails/ruby-compat";
 import { UploadedFile } from "./multipart/uploaded-file.js";
 import { Generator } from "./multipart/generator.js";
 import { getDefaultQueryParser } from "./utils.js";
@@ -261,15 +262,11 @@ function parseBody(
         const normalizedFilename = normalizeFilename(filename);
         const ctype = contentTypeHeader || "application/octet-stream";
 
-        let tempfile: any;
-        if (tempfileFactory) {
-          tempfile = tempfileFactory(normalizedFilename, ctype);
-          const content = contentBuf.toString("binary");
-          if (typeof tempfile.write === "function") {
-            tempfile.write(content);
-          }
-        } else {
-          tempfile = makeTempfile(contentBuf);
+        const tempfile: any = (tempfileFactory ?? TEMPFILE_FACTORY)(normalizedFilename, ctype);
+        const content = contentBuf.toString("binary");
+        if (typeof tempfile.write === "function") {
+          tempfile.write(content);
+          tempfile.rewind();
         }
 
         const fileInfo: UploadedFileInfo = {
@@ -309,19 +306,11 @@ function parseBody(
   return params.toParamsHash();
 }
 
-function makeTempfile(buf: Buffer): { read(): string; rewind(): void } {
-  let pos = 0;
-  return {
-    read(): string {
-      const result = buf.subarray(pos).toString("binary");
-      pos = buf.length;
-      return result;
-    },
-    rewind(): void {
-      pos = 0;
-    },
-  };
-}
+const TEMPFILE_FACTORY = (filename: string, _contentType: string): Tempfile => {
+  const extension = RubyFile.extname(filename.replace(/\0/g, "%00")).slice(0, 129);
+
+  return Tempfile.new(["RackMultipart", extension]);
+};
 
 function normalizeFilename(filename: string): string {
   const percentSequences = filename.match(/%..?/g);

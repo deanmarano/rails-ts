@@ -434,6 +434,15 @@ function skipMirrorCandidates(rubyName: string): string[] | null {
 function rubyMethodCandidates(rubyName: string): string[] | null {
   const base = rubyMethodToTs(rubyName) ?? skipMirrorCandidates(rubyName);
   if (!base) return null;
+  // A Ruby `def self.new` OVERRIDE ports as a `static new` factory beside the
+  // constructor: `Rack::Test::Session`'s (rack-test/lib/rack/test.rb:57-65)
+  // returns `app` unchanged when it already is a Session, a body a TS
+  // constructor cannot hold because a constructor cannot return an unrelated
+  // instance. `rubyMethodToTs` maps `new` to `constructor` alone, which is what
+  // the call gate wants (a Ruby `X.new` call IS a TS `new X()`); the extra
+  // spelling belongs here, where the question is instead whether a TS member
+  // has a Ruby counterpart.
+  if (rubyName === "new") return [...base, "new"];
   if (!rubyName.endsWith("?")) return base;
   const literal = snakeToCamel(rubyName.slice(0, -1)) + "?";
   return [...base, ...base.map((c) => c + "Q"), literal];
