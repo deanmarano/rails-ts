@@ -36,6 +36,23 @@ API_COMPARE_FORCE=1 pnpm parity:api --calls # writes output/call-skeletons.json
 pnpm tsx scripts/api-compare/report-arms.ts --sample=80 --seed=113
 ```
 
+Both modes narrow to a stratum with two flags, so a burndown read no longer has
+to pick its rows out of the whole artifact by hand:
+
+- `--direction=missing|invented` keeps only the rows on one side of the multiset
+  difference — `missing` the rows that drop an arm, `invented` the mirror.
+- `--package=<name>` restricts every tally and every draw to one package.
+
+```bash
+# the highest-yield stratum: activerecord rows that drop an arm
+pnpm tsx scripts/api-compare/report-arms.ts --sample=40 --seed=113 \
+  --direction=missing --package=activerecord
+```
+
+`--report` additionally prints a "Missing-only rows by package" tally (rows with
+a non-empty `missing` and an empty `invented`, where the port-added-a-guard
+lowering artefact cannot apply) and an "Arm tokens" table per package.
+
 **Size 80, seed 113** (the RFC number). The draw is a seeded Fisher–Yates
 shuffle (`mulberry32`) over the mismatch rows sorted by
 `package/tsFile#tsName`, so the same seed re-draws the same 80 rows from the

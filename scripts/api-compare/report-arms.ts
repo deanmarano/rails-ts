@@ -305,6 +305,63 @@ export function cluster(row: ArmMismatch): string {
   return row.missing.length > 0 ? "missing-arm" : "invented-arm";
 }
 
+/**
+ * The two slices a burndown story asks for and the whole-artifact tallies
+ * cannot express: one DIRECTION of the multiset difference, and one package.
+ * Read by both modes, so `--report` and `--sample` narrow identically.
+ */
+export interface ArmRowFilter {
+  /** `missing` keeps rows that drop an arm; `invented` the mirror. */
+  direction?: "missing" | "invented";
+  package?: string;
+}
+
+export function filterRows(rows: readonly ArmMismatch[], filter: ArmRowFilter = {}): ArmMismatch[] {
+  return rows.filter((r) => {
+    if (filter.package !== undefined && r.package !== filter.package) return false;
+    if (filter.direction === "missing" && r.missing.length === 0) return false;
+    if (filter.direction === "invented" && r.invented.length === 0) return false;
+    return true;
+  });
+}
+
+/** The stratum the per-token re-measurement found highest-yield: arms dropped
+ *  and none invented, so the port-added-a-guard lowering artefact cannot apply. */
+function isMissingOnly(row: ArmMismatch): boolean {
+  return row.missing.length > 0 && row.invented.length === 0;
+}
+
+/**
+ * Per control token, within one package: how many tokens are missing, how many
+ * are invented, and how many ROWS carry at least one of each. The token counts
+ * and the row counts answer different questions — one method dropping four
+ * `if`s is four tokens on one row — and the noise-floor read needs both.
+ */
+export function packageTokenTable(pkg: string, rows: readonly ArmMismatch[]): string {
+  const own = rows.filter((r) => r.package === pkg);
+  const tokens = [...CONTROL_TOKENS].sort();
+  const header = ["token", "missing", "invented", "rows-missing", "rows-invented"];
+  const body = tokens.map((t) => [
+    t,
+    own.reduce((n, r) => n + r.missing.filter((m) => m === t).length, 0),
+    own.reduce((n, r) => n + r.invented.filter((m) => m === t).length, 0),
+    own.filter((r) => r.missing.includes(t)).length,
+    own.filter((r) => r.invented.includes(t)).length,
+  ]);
+  const widths = header.map((h, i) =>
+    Math.max(h.length, ...body.map((cells) => String(cells[i]).length)),
+  );
+  const line = (cells: (string | number)[]): string =>
+    "  " +
+    cells
+      .map((c, i) => String(c).padEnd(widths[i]))
+      .join("  ")
+      .trimEnd();
+  return [`\nArm tokens — ${pkg} (${own.length} row(s))`, line(header), ...body.map(line)].join(
+    "\n",
+  );
+}
+
 function pairLine(row: ArmMismatch): string {
   const delta = [
     ...row.missing.map((t) => `-${t}`),
@@ -315,13 +372,24 @@ function pairLine(row: ArmMismatch): string {
   return `${row.package}/${row.tsFile}#${row.tsName}  ${row.kind}  ${delta}`;
 }
 
-export function renderReport(artifact: SkeletonArtifact, top: number): string {
-  const rows = artifact.skeletons.flatMap((s) => compareArms(s) ?? []);
-  const shortCircuits = artifact.skeletons.flatMap((s) => compareShortCircuits(s) ?? []);
+export function renderReport(
+  artifact: SkeletonArtifact,
+  top: number,
+  filter: ArmRowFilter = {},
+): string {
+  const skeletons =
+    filter.package === undefined
+      ? artifact.skeletons
+      : artifact.skeletons.filter((s) => s.package === filter.package);
+  const rows = filterRows(
+    skeletons.flatMap((s) => compareArms(s) ?? []),
+    filter,
+  );
+  const shortCircuits = skeletons.flatMap((s) => compareShortCircuits(s) ?? []);
   const files = new Set(rows.map((r) => `${r.package} ${r.tsFile}`)).size;
   return [
     `call-skeleton arms report: ${rows.length} mismatched pair(s) across ${files} file(s), ` +
-      `${artifact.skeletons.length} pair(s) compared` +
+      `${skeletons.length} pair(s) compared` +
       " — report-only, nothing gates on this (RFC 0113)",
     `short-circuit projection: ${shortCircuits.length} mismatched pair(s) over the ` +
       "`or` / `and` tokens, which the arm verdicts above do not read",
@@ -341,6 +409,10 @@ export function renderReport(artifact: SkeletonArtifact, top: number): string {
       "By file",
       tally(rows, (r) => `${r.package}/${r.tsFile}`),
       top,
+    ),
+    section(
+      "Missing-only rows by package",
+      tally(rows.filter(isMissingOnly), (r) => r.package),
     ),
     section(
       "Missing arms by token",
@@ -370,6 +442,7 @@ export function renderReport(artifact: SkeletonArtifact, top: number): string {
       ]),
       top,
     ),
+    ...[...new Set(rows.map((r) => r.package))].sort().map((pkg) => packageTokenTable(pkg, rows)),
     section(
       "Mismatched pairs",
       rows.map((r): [string, number] => [pairLine(r), r.missing.length + r.invented.length]),
@@ -415,11 +488,24 @@ export function sampleRows(
   return pool.slice(0, size);
 }
 
-export function renderSample(artifact: SkeletonArtifact, size: number, seed: number): string {
-  const rows = artifact.skeletons.flatMap((s) => compareArms(s) ?? []);
+export function renderSample(
+  artifact: SkeletonArtifact,
+  size: number,
+  seed: number,
+  filter: ArmRowFilter = {},
+): string {
+  const rows = filterRows(
+    artifact.skeletons.flatMap((s) => compareArms(s) ?? []),
+    filter,
+  );
   const drawn = sampleRows(rows, size, seed);
+  const stratum = [
+    filter.direction === undefined ? "" : `, ${filter.direction} direction`,
+    filter.package === undefined ? "" : `, package ${filter.package}`,
+  ].join("");
   return [
-    `call-skeleton arms sample: ${drawn.length} of ${rows.length} mismatched pair(s), seed ${seed}`,
+    `call-skeleton arms sample: ${drawn.length} of ${rows.length} mismatched pair(s), ` +
+      `seed ${seed}${stratum}`,
     ...drawn.map((r, i) =>
       [
         ``,
@@ -445,18 +531,34 @@ async function readArtifact(): Promise<SkeletonArtifact | undefined> {
   }
 }
 
-async function reportMain(top: number): Promise<number> {
+async function reportMain(top: number, filter: ArmRowFilter): Promise<number> {
   const artifact = await readArtifact();
   if (artifact === undefined) return 2;
-  console.log(renderReport(artifact, top));
+  console.log(renderReport(artifact, top, filter));
   return 0;
 }
 
-async function sampleMain(size: number, seed: number): Promise<number> {
+async function sampleMain(size: number, seed: number, filter: ArmRowFilter): Promise<number> {
   const artifact = await readArtifact();
   if (artifact === undefined) return 2;
-  console.log(renderSample(artifact, size, seed));
+  console.log(renderSample(artifact, size, seed, filter));
   return 0;
+}
+
+/** `--direction=missing|invented` and `--package=<name>`, shared by both modes. */
+export function parseFilter(argv: readonly string[]): ArmRowFilter {
+  const filter: ArmRowFilter = {};
+  const directionArg = argv.find((a) => a.startsWith("--direction="));
+  if (directionArg !== undefined) {
+    const direction = directionArg.slice("--direction=".length);
+    if (direction !== "missing" && direction !== "invented") {
+      throw new Error("--direction takes `missing` or `invented`.");
+    }
+    filter.direction = direction;
+  }
+  const packageArg = argv.find((a) => a.startsWith("--package="));
+  if (packageArg !== undefined) filter.package = packageArg.slice("--package=".length);
+  return filter;
 }
 
 async function runAsScript(): Promise<void> {
@@ -464,6 +566,13 @@ async function runAsScript(): Promise<void> {
   const invoked = process.argv[1] ? path.resolve(process.argv[1]) : "";
   if (path.resolve(self) !== invoked) return;
   const argv = process.argv.slice(2);
+  let filter: ArmRowFilter;
+  try {
+    filter = parseFilter(argv);
+  } catch (e) {
+    console.error(`call-skeleton arms: ${(e as Error).message}`);
+    process.exit(2);
+  }
   const sampleArg = argv.find((a) => a.startsWith("--sample="));
   if (sampleArg !== undefined) {
     const size = Number(sampleArg.slice("--sample=".length));
@@ -473,11 +582,12 @@ async function runAsScript(): Promise<void> {
       console.error("call-skeleton arms sample: --sample=N and --seed=S take integers.");
       process.exit(2);
     }
-    process.exit(await sampleMain(size, seed));
+    process.exit(await sampleMain(size, seed, filter));
   }
   if (!argv.includes("--report")) {
     console.error(
-      "call-skeleton arms: the modes are `--report` and `--sample=N [--seed=S]` " +
+      "call-skeleton arms: the modes are `--report` and `--sample=N [--seed=S]`, " +
+        "each narrowable with `--direction=missing|invented` and `--package=<name>` " +
         "(RFC 0113 Phase 1 is advisory).",
     );
     process.exit(2);
@@ -489,7 +599,7 @@ async function runAsScript(): Promise<void> {
     console.error(`call-skeleton arms report: ${(e as Error).message}`);
     process.exit(2);
   }
-  process.exit(await reportMain(top));
+  process.exit(await reportMain(top, filter));
 }
 
 void runAsScript();
