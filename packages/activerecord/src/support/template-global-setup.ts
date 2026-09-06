@@ -47,7 +47,7 @@ async function pooledTemplateAdapter(
   configurationHash: Record<string, unknown>,
 ): Promise<{ adapter: DatabaseAdapter; pool: ConnectionPool }> {
   const dbConfig = new HashConfig("arunit", "primary", configurationHash);
-  await dbConfig.loadAdapter();
+  await dbConfig.adapterClass();
   const poolConfig = new PoolConfig(
     new ConnectionDescriptor("primary"),
     dbConfig,

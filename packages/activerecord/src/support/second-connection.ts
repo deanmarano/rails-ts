@@ -14,7 +14,7 @@ export async function withSecondAdapter<T>(
     url,
     pool: 1,
   });
-  await dbConfig.loadAdapter();
+  await dbConfig.adapterClass();
   const poolConfig = new PoolConfig(
     new ConnectionDescriptor("primary"),
     dbConfig,

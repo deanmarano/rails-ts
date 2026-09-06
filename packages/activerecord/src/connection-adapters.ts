@@ -8,66 +8,39 @@ export interface ConnectionAdapters {
 type AdapterLoader = () => Promise<new (...args: any[]) => DatabaseAdapter>;
 type AdapterClass = new (...args: any[]) => DatabaseAdapter;
 const adapters = new Map<string, AdapterLoader>();
-const resolved = new Map<string, Promise<AdapterClass>>();
-const resolvedSyncCache = new Map<string, AdapterClass>();
+const resolved = new Map<string, AdapterClass | Promise<AdapterClass>>();
 const resolveErrors = new Map<string, unknown>();
-
-/**
- * @internal
- * @noRailsEquivalent CONVERGEABLE retire-adapter-resolution-sync-companions
- */
-export function resolveSync(adapterName: string | undefined): AdapterClass | null {
-  return resolvedSyncCache.get(adapterName ?? "") ?? null;
-}
-
-/**
- * @internal
- * @noRailsEquivalent CONVERGEABLE retire-adapter-resolution-sync-companions
- */
-export function resolveSyncError(adapterName: string | undefined): unknown | null {
-  return resolveErrors.get(adapterName ?? "") ?? null;
-}
 
 export function register(name: string, loader: AdapterLoader): void {
   adapters.set(name, loader);
   resolved.delete(name);
-  resolvedSyncCache.delete(name);
   resolveErrors.delete(name);
 }
 
-/**
- * @internal
- * @noRailsEquivalent CONVERGEABLE retire-adapter-resolution-sync-companions
- */
-export function validateAdapterName(adapterName: string | undefined): void {
+export function resolve(adapterName: string | undefined): AdapterClass | Promise<AdapterClass> {
+  const cached = resolved.get(adapterName ?? "");
+  if (cached) return cached;
+
   const loader = adapters.get(adapterName ?? "");
+
   if (!loader) {
-    const err = new AdapterNotFound(
+    throw new AdapterNotFound(
       `Database configuration specifies nonexistent '${adapterName ?? ""}' adapter. ` +
         `Available adapters are: ${[...adapters.keys()].sort().join(", ")}. ` +
         `Ensure that the adapter is spelled correctly in config/database.yml and that you've added the necessary ` +
         `adapter package to your package.json if it's not in the list of available adapters.`,
     );
-    resolveErrors.set(adapterName ?? "", err);
-    throw err;
   }
+
   const loadError = resolveErrors.get(adapterName ?? "");
   if (loadError !== undefined) throw loadError;
-}
 
-export async function resolve(adapterName: string | undefined): Promise<AdapterClass> {
-  const cached = resolved.get(adapterName ?? "");
-  if (cached) return cached;
-
-  validateAdapterName(adapterName);
-  const loader = adapters.get(adapterName ?? "")!;
-  const promise = loader()
-    .then((klass) => {
-      resolvedSyncCache.set(adapterName ?? "", klass);
-      resolveErrors.delete(adapterName ?? "");
+  const promise = loader().then(
+    (klass) => {
+      resolved.set(adapterName ?? "", klass);
       return klass;
-    })
-    .catch((err) => {
+    },
+    (err) => {
       resolved.delete(adapterName ?? "");
       const message = err instanceof Error ? err.message : String(err);
       const errorPath =
@@ -93,7 +66,8 @@ export async function resolve(adapterName: string | undefined): Promise<AdapterC
             );
       resolveErrors.set(adapterName ?? "", loadError);
       throw loadError;
-    });
+    },
+  );
   resolved.set(adapterName ?? "", promise);
   return promise;
 }

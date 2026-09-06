@@ -31,35 +31,21 @@ export interface DatabaseConfigOptions {
 
 type AdapterClassResolver = (
   adapterName: string | undefined,
-) => Promise<new (...args: any[]) => unknown>;
-type AdapterClassResolverSync = (
-  adapterName: string | undefined,
-) => (new (...args: any[]) => unknown) | null;
+) => (new (...args: any[]) => unknown) | Promise<new (...args: any[]) => unknown>;
 type AdapterArgBuilder = (
   adapterName: string | undefined,
   configuration: Record<string, unknown>,
 ) => unknown[];
-type LoadErrorLookup = (adapterName: string | undefined) => unknown | null;
-type AdapterNameValidator = (adapterName: string | undefined) => void;
 let _adapterClassResolver: AdapterClassResolver | null = null;
-let _adapterClassResolverSync: AdapterClassResolverSync | null = null;
-let _validateAdapterName: AdapterNameValidator | null = null;
 let _buildAdapterArg: AdapterArgBuilder = (_n, c) => [c];
-let _loadAdapterError: LoadErrorLookup | null = null;
 
 /** @internal */
 export function _setAdapterClassResolver(
   fn: AdapterClassResolver,
-  syncFn: AdapterClassResolverSync,
   argBuilder: AdapterArgBuilder,
-  errorLookup: LoadErrorLookup,
-  nameValidator: AdapterNameValidator,
 ): void {
   _adapterClassResolver = fn;
-  _adapterClassResolverSync = syncFn;
   _buildAdapterArg = argBuilder;
-  _loadAdapterError = errorLookup;
-  _validateAdapterName = nameValidator;
 }
 
 export class DatabaseConfig {
@@ -74,30 +60,16 @@ export class DatabaseConfig {
   }
 
   /** @missingRailsCall resolve — PERMANENT */
-  async adapterClass(): Promise<new (...args: any[]) => unknown> {
+  adapterClass(): (new (...args: any[]) => unknown) | Promise<new (...args: any[]) => unknown> {
+    if (this.#adapterClass) return this.#adapterClass;
     if (!_adapterClassResolver) {
       throw new Error(
         "Adapter class resolver not registered — import ConnectionHandler (or connection-handling) first",
       );
     }
-    return (this.#adapterClass ??= await _adapterClassResolver(this.adapter));
-  }
-
-  /**
-   * @internal
-   * @noRailsEquivalent CONVERGEABLE retire-adapter-resolution-sync-companions
-   */
-  adapterClassSync(): (new (...args: any[]) => unknown) | null {
-    if (!_adapterClassResolverSync) return null;
-    return _adapterClassResolverSync(this.adapter);
-  }
-
-  /**
-   * @internal
-   * @noRailsEquivalent CONVERGEABLE retire-adapter-resolution-sync-companions
-   */
-  async loadAdapter(): Promise<unknown> {
-    return this.adapterClass();
+    const adapterClass = _adapterClassResolver(this.adapter);
+    if (!(adapterClass instanceof Promise)) return (this.#adapterClass = adapterClass);
+    return adapterClass.then((klass) => (this.#adapterClass = klass));
   }
 
   inspect(): string {
@@ -105,38 +77,25 @@ export class DatabaseConfig {
   }
 
   newConnection(): unknown {
-    if (!_adapterClassResolverSync) {
+    const adapterClass = this.adapterClass();
+    if (adapterClass instanceof Promise) {
+      adapterClass.catch(() => {});
       throw new Error(
-        "Adapter class resolver not registered — import ConnectionHandler (or connection-handling) first",
-      );
-    }
-    const Klass = _adapterClassResolverSync(this.adapter);
-    if (!Klass) {
-      _validateAdapterName?.(this.adapter);
-      const loadError = _loadAdapterError?.(this.adapter) ?? null;
-      const remediation = loadError
-        ? `loader failed: ${(loadError as Error).message ?? loadError}`
-        : `await pool.adapterReady or this.loadAdapter() before calling newConnection`;
-      throw new Error(
-        `Adapter "${this.adapter}" not pre-resolved — ${remediation}.`,
-        loadError ? { cause: loadError } : undefined,
+        `Adapter "${this.adapter}" is still loading — await adapterClass() before newConnection.`,
       );
     }
     const configurationHash = (this as unknown as { configurationHash: DatabaseConfigOptions })
       .configurationHash;
     const args = _buildAdapterArg(this.adapter, configurationHash as Record<string, unknown>);
-    return new (Klass as new (...args: unknown[]) => unknown)(...args);
+    return new (adapterClass as new (...args: unknown[]) => unknown)(...args);
   }
 
   validateBang(): true {
     if (this.adapter != null) {
-      if (!_validateAdapterName) {
-        throw new Error(
-          "Adapter class resolver not registered — import ConnectionHandler (or connection-handling) first",
-        );
-      }
-      _validateAdapterName(this.adapter);
+      const adapterClass = this.adapterClass();
+      if (adapterClass instanceof Promise) adapterClass.catch(() => {});
     }
+
     return true;
   }
 
