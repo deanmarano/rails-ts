@@ -1,4 +1,4 @@
-import { File, FileUtils, Zlib } from "@blazetrails/ruby-compat";
+import { Encoding, File, FileUtils, Zlib } from "@blazetrails/ruby-compat";
 import { atomicWrite } from "@blazetrails/activesupport";
 import { Column } from "./column.js";
 import { deduplicate } from "./deduplicable.js";
@@ -385,26 +385,6 @@ export class SchemaCache {
     });
   }
 
-  /**
-   * @internal
-   * @missingRailsArgs atomic_write — PERMANENT
-   */
-  private open(filename: string, block: (file: { write(string: string): unknown }) => void): void {
-    FileUtils.mkdirP(File.dirname(filename));
-
-    atomicWrite(filename, undefined, (file) => {
-      if (File.extname(filename) === ".gz") {
-        const zipper = new Zlib.GzipWriter(file);
-        zipper.mtime = 0;
-        block(zipper);
-        zipper.flush();
-        zipper.close();
-      } else {
-        block(file);
-      }
-    });
-  }
-
   marshalDump(): unknown[] {
     const columnsData = Object.fromEntries(
       [...this._columns].map(([table, cols]) => [table, cols.map((c) => serializeColumn(c))]),
@@ -478,6 +458,27 @@ export class SchemaCache {
         return tables.filter((table) => !this.isIgnoredTable(table));
       }
       return [];
+    });
+  }
+
+  /**
+   * @internal
+   * @missingRailsArgs atomic_write — PERMANENT
+   */
+  private open(filename: string, block: (file: { write(string: string): unknown }) => void): void {
+    FileUtils.mkdirP(File.dirname(filename));
+
+    atomicWrite(filename, undefined, (file) => {
+      if (File.extname(filename) === ".gz") {
+        const zipper = new Zlib.GzipWriter(file);
+        zipper.mtime = 0;
+        block(zipper);
+        zipper.flush();
+        zipper.close();
+      } else {
+        file.setEncoding(Encoding.UTF_8);
+        block(file);
+      }
     });
   }
 }

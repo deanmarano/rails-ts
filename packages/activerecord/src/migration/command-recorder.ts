@@ -667,7 +667,7 @@ export class CommandRecorder {
 
   /** @internal */
   findJoinTableName(table1: string, table2: string, options?: { tableName?: string }): string {
-    return _findJoinTableName(table1, table2, options);
+    return _findJoinTableName.call(this, table1, table2, options);
   }
 
   /** @internal */

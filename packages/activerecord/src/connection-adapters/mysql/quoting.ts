@@ -149,6 +149,7 @@ export function columnNameWithOrderMatcher(): RegExp {
   return new RegExp(`^${ordered}(?:\\s*,\\s*${ordered})*$`, "i");
 }
 
+/** @noRailsEquivalent CONVERGEABLE mysql-type-cast-returns-strings-not-time-objects */
 export function typeCast(this: QuotingDispatchHost, value: unknown): unknown {
   if (value instanceof TimeWithZone) {
     if (ActiveRecord.defaultTimezone === "utc") {

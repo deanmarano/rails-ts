@@ -1,9 +1,10 @@
-import { block, fetch, include, KeyError, OpenSSL, slice } from "@blazetrails/ruby-compat";
+import { block, fetch, KeyError, OpenSSL, slice } from "@blazetrails/ruby-compat";
 import { NotImplementedError } from "../../errors.js";
 import { findJoinTableName, joinTableName } from "../../migration/join-table.js";
 import { CommandRecorder } from "../../migration/command-recorder.js";
 import type { MigrationCommand } from "../../migration/command-recorder.js";
 import { ArgumentError } from "@blazetrails/activemodel";
+import { include } from "@blazetrails/activesupport";
 import type { AbstractAdapter as DatabaseAdapter } from "../abstract-adapter.js";
 import type { Relation } from "../../relation.js";
 import type { Base } from "../../base.js";

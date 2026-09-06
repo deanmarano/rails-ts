@@ -278,15 +278,7 @@ function getlocal(value: TimeLike): Temporal.ZonedDateTime {
   return instantOf(value).toZonedDateTimeISO(Temporal.Now.timeZoneId());
 }
 
-export function quotedDate(value: TemporalDateLike): string {
-  if (actsLikeTime(value)) {
-    if (ActiveRecord.defaultTimezone === "utc") {
-      if (!utcQ(value)) value = getutc(value);
-    } else {
-      value = getlocal(value);
-    }
-  }
-
+function toFsDb(value: TemporalDateLike): string {
   if (
     value instanceof TimeWithZone ||
     value instanceof RubyTime ||
@@ -316,6 +308,18 @@ export function quotedDate(value: TemporalDateLike): string {
   throw new TypeError(
     `quotedDate: cannot format ${(value as object).constructor?.name ?? typeof value} — use a Temporal type`,
   );
+}
+
+export function quotedDate(value: TemporalDateLike): string {
+  if (actsLikeTime(value)) {
+    if (ActiveRecord.defaultTimezone === "utc") {
+      if (!utcQ(value)) value = getutc(value);
+    } else {
+      value = getlocal(value);
+    }
+  }
+
+  return toFsDb(value);
 }
 
 export function quotedTime(this: QuotingDispatchHost, value: QuotedTimeValue): string {
