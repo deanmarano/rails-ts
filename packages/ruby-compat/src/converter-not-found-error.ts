@@ -1,3 +1,5 @@
+import { EncodingError } from "./encoding-error.js";
+
 /**
  * Ruby's core `Encoding::ConverterNotFoundError`
  * (`vendor/ruby/transcode.c:4507` `rb_eConverterNotFoundError`), an
@@ -8,9 +10,4 @@
  * @noRailsEquivalent PERMANENT — Ruby core `Encoding::ConverterNotFoundError`,
  * which Rails inherits rather than defines.
  */
-export class ConverterNotFoundError extends Error {
-  constructor(message?: string) {
-    super(message ?? new.target.name);
-    this.name = new.target.name;
-  }
-}
+export class ConverterNotFoundError extends EncodingError {}
