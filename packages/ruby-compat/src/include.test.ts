@@ -53,6 +53,37 @@ describe("initializeIncludedModules", () => {
     expect(order).toEqual(["first", "second"]);
   });
 
+  it("does not re-register the initializer of an already-included module", () => {
+    let seatings = 0;
+    class Controller {
+      constructor() {
+        initializeIncludedModules(this);
+      }
+    }
+    const mod = { [initialize]: () => void seatings++ };
+    include(Controller, mod);
+    include(Controller, mod);
+
+    new Controller();
+    expect(seatings).toBe(1);
+  });
+
+  it("does not re-register a module a superclass already included", () => {
+    let seatings = 0;
+    class Base {
+      constructor() {
+        initializeIncludedModules(this);
+      }
+    }
+    const mod = { [initialize]: () => void seatings++ };
+    include(Base, mod);
+    class Sub extends Base {}
+    include(Sub, mod);
+
+    new Sub();
+    expect(seatings).toBe(1);
+  });
+
   it("runs the initializers a superclass included", () => {
     class Base {
       constructor() {

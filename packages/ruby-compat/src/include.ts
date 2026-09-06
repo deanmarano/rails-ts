@@ -199,7 +199,10 @@ const instanceInitializers = Symbol.for("@blazetrails/ruby-compat:instanceInitia
 /**
  * Run the `initialize` of every module included into `instance`'s class, in
  * include order — the order Ruby unwinds the `super` chain in, since a module
- * included later sits higher in the ancestry and so completes last.
+ * included later sits higher in the ancestry and so completes last. A module
+ * already in the ancestry contributes one initializer, not two, because
+ * `include_modules_at` skips a module whose method table it finds in the
+ * superclass chain (vendor/ruby/class.c:1281,1291,1296).
  *
  * Mirrors: the `super` call in a class whose ancestry carries module
  * `initialize` definitions — vendor/ruby/class.c:1179 `rb_include_module`.
@@ -276,6 +279,18 @@ function trackIncludedModule(proto: object, mod: unknown): void {
   set!.add(mod);
 }
 
+function isModuleMethodTablePresent(klass: { prototype: object }, mod: unknown): boolean {
+  for (
+    let proto: object | null = klass.prototype;
+    proto;
+    proto = Object.getPrototypeOf(proto) as object | null
+  ) {
+    if (!Object.prototype.hasOwnProperty.call(proto, includedModules)) continue;
+    if (((proto as Record<symbol, unknown>)[includedModules] as Set<unknown>).has(mod)) return true;
+  }
+  return false;
+}
+
 /**
  * Ruby's `Module#<` — is `mod` in `klass`'s ancestry?
  *
@@ -301,6 +316,9 @@ export function isModuleIncluded(
   klass: { prototype: object },
   mod: ModuleObject | AnyClass | Module,
 ): boolean {
+  if (isModuleMethodTablePresent(klass, mod)) return true;
+  const eq = (mod as { equals?: (other: unknown) => boolean }).equals;
+  if (typeof eq !== "function") return false;
   for (
     let proto: object | null = klass.prototype;
     proto;
@@ -308,11 +326,7 @@ export function isModuleIncluded(
   ) {
     if (!Object.prototype.hasOwnProperty.call(proto, includedModules)) continue;
     const mods = (proto as Record<symbol, unknown>)[includedModules] as Set<unknown>;
-    if (mods.has(mod)) return true;
-    const eq = (mod as { equals?: (other: unknown) => boolean }).equals;
-    if (typeof eq === "function") {
-      for (const m of mods) if (eq.call(mod, m)) return true;
-    }
+    for (const m of mods) if (eq.call(mod, m)) return true;
   }
   return false;
 }
@@ -457,9 +471,10 @@ function featureHook(mod: unknown, name: string): ((base: unknown) => void) | un
 export function include(klass: AnyClass, mod: ModuleObject | AnyClass | Module): void {
   const appendFeatures = featureHook(mod, "appendFeatures");
   if (appendFeatures) return appendFeatures(klass);
+  const alreadyIncluded = isModuleMethodTablePresent(klass, mod);
   trackIncludedModule(klass.prototype, mod);
   const instanceInitializer = (mod as ModuleHooks)[initialize];
-  if (typeof instanceInitializer === "function") {
+  if (typeof instanceInitializer === "function" && !alreadyIncluded) {
     trackInstanceInitializer(klass.prototype, instanceInitializer);
   }
   if (mod instanceof Module) {
