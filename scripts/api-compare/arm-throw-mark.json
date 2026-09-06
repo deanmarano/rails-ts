@@ -1,0 +1,131 @@
+{
+  "abstractcontroller": {
+    "total": 1,
+    "byFile": {
+      "url-for.ts": 1
+    }
+  },
+  "actioncontroller": {
+    "total": 2,
+    "byFile": {
+      "metal/mime-responds.ts": 1,
+      "metal/strong-parameters.ts": 1
+    }
+  },
+  "actiondispatch": {
+    "total": 8,
+    "byFile": {
+      "http/param-builder.ts": 1,
+      "http/permissions-policy.ts": 1,
+      "http/request.ts": 3,
+      "journey/gtg/transition-table.ts": 1,
+      "middleware/debug-exceptions.ts": 1,
+      "routing/route-set.ts": 1
+    }
+  },
+  "actionpackversion": {
+    "total": 0,
+    "byFile": {}
+  },
+  "actionview": {
+    "total": 4,
+    "byFile": {
+      "base.ts": 1,
+      "renderer/template-renderer.ts": 2,
+      "template.ts": 1
+    }
+  },
+  "activemodel": {
+    "total": 1,
+    "byFile": {
+      "secure-password.ts": 1
+    }
+  },
+  "activerecord": {
+    "total": 35,
+    "byFile": {
+      "associations/alias-tracker.ts": 1,
+      "associations/collection-association.ts": 1,
+      "associations/has-many-association.ts": 1,
+      "associations/has-many-through-association.ts": 1,
+      "associations/has-one-association.ts": 2,
+      "associations/preloader/branch.ts": 1,
+      "associations/singular-association.ts": 1,
+      "attribute-assignment.ts": 1,
+      "attribute-methods.ts": 1,
+      "connection-adapters.ts": 1,
+      "connection-adapters/abstract-adapter.ts": 1,
+      "connection-adapters/abstract-mysql-adapter.ts": 1,
+      "connection-adapters/abstract/connection-pool.ts": 1,
+      "connection-adapters/abstract/schema-statements.ts": 3,
+      "connection-adapters/abstract/transaction.ts": 1,
+      "connection-adapters/mysql2-adapter.ts": 1,
+      "connection-adapters/mysql2/database-statements.ts": 1,
+      "connection-adapters/postgresql-adapter.ts": 4,
+      "connection-adapters/postgresql/oid/hstore.ts": 1,
+      "connection-adapters/postgresql/schema-creation.ts": 1,
+      "connection-adapters/sqlite3-adapter.ts": 3,
+      "encryption/encryptable-record.ts": 1,
+      "inheritance.ts": 1,
+      "relation/finder-methods.ts": 2,
+      "relation/predicate-builder/relation-handler.ts": 1,
+      "relation/query-methods.ts": 1
+    }
+  },
+  "activerecord-test-support": {
+    "total": 1,
+    "byFile": {
+      "connection.ts": 1
+    }
+  },
+  "activesupport": {
+    "total": 7,
+    "byFile": {
+      "error-reporter.ts": 1,
+      "module-ext.ts": 3,
+      "notifications/fanout.ts": 1,
+      "number-helper/number-to-human-converter.ts": 1,
+      "time-with-zone.ts": 1
+    }
+  },
+  "arel": {
+    "total": 1,
+    "byFile": {
+      "visitors/visitor.ts": 1
+    }
+  },
+  "did-you-mean": {
+    "total": 0,
+    "byFile": {}
+  },
+  "globalid": {
+    "total": 0,
+    "byFile": {}
+  },
+  "i18n": {
+    "total": 0,
+    "byFile": {}
+  },
+  "rack": {
+    "total": 3,
+    "byFile": {
+      "lint.ts": 1,
+      "response.ts": 1,
+      "rewindable-input.ts": 1
+    }
+  },
+  "rack-session": {
+    "total": 0,
+    "byFile": {}
+  },
+  "rack-test": {
+    "total": 0,
+    "byFile": {}
+  },
+  "trailties": {
+    "total": 2,
+    "byFile": {
+      "generators/rails/model/model-generator.ts": 2
+    }
+  }
+}

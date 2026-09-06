@@ -166,6 +166,7 @@ const capabilities: SqliteDriverCapabilities = {
   concurrentStatements: false,
   foreignKeysOnByDefault: false,
   immediateTransactions: true,
+  sharedCache: false,
 };
 
 export const expoSqliteDriver: SqliteDriver = {

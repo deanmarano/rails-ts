@@ -253,3 +253,98 @@ The splice is one-directional by construction: it can discharge a flag, never
 raise one (`report-arms.ts#compareArms`). Taken naively in both directions it
 charged every divergent helper's arms to each of its callers and inflated the
 report to 3,684 rows.
+
+## Addendum — the per-token re-measurement, and the one stratum that gates
+
+`remeasure-arm-noise-floor-per-token` re-drew the sample after the six extractor
+stories landed, **stratified by token** with `report-arms.ts --sample=N
+--seed=S --direction=missing --token=<arm>`, and hand-audited 229 rows. That
+flag lands here so the draws stay re-runnable; the per-row verdict tables are in
+the audit report `arm-mismatch-noise-floor-20260906T022720Z.md`.
+
+| stratum          | n   | non-real | verdict     |
+| ---------------- | --- | -------- | ----------- |
+| whole population | 80  | 75.0%    | cannot gate |
+| `if`             | 80  | 70.0%    | cannot gate |
+| missing `throw`  | 69  | 11.6%    | **gates**   |
+
+`if` is 1,891 of the 2,141 rows, so `if` IS the noise floor and the two figures
+above are the same finding twice. The strata overlap — a row differing by both
+an `if` and a `throw` is in both, which is why they sum to 2,953 over 2,141 —
+and they miss the 45 rows whose difference is empty by construction (19 `order`,
+26 `raise-class`).
+
+The `throw` figure is robust to the one judgement call that moves it. The audit
+scores a delegation to a **trails-invented** helper as a real divergence, per
+CLAUDE.md's Decomposition rule; read the lenient way, counting every helper
+delegation as a lowering artefact, the stratum's non-real rate is 30.4% rather
+than 11.6%. **Both readings clear the ⅓ tripwire**, so this gate does not rest
+on that call. The missing-`throw` stratum is the opposite:
+all 69 of its rows were read in full — **61 real, 8 lowering artefact, 0
+extraction bugs** — and the 95% interval on the non-real rate, 4.1%–19.1%, sits
+entirely under this RFC's pre-committed ⅓ tripwire. A dropped raise is a real
+divergence nine times in ten, which is what Rollout Phase 5 assumed. RFC 0095 is
+the precedent for gating one stratum and leaving the rest report-only.
+
+The eight artefacts were two named classes and nothing else:
+
+- **`throw(:abort)` / `throw(:exception, …)` ported through the settled halt
+  helper** — `throwAbort()` (`activesupport/src/callbacks.ts:10`) and
+  `throwException(…)` (`i18n/src/throw-catch.ts`), against
+  `has_many_association.rb:22`, `has_one_association.rb:18,35`,
+  `autosave_association.rb:213` and `i18n/backend/base.rb:47,54`. Suppressed at
+  the source rather than baselined: `compare.ts:TS_CONSTRUCT_SKELETON_NAMES`
+  folds the helper call onto the `throw` construct the Ruby side already folds
+  `ref:throw` onto. A `throw(:abort)` whose port `return false`s for its caller
+  to convert (`associations/builder/association.ts:233`) emits no token at all,
+  so there is nothing to fold it onto and it stays in the population.
+- **Ruby-only guards with no JS counterpart** — `require "bcrypt" rescue
+LoadError` (`secure_password.rb:120-124`), `constantize` / `NameError`
+  (`request.rb:98-103`), and the raise-to-build-a-backtrace trick
+  (`error_reporter.rb:258-263`) — and `singleton_class?`
+  (`attribute_accessors.rb:56`), which makes four, the dominant residual class
+  in this stratum. These are NOT folded. Each is a different Ruby construct with
+  no TS token at all — there is no `require` to fail, no `NameError` to rescue,
+  no singleton class, and no interpreter that fills a backtrace on raise — so
+  there is nothing on the port's side to fold the Ruby `throw` onto the way the
+  halt helper folds, and no single rule covers all four without dropping real
+  raises with them.
+
+  The audit's own Gap 5 is the disposition, and it is stronger than "not yet
+  suppressed": **no action proposed — these have no JS counterpart at all, so
+  there is nothing to converge; they are a permanent floor, not debt.** (Gap 1's
+  passing "both suppressible at the source" is loose phrasing, superseded by the
+  entry that examines the class.) So the four rows sit in the seeded marks
+  permanently. A file whose mark is held up by one of them is not a burndown
+  target — the mark for it cannot reach zero, and that is correct, not stale.
+
+### The seed run
+
+Taken on this branch after the multi-value-`when` fix and the halt-helper fold,
+and re-taken after a rebase onto trails#7557 (the one-Ruby-member-per-TS-member
+pairing fix, this document's Gap 2 and Gap 3): **2,127 mismatched pairs** over
+6,063 compared, of which **65** drop a `throw`.
+
+For the record, the two steps separately — the population moves under both, which
+is why a mark is seeded from a measurement and never carried across a rebase
+unchecked. Before this branch: 2,139 pairs / 69 missing-`throw` over 6,072
+compared. After its two extractor changes: 2,133 / 67. After the rebase onto
+#7557: 2,127 / 65, the four narrowed dimensions written DOWN with
+`parity:api:arms:throws:tighten` rather than reseeded. The mark that
+`scripts/api-compare/lint-arm-throws.ts` gates —
+`scripts/api-compare/arm-throw-mark.json` — was seeded from exactly that run:
+
+```
+abstractcontroller 1; actioncontroller 2; actiondispatch 8; actionview 4;
+activemodel 1; activerecord 35; activerecord-test-support 1; activesupport 7;
+arel 1; rack 3; trailties 2
+```
+
+Every compared package is enrolled, including the six sitting at zero, so a new
+dropped raise anywhere turns the gate red. The mark is only-shrink and carries a
+per-TS-file count beside each total, so a raise converged in one file and
+dropped in another cannot hide behind an unmoved total. There is no reseed;
+`pnpm parity:api:arms:throws:tighten` writes marks DOWN only.
+
+The `if`, `loop`, `try` and `rescue` strata stay report-only and
+`pnpm parity:api:arms:report` is unchanged.

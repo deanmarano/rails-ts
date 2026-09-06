@@ -1,5 +1,5 @@
 import type { DatabaseConfig } from "../database-configurations/database-config.js";
-import { fetch, hasKey } from "@blazetrails/ruby-compat";
+import { anybits, fetch, hasKey } from "@blazetrails/ruby-compat";
 import type {
   SqliteBinds,
   SqliteConnection,
@@ -7,6 +7,7 @@ import type {
   SqliteOpenConfig,
   SqliteStatement,
 } from "../sqlite-adapter.js";
+import { SQLite3Constants } from "../sqlite-adapter.js";
 import { Visitors } from "@blazetrails/arel";
 import type { AbstractAdapter as DatabaseAdapter } from "./abstract-adapter.js";
 import type { AddReferenceOptions } from "./abstract/schema-definitions.js";
@@ -719,11 +720,9 @@ export class SQLite3Adapter extends AbstractAdapter implements DatabaseAdapter {
     return rows?.[0]?.encoding ?? "UTF-8";
   }
 
-  /** @missingRailsCall fetch — PERMANENT */
   isSharedCache(): boolean {
-    const qIdx = this._filename.indexOf("?");
-    if (qIdx === -1) return false;
-    return this._filename.slice(qIdx).includes("cache=shared");
+    if (!this.resolveDriverFactory().capabilities.sharedCache) return false;
+    return anybits(fetch(this._config, "flags", 0), SQLite3Constants.Open.SHAREDCACHE);
   }
 
   /** @missingRailsCall query_value — CONVERGEABLE sqlite-get-database-version-uses-query-value */
@@ -778,7 +777,7 @@ export class SQLite3Adapter extends AbstractAdapter implements DatabaseAdapter {
     const args: string[] = [];
     if (isRubyTruthy(options.mode)) args.push(`-${options.mode}`);
     if (options.header) args.push("-header");
-    args.push(config.database!);
+    args.push(File.expandPath(config.database!, trailsRoot() ?? undefined));
     return this.findCmdAndExec(ActiveRecord.databaseCli["sqlite"], ...args);
   }
 

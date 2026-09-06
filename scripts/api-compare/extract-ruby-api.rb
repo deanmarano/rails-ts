@@ -2746,6 +2746,16 @@ class ApiExtractor
   # `:bodystmt`'s `try`, against the TS `catch`'s `instanceof` arms. Ripper
   # chains both clause kinds through the clause's own last slot, so the
   # ordinary child descent already visits every one of them exactly once.
+  #
+  # A `:when` carrying several VALUES is still ONE clause and still one `if`:
+  # `when nil, "tiny", "medium", "long"`
+  # (`activerecord/.../connection_adapters/mysql/schema_statements.rb:272-274`)
+  # is a value list on slot 1, not four clauses, and the shared arm count both
+  # extractors emit is the CLAUSE count. Its three faithful TS lowerings agree
+  # on that number — consecutive fall-through `case` clauses collapse to one
+  # (extract-ts-api.ts#isFallenThroughInto), a `||` chain inside one `if` is one
+  # `if` plus `or` short-circuits the arm projection does not read, and an
+  # `includes` test is one `if` plus a reach (RFC 0113).
   def collect_method_skeleton(body_node)
     tokens = []
     with_capture_locals { walk_for_skeleton(body_node, tokens) }

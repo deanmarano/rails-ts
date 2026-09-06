@@ -219,6 +219,7 @@ export interface TrailsAdapterOptions {
 
 export interface SQLite3AdapterOptions extends TrailsAdapterOptions {
   readonly?: boolean;
+  flags?: number;
   driver?: import("../sqlite-adapter.js").SqliteDriver;
   pragmas?: Record<string, string | number | boolean>;
   strict?: boolean;
