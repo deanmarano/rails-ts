@@ -159,7 +159,7 @@ describe("Ruby extractor body call capture", { timeout: RUBY_SUBPROCESS_TIMEOUT_
       "rescue",
       "ref:rollback",
     ]);
-    expect(s["Foo#build"]).toEqual(["ref:cached", "if", "new:Thing"]);
+    expect(s["Foo#build"]).toEqual(["ref:cached", "or", "new:Thing"]);
   });
 
   it("carries the raised class on the throw token, however the raise is spelled", () => {
@@ -194,7 +194,7 @@ describe("Ruby extractor body call capture", { timeout: RUBY_SUBPROCESS_TIMEOUT_
     expect(s["Foo#c"]).toEqual(["throw"]);
   });
 
-  it("emits an if for a logical op-assign, as the ??= port does", () => {
+  it("emits a short-circuit token for a logical op-assign, as the ??= port does", () => {
     const s = rubySkeletons({
       "foo.rb": `
         class Foo
@@ -204,9 +204,26 @@ describe("Ruby extractor body call capture", { timeout: RUBY_SUBPROCESS_TIMEOUT_
         end
       `,
     });
-    expect(s["Foo#a"]).toEqual(["if", "ref:compute"]);
-    expect(s["Foo#b"]).toEqual(["if", "ref:compute"]);
-    expect(s["Foo#c"] ?? []).not.toContain("if");
+    expect(s["Foo#a"]).toEqual(["or", "ref:compute"]);
+    expect(s["Foo#b"]).toEqual(["and", "ref:compute"]);
+    expect(s["Foo#c"] ?? []).toEqual([]);
+  });
+
+  it("emits or/and per operator family, never if, for a short-circuit", () => {
+    const s = rubySkeletons({
+      "foo.rb": `
+        class Foo
+          def a; cached || build; end
+          def b; cached and build; end
+          def c; cached && build; end
+          def d; cached or build; end
+        end
+      `,
+    });
+    expect(s["Foo#a"]).toEqual(["ref:cached", "or", "ref:build"]);
+    expect(s["Foo#b"]).toEqual(["ref:cached", "and", "ref:build"]);
+    expect(s["Foo#c"]).toEqual(["ref:cached", "and", "ref:build"]);
+    expect(s["Foo#d"]).toEqual(["ref:cached", "or", "ref:build"]);
   });
 
   it("emits try for a modifier rescue, which Ripper hangs off :rescue_mod", () => {

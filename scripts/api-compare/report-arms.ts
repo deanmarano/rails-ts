@@ -133,6 +133,57 @@ export function controlArms(skeleton: readonly string[]): string[] {
 }
 
 /**
+ * The stream's SHORT-CIRCUIT tokens, which both extractors emit per operator
+ * family — `or` for Ruby `||` / `or` / `||=` and TS `||` / `||=` / `??` / `??=`,
+ * `and` for `&&` / `and` / `&&=` (extract-ts-api.ts#skeletonLogicalOpToken,
+ * extract-ruby-api.rb:SKELETON_LOGICAL_OPS).
+ *
+ * Kept OUT of {@link CONTROL_TOKENS} deliberately (RFC 0113): a short-circuit is
+ * not an arm in the sense this RFC's clusters use — a `missing-arm` row is about
+ * a dropped `elsif`, never a dropped `||` — and folding the two together spent
+ * most of the invented-`if` total on `??`, which has no Ruby operator to be
+ * missing from. Projected separately instead, so a genuinely dropped `||` guard
+ * is still visible: reported, never counted as an arm.
+ */
+export const SHORT_CIRCUIT_TOKENS: ReadonlySet<string> = new Set(["or", "and"]);
+
+export function shortCircuitOps(skeleton: readonly string[]): string[] {
+  return skeleton.filter((token) => SHORT_CIRCUIT_TOKENS.has(token));
+}
+
+export interface ShortCircuitMismatch extends SkeletonRow {
+  rubyOps: string[];
+  tsOps: string[];
+  missing: string[];
+  invented: string[];
+}
+
+/**
+ * The short-circuit verdict for one pair, or undefined when the two projections
+ * agree as multisets. Order is NOT read: `a || b` and `b || a` are the same
+ * fallback whichever operand a port hoists, and the arm projection is where
+ * sequence is compared. Taken twice, like {@link compareArms}, so an extracted
+ * same-file helper discharges the flag.
+ */
+export function compareShortCircuits(row: SkeletonRow): ShortCircuitMismatch | undefined {
+  const verdict = (ruby: readonly string[], ts: readonly string[]) => {
+    const rubyOps = shortCircuitOps(ruby);
+    const tsOps = shortCircuitOps(ts);
+    const missing = multisetDifference(rubyOps, tsOps);
+    const invented = multisetDifference(tsOps, rubyOps);
+    if (missing.length === 0 && invented.length === 0) return undefined;
+    return { ...row, rubyOps, tsOps, missing, invented };
+  };
+  const plain = verdict(row.ruby, row.ts);
+  if (plain === undefined) return undefined;
+  const spliced = verdict(
+    spliceHelperSkeletons(row.ruby, row.rubyHelpers),
+    spliceHelperSkeletons(row.ts, row.tsHelpers),
+  );
+  return spliced === undefined ? undefined : plain;
+}
+
+/**
  * `skeleton` with every `ref:<helper>` reach that resolves to a SAME-FILE
  * method replaced, in place, by that method's own skeleton — the sequence
  * analogue of the union `effectiveTsCalls` (`compare.ts`) already takes over
@@ -266,11 +317,14 @@ function pairLine(row: ArmMismatch): string {
 
 export function renderReport(artifact: SkeletonArtifact, top: number): string {
   const rows = artifact.skeletons.flatMap((s) => compareArms(s) ?? []);
+  const shortCircuits = artifact.skeletons.flatMap((s) => compareShortCircuits(s) ?? []);
   const files = new Set(rows.map((r) => `${r.package} ${r.tsFile}`)).size;
   return [
     `call-skeleton arms report: ${rows.length} mismatched pair(s) across ${files} file(s), ` +
       `${artifact.skeletons.length} pair(s) compared` +
       " — report-only, nothing gates on this (RFC 0113)",
+    `short-circuit projection: ${shortCircuits.length} mismatched pair(s) over the ` +
+      "`or` / `and` tokens, which the arm verdicts above do not read",
     section(
       "By verdict",
       tally(rows, (r) => r.kind),
@@ -305,6 +359,15 @@ export function renderReport(artifact: SkeletonArtifact, top: number): string {
     section(
       "Raise class mismatches",
       rows.flatMap((r) => (r.raiseClasses ?? []).map((p): [string, number] => [p, 1])),
+      top,
+    ),
+    section(
+      "Short-circuit mismatches",
+      shortCircuits.map((r): [string, number] => [
+        `${r.package}/${r.tsFile}#${r.tsName}  ` +
+          [...r.missing.map((t) => `-${t}`), ...r.invented.map((t) => `+${t}`)].join(" "),
+        r.missing.length + r.invented.length,
+      ]),
       top,
     ),
     section(

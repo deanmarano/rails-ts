@@ -20,11 +20,6 @@ export { _setCollectionProxyCtor } from "./associations/collection-proxy-slot.js
 
 import { ArgumentError } from "@blazetrails/activemodel";
 import { StatementCache } from "./statement-cache.js";
-import {
-  HasManyThroughAssociationNotFoundError,
-  type HasManyThroughOwnerClass,
-  type HasManyThroughReflection,
-} from "./associations/errors.js";
 import { AssociationNotFoundError } from "./associations/errors.js";
 import { AssociationScope, invokeScopeLambda } from "./associations/association-scope.js";
 import type { Association as AssociationInstance } from "./associations/association.js";
@@ -288,17 +283,6 @@ export function _cacheSingularTarget(record: Base, assocName: string, target: Ba
   record._associationInstances.get(assocName)?.inversedFrom(target);
 }
 
-/** @internal */
-export function _hmtNotFound(
-  ctor: typeof Base,
-  assocName: string,
-): HasManyThroughAssociationNotFoundError {
-  return new HasManyThroughAssociationNotFoundError(
-    ctor as unknown as HasManyThroughOwnerClass,
-    ctor._reflectOnAssociation(assocName) as unknown as HasManyThroughReflection,
-  );
-}
-
 export class Associations {
   static belongsTo(
     name: string,
@@ -441,44 +425,6 @@ export class Associations {
 export function isAssociationCached(record: Base, name: string): boolean {
   if (record._associationInstances.has(name)) return true;
   return record._collectionProxies.has(name);
-}
-
-export function _canRouteThroughViaAssociationScope(
-  reflection: ReflectionLike | null | undefined,
-  options: AssociationOptions,
-): boolean {
-  if (!reflection) return false;
-  if (options.disableJoins) return false;
-  if (typeof reflection.isThroughReflection !== "function" || !reflection.isThroughReflection()) {
-    return false;
-  }
-  const src = reflection.sourceReflection;
-  if (!src) return false;
-  if (typeof reflection.isNested === "function" && reflection.isNested()) return true;
-  if (
-    typeof src.isPolymorphic === "function" &&
-    src.isPolymorphic() &&
-    (typeof src.belongsTo !== "function" || !src.belongsTo())
-  ) {
-    return false;
-  }
-  if (typeof src.isPolymorphic === "function" && src.isPolymorphic() && !options.sourceType) {
-    return false;
-  }
-  return true;
-}
-
-/** @internal */
-export function _routeThroughViaAssociationScope(
-  record: Base,
-  reflection: ReflectionLike | null | undefined,
-  options: AssociationOptions,
-): boolean {
-  if (!_canRouteThroughViaAssociationScope(reflection, options)) return false;
-  if (record.isNewRecord() && typeof reflection?.isNested === "function" && reflection.isNested()) {
-    return false;
-  }
-  return true;
 }
 
 /** @internal */

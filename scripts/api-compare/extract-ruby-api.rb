@@ -2707,18 +2707,24 @@ class ApiExtractor
 
   SKELETON_IF_NODES = %i[if elsif unless if_mod unless_mod ifop when in].freeze
   SKELETON_LOOP_NODES = %i[while until while_mod until_mod for].freeze
-  SKELETON_LOGICAL_OPS = [:"||", :"&&", :and, :or].freeze
+  # The skeleton token each short-circuit operator emits — `or` / `and`, never
+  # `if`: a short-circuit is not an arm in the sense RFC 0113's clusters use, and
+  # the TS side has a `??` with no Ruby operator at all, whose Ruby counterparts
+  # (a kwarg default, `fetch(k, default)`, a `&.` chain) emit nothing
+  # (extract-ts-api.ts#skeletonLogicalOpToken).
+  SKELETON_LOGICAL_OPS = { :"||" => "or", :or => "or", :"&&" => "and", :and => "and" }.freeze
   # The op-assign operators Ripper hands back as the STRING token `"||="` /
   # `"&&="` (`[:@op, "||=", …]`) — not the `:"||"` Symbols above, and carrying
   # the `=`, which is why testing an `:opassign` against SKELETON_LOGICAL_OPS
   # could never pass. `@x ||= y` is a guarded write and its faithful port —
-  # `this._x ??= y`, or `if (!this._x) this._x = y` — emits `if` on the TS side
-  # (extract-ts-api.ts#isSkeletonLogicalOp), so this side has to as well. A
+  # `this._x ??= y`, or `if (!this._x) this._x = y` — emits the same
+  # short-circuit token on the TS side, so this side has to as well. A
   # non-logical op-assign (`+=`) is not a branch and emits nothing.
-  SKELETON_LOGICAL_OP_ASSIGNS = %w[||= &&=].freeze
+  SKELETON_LOGICAL_OP_ASSIGNS = { "||=" => "or", "&&=" => "and" }.freeze
 
   # The body's ordered control + call skeleton — `if` / `loop` / `try` /
-  # `rescue` / `throw`, `new:Const` and `ref:<name>` reaches, in source order
+  # `rescue` / `throw`, the `or` / `and` short-circuits,
+  # `new:Const` and `ref:<name>` reaches, in source order
   # and WITH duplicates. The TS counterpart is extract-ts-api.ts#extractSkeleton and the
   # vocabulary is deliberately identical; `calls` cannot stand in for it,
   # because `calls.uniq` drops both the repeats and the control flow.
@@ -2769,13 +2775,13 @@ class ApiExtractor
       tokens << "rescue"
       walk_for_skeleton(node[2], tokens)
       return
-    elsif kind == :binary && SKELETON_LOGICAL_OPS.include?(node[2])
+    elsif kind == :binary && SKELETON_LOGICAL_OPS.key?(node[2])
       walk_for_skeleton(node[1], tokens)
-      tokens << "if"
+      tokens << SKELETON_LOGICAL_OPS[node[2]]
       walk_for_skeleton(node[3], tokens)
       return
-    elsif kind == :opassign && SKELETON_LOGICAL_OP_ASSIGNS.include?(op_assign_op(node[2]).to_s)
-      tokens << "if"
+    elsif kind == :opassign && SKELETON_LOGICAL_OP_ASSIGNS.key?(op_assign_op(node[2]).to_s)
+      tokens << SKELETON_LOGICAL_OP_ASSIGNS[op_assign_op(node[2]).to_s]
     elsif kind == :aref
       # Receiver, then the `[]` reach, then the index — as
       # extract-ts-api.ts#extractSkeleton emits an ElementAccessExpression.

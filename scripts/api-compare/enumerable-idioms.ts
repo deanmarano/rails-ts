@@ -190,3 +190,108 @@ export function partitionNegatedCalls(raw: Iterable<string>): {
   }
   return { calls, negated, foreignReads };
 }
+
+/**
+ * Ruby stdlib reaches whose faithful port is a CONTROL construct rather than a
+ * call — the skeleton twin of {@link JS_ENUMERABLE_ALIASES}, which records the
+ * same fact for the call gate (`any?` is `some`). A row states the control
+ * tokens the Ruby reach STANDS FOR, so `xs.filter_map { … }` (`ref:filter_map`)
+ * and its `for … of` + `if (x != null) out.push(x)` port (`loop if`) read as
+ * the same sequence instead of reporting an invented loop and an invented arm
+ * (RFC 0113; `compare.ts#foldSkeletonTokens` reads it).
+ *
+ * A value is a list of ALTERNATIVE token lists, the same alternation
+ * {@link JS_ENUMERABLE_ALIASES} expresses with its alias list: where a lowering
+ * has two legitimate shapes — `compact` as a `filter` callback or as a loop
+ * plus a guard — both are recorded and the fold takes whichever the counterpart
+ * stream supports. Every stdlib row carries the EMPTY alternative too, because
+ * each of these names also has a token-free JS spelling (`[...new Set(xs)]`,
+ * `push(...xs)`, `filter((x) => x != null)` — a callback predicate is an
+ * expression, not an arm). That is what keeps the fold one-directional: it
+ * credits at most the construct the port is actually showing, so it can never
+ * manufacture a missing arm, only cancel an invented one.
+ *
+ * A name whose port KEEPS a call is deliberately absent: `map`, `select`,
+ * `sum` and friends all have a JS method a faithful port names, so folding them
+ * would let a real dropped iteration read as a construct. And the fold is
+ * Ruby-side only (`compare.ts`), because several of these names are JS methods
+ * too — a TS `xs.concat(ys)` must not read as a loop.
+ */
+export const SKELETON_IDIOM_LOWERINGS = new Map<string, readonly (readonly string[])[]>([
+  // Hash's and Enumerable's `each_*` family plus `reverse_each`, each of which
+  // a port spells `for (const … of …)` (reversed, entry-destructured, or
+  // index-counted as the name demands) with no callee at all.
+  // `each_with_object` is here because JS has no `reduce`-with-seed spelling of
+  // it that a Rails-shaped body uses; `inject` is not, because `reduce` is.
+  ["each", [["loop"]]],
+  ["each_key", [["loop"]]],
+  ["each_value", [["loop"]]],
+  ["each_pair", [["loop"]]],
+  ["each_entry", [["loop"]]],
+  ["each_index", [["loop"]]],
+  ["each_with_index", [["loop"]]],
+  ["each_with_object", [["loop"]]],
+  ["reverse_each", [["loop"]]],
+  // `parent_classes.filter_map { |k| … }`
+  // (activerecord/lib/active_record/associations/preloader/branch.rb:55) — no
+  // JS method both filters and maps, so the port is a loop whose `if` decides
+  // whether to push. Clears audit row 58.
+  ["filter_map", [[], ["loop", "if"]]],
+  // `(… + …).uniq` (preloader/branch.rb:28,33,39,45,47,49) — spelled as a `Set`
+  // round-trip, as a `filter` callback whose `if` tests a seen-set, or as a loop
+  // around that same test. Clears audit row 36.
+  ["uniq", [[], ["if"], ["loop", "if"]]],
+  // `parameterized_parts.compact!`
+  // (actionpack/lib/action_dispatch/journey/formatter.rb:139) and
+  // `values.compact` (activerecord/lib/active_record/relation/query_methods.rb:732) —
+  // a `filter` callback carrying the null test, or the same test inside a loop.
+  // Part of audit row 35.
+  ["compact", [[], ["if"], ["loop", "if"]]],
+  ["compact!", [[], ["if"], ["loop", "if"]]],
+  // `route.parts.reverse_each.drop_while { |part| … }`
+  // (journey/formatter.rb:123) — a loop whose `if` breaks. `take_while` is its
+  // complement and lowers identically; Rails' own uses are all `drop_while`.
+  // Part of audit row 35.
+  ["drop_while", [[], ["loop", "if"]]],
+  ["take_while", [[], ["loop", "if"]]],
+  // `parameterized_parts.delete_if { |bad_key, _| … }`
+  // (journey/formatter.rb:127) and its alias `reject!`
+  // (actionpack/lib/action_controller/metal/strong_parameters.rb:966-970) —
+  // an in-place removal, so the port loops and splices under a guard.
+  // Part of audit row 35.
+  ["delete_if", [[], ["loop", "if"]]],
+  ["reject!", [[], ["loop", "if"]]],
+  // `@records.concat @lazy_enrollment_records.values`
+  // (activerecord/lib/active_record/connection_adapters/abstract/transaction.rb:221) —
+  // Ruby's mutating `concat` is a `push` loop in a port that cannot spread an
+  // unbounded array. Part of audit row 31.
+  ["concat", [[], ["loop"]]],
+  // `value.dig("session_id", "public_id")`
+  // (actionpack/lib/action_controller/metal/request_forgery_protection.rb:343) —
+  // an optional-chain `a?.b?.c`, which emits nothing, or a spelled-out guard
+  // chain.
+  ["dig", [[], ["if"]]],
+]);
+
+/**
+ * The alternative lowering of `rubyName` that `counterpart` — the OTHER side's
+ * folded skeleton — shows, or undefined when the name has no row. An alternative is
+ * eligible only when the counterpart carries EVERY one of its tokens, and the
+ * longest eligible one wins; with none eligible the shortest alternative does.
+ * Partial support is not support: crediting `loop if` against a port that shows
+ * only the `if` would turn a spelling difference into a missing `loop`, which is
+ * the direction this fold must never move in.
+ */
+export function skeletonIdiomLowering(
+  rubyName: string,
+  counterpart: readonly string[] | undefined,
+): readonly string[] | undefined {
+  const alternatives = SKELETON_IDIOM_LOWERINGS.get(rubyName);
+  if (alternatives === undefined) return undefined;
+  const shortest = alternatives.reduce((a, b) => (b.length < a.length ? b : a));
+  const supported = alternatives.filter((alternative) =>
+    alternative.every((token) => counterpart?.includes(token)),
+  );
+  if (supported.length === 0) return shortest;
+  return supported.reduce((a, b) => (b.length > a.length ? b : a));
+}
