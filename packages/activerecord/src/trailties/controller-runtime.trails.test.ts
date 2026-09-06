@@ -220,6 +220,9 @@ describe("ControllerRuntimeTest", () => {
       const controller = new SeatController() as SeatController & { dbRuntime: number | null };
       expect(controller.dbRuntime).toBe(null);
       expect(Object.hasOwn(controller, "dbRuntime")).toBe(true);
+
+      controller.dbRuntime = 1.5;
+      expect(Object.hasOwn(controller, "dbRuntime")).toBe(true);
       expect(new SeatController() as unknown as { dbRuntime: unknown }).toMatchObject({
         dbRuntime: null,
       });

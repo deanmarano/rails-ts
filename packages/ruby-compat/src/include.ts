@@ -28,7 +28,7 @@ type AnyFunction = (...args: never) => unknown;
 type ModuleHooks = {
   [included]?: (klass: unknown) => void;
   [extended]?: (klass: unknown) => void;
-  [initialize]?: (receiver: object) => void;
+  [initialize]?: (this: object) => void;
 };
 
 /**
@@ -208,7 +208,7 @@ const instanceInitializers = Symbol.for("@blazetrails/ruby-compat:instanceInitia
  * JavaScript has no construction hook a mixin can splice into.
  */
 export function initializeIncludedModules(instance: object): void {
-  const chain: Array<Array<(receiver: object) => void>> = [];
+  const chain: Array<Array<(this: object) => void>> = [];
   for (
     let proto: object | null = Object.getPrototypeOf(instance) as object | null;
     proto;
@@ -216,17 +216,17 @@ export function initializeIncludedModules(instance: object): void {
   ) {
     if (!Object.prototype.hasOwnProperty.call(proto, instanceInitializers)) continue;
     chain.unshift(
-      (proto as Record<symbol, unknown>)[instanceInitializers] as Array<(receiver: object) => void>,
+      (proto as Record<symbol, unknown>)[instanceInitializers] as Array<(this: object) => void>,
     );
   }
   for (const initializers of chain) {
-    for (const initializer of initializers) initializer.call(instance, instance);
+    for (const initializer of initializers) initializer.call(instance);
   }
 }
 
-function trackInstanceInitializer(proto: object, initializer: (receiver: object) => void): void {
+function trackInstanceInitializer(proto: object, initializer: (this: object) => void): void {
   let list = (proto as Record<symbol, unknown>)[instanceInitializers] as
-    | Array<(receiver: object) => void>
+    | Array<(this: object) => void>
     | undefined;
   if (!Object.prototype.hasOwnProperty.call(proto, instanceInitializers)) {
     list = [];

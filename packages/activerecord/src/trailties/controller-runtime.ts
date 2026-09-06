@@ -118,7 +118,7 @@ export const ControllerRuntime = {
     base.logProcessAction = logProcessAction;
   },
 
-  [initialize](receiver: object): void {
-    (receiver as ControllerRuntimeHost).dbRuntime = null;
+  [initialize](this: ControllerRuntimeHost): void {
+    this.dbRuntime = null;
   },
 };

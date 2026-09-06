@@ -28,8 +28,8 @@ describe("initializeIncludedModules", () => {
       }
     }
     const mod = {
-      [initialize](receiver: object) {
-        (receiver as DynProps).dbRuntime = null;
+      [initialize](this: DynProps) {
+        this.dbRuntime = null;
       },
     };
     include(Controller, mod);
@@ -60,8 +60,8 @@ describe("initializeIncludedModules", () => {
       }
     }
     include(Base, {
-      [initialize](receiver: object) {
-        (receiver as DynProps).seated = true;
+      [initialize](this: DynProps) {
+        this.seated = true;
       },
     });
     class Sub extends Base {}
