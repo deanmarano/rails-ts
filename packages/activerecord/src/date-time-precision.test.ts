@@ -118,15 +118,15 @@ describe("DateTimePrecisionTest", () => {
       const Foo = makeFoo();
       await Foo.loadSchema();
 
-      const date = Temporal.Instant.from("2014-08-17T12:30:00.999999Z");
+      const date = RubyTime.utc(2014, 8, 17, 12, 30, 0, 999999);
       await (Foo as any).create({ created_at: date, updated_at: date });
 
       const foo = await (Foo as any).findBy({ created_at: date });
       expect(foo).not.toBeNull();
       expect(await (Foo as any).where({ updated_at: date }).count()).toBe(1);
-
-      expect(foo.created_at).toEqual(RubyTime.utc(2014, 8, 17, 12, 30, 0));
-      expect(foo.updated_at).toEqual(RubyTime.utc(2014, 8, 17, 12, 30, 0, 999900));
+      expect((foo.created_at as RubyTime).toI()).toBe(date.toI());
+      expect((foo.created_at as RubyTime).toS()).toBe(date.toS());
+      expect((foo.updated_at as RubyTime).toS()).toBe(date.toS());
       expect((foo.created_at as RubyTime).usec).toBe(0);
       expect((foo.updated_at as RubyTime).usec).toBe(999900);
     },
