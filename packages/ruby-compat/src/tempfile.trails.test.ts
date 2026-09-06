@@ -170,4 +170,36 @@ describe("Tempfile", () => {
     tempfile.close();
     tempfile.unlink();
   });
+
+  it("open reopens the closed stream at the same path and to_io answers it", () => {
+    const tempfile = Tempfile.new("reopen");
+    tempfile.write("thunderhorse");
+    const path = tempfile.path!;
+    tempfile.close();
+    expect(tempfile.isClosed()).toBe(true);
+
+    const reopened = tempfile.open();
+    expect(tempfile.isClosed()).toBe(false);
+    expect(reopened).toBe(tempfile.toIo());
+    expect(tempfile.toPath()).toBe(path);
+    expect(tempfile.read()).toBe("thunderhorse");
+
+    tempfile.close();
+    tempfile.unlink();
+  });
+
+  it("read takes a length and a buffer and answers null at EOF", () => {
+    const tempfile = Tempfile.new("read");
+    tempfile.write("thunderhorse");
+    tempfile.rewind();
+
+    expect(tempfile.read(7)).toBe("thunder");
+    const buffer = new Uint8Array(5);
+    expect(tempfile.read(5, buffer)).toBe("horse");
+    expect(String.fromCharCode(...buffer)).toBe("horse");
+    expect(tempfile.read(1)).toBeNull();
+
+    tempfile.close();
+    tempfile.unlink();
+  });
 });

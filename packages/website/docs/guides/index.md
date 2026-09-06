@@ -178,7 +178,7 @@ of the stack:
   at runtime when available; a browser host registers an in-memory or
   OPFS-backed implementation. Callers use `getFs()`.
 - **`CryptoAdapter`** (`crypto-adapter.ts`) — `randomBytes`,
-  `randomUUID`, `createHash`, `createHmac`, `createCipheriv`,
+  `createHash`, `createHmac`, `createCipheriv`,
   `pbkdf2Sync`, `timingSafeEqual`. Auto-registers a Node-crypto wrapper;
   browsers register a `window.crypto`-based adapter. Callers use
   `getCrypto()`.

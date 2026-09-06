@@ -80,7 +80,6 @@ describe("registerCryptoAdapter", () => {
   it("fails at the seam naming the member a partial adapter does not implement", () => {
     const partial = {
       randomBytes: (size: number) => new Uint8Array(size),
-      randomUUID: () => "00000000-0000-4000-8000-000000000000",
     } as unknown as CryptoAdapter;
 
     registerCryptoAdapter("partial", partial);
@@ -122,10 +121,9 @@ describe("getCrypto in a browser", () => {
       `const { getCrypto, pbkdf2Async } = await import(${module});\n` +
       `const crypto = getCrypto();\n` +
       `console.log(crypto.randomBytes(10).toString("hex").length);\n` +
-      `console.log(crypto.randomUUID().length);\n` +
       `console.log(crypto.timingSafeEqual(new Uint8Array([1, 2]), new Uint8Array([1, 2])));\n` +
       `console.log(crypto.timingSafeEqual(new Uint8Array([1, 2]), new Uint8Array([1, 3])));\n` +
-      `try { crypto.timingSafeEqual(new Uint8Array(1), new Uint8Array(2)); } catch (e) { console.log(e.constructor.name + ": " + e.message); }\n` +
+      `try { crypto.timingSafeEqual(new Uint8Array(1), new Uint8Array(2)); } catch (e) { console.log(e.constructor.name + ": " + e.message + " [" + e.code + "]"); }\n` +
       `console.log((await pbkdf2Async(crypto, "password", "salt", 2, 16, "sha256")).length);\n` +
       `try { crypto.createHash("sha256"); } catch (e) { console.log(e.message); }`;
 
@@ -140,10 +138,9 @@ describe("getCrypto in a browser", () => {
     expect(error).toBeNull();
     expect(stdout.split("\n")).toEqual([
       "20",
-      "36",
       "true",
       "false",
-      "RangeError: Input buffers must have the same byte length",
+      "RangeError: Input buffers must have the same byte length [ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH]",
       "16",
       'Crypto adapter "web" does not implement createHash.',
     ]);
