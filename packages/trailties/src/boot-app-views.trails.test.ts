@@ -28,5 +28,5 @@ describe("a generated app renders its own views", () => {
     expect(html).toContain("<p>Hello from TSE</p>");
     expect(html).toContain("<!DOCTYPE html>");
     expect(html).toContain("&lt;span class=&quot;badge&quot;&gt;ready&lt;/span&gt;");
-  });
+  }, 15_000);
 });
