@@ -7,6 +7,10 @@ import { SchemaDumper } from "../../schema-dumper.js";
 import { Temporal, Time as RubyTime } from "@blazetrails/date";
 import { TimeWithZone, TimeZone, setZone, BigDecimal } from "@blazetrails/activesupport";
 import { BigIntegerType, FloatType, IntegerType, StringType } from "@blazetrails/activemodel";
+import { Date as OidDate } from "../../connection-adapters/postgresql/oid/date.js";
+import { Decimal } from "../../connection-adapters/postgresql/oid/decimal.js";
+import { Timestamp } from "../../connection-adapters/postgresql/oid/timestamp.js";
+import { TimestampWithTimeZone } from "../../connection-adapters/postgresql/oid/timestamp-with-time-zone.js";
 import { fixtures } from "../../test-fixtures.js";
 
 beforeAll(() => {
@@ -19,11 +23,11 @@ afterAll(() => {
 
 const int4Range = new RangeType(new IntegerType(), "int4range");
 const int8Range = new RangeType(new BigIntegerType(), "int8range");
-const numRange = new RangeType(new FloatType(), "numrange");
+const numRange = new RangeType(new Decimal(), "numrange");
 const floatRange = new RangeType(new FloatType(), "floatrange");
-const dateRange = new RangeType(new StringType(), "daterange");
-const tsRange = new RangeType(new StringType(), "tsrange");
-const tstzRange = new RangeType(new StringType(), "tstzrange");
+const dateRange = new RangeType(new OidDate(), "daterange");
+const tsRange = new RangeType(new Timestamp(), "tsrange");
+const tstzRange = new RangeType(new TimestampWithTimeZone(), "tstzrange");
 const stringRange = new RangeType(new StringType(), "stringrange");
 
 fixtures({}, { useTransactionalTests: false });
@@ -173,15 +177,15 @@ describeIfPg("PostgreSQLAdapter", () => {
       await adapter.execute(`INSERT INTO postgresql_ranges (num_range) VALUES ('[0.1,0.2]')`);
       const rows = await adapter.execute(`SELECT num_range FROM postgresql_ranges`);
       const range = numRange.castValue(rows[0].num_range as string)!;
-      expect(range.begin).toBeCloseTo(0.1);
-      expect(range.end).toBeCloseTo(0.2);
+      expect((range.begin as BigDecimal).toString("F")).toBe("0.1");
+      expect((range.end as BigDecimal).toString("F")).toBe("0.2");
       expect(range.excludeEnd).toBe(false);
     });
 
     it("numrange type cast", async () => {
       const range = numRange.castValue("[0.1,0.2)")!;
-      expect(range.begin).toBeCloseTo(0.1);
-      expect(range.end).toBeCloseTo(0.2);
+      expect((range.begin as BigDecimal).toString("F")).toBe("0.1");
+      expect((range.end as BigDecimal).toString("F")).toBe("0.2");
       expect(range.excludeEnd).toBe(true);
     });
 
@@ -197,13 +201,13 @@ describeIfPg("PostgreSQLAdapter", () => {
       );
       const rows = await adapter.execute(`SELECT ts_range FROM postgresql_ranges`);
       const range = tsRange.castValue(rows[0].ts_range as string)!;
-      expect(range.begin as string).toContain("2010-01-01");
-      expect(range.end as string).toContain("2011-01-01");
+      expect((range.begin as RubyTime).toS()).toContain("2010-01-01");
+      expect((range.end as RubyTime).toS()).toContain("2011-01-01");
     });
 
     it("tsrange type cast", async () => {
       const range = tsRange.castValue('["2010-01-01 14:30:00","2011-01-01 14:30:00")')!;
-      expect(range.begin as string).toContain("2010-01-01");
+      expect((range.begin as RubyTime).toS()).toContain("2010-01-01");
       expect(range.excludeEnd).toBe(true);
     });
 
@@ -221,12 +225,12 @@ describeIfPg("PostgreSQLAdapter", () => {
       );
       const rows = await adapter.execute(`SELECT tstz_range FROM postgresql_ranges`);
       const range = tstzRange.castValue(rows[0].tstz_range as string)!;
-      expect(range.begin as string).toContain("2010-01-01");
+      expect((range.begin as RubyTime).toS()).toContain("2010-01-01");
     });
 
     it("tstzrange type cast", async () => {
       const range = tstzRange.castValue('["2010-01-01 14:30:00+00","2011-01-01 14:30:00+00")')!;
-      expect(range.begin as string).toContain("2010-01-01");
+      expect((range.begin as RubyTime).toS()).toContain("2010-01-01");
     });
 
     it("tstzrange write", async () => {
@@ -243,13 +247,13 @@ describeIfPg("PostgreSQLAdapter", () => {
       );
       const rows = await adapter.execute(`SELECT date_range FROM postgresql_ranges`);
       const range = dateRange.castValue(rows[0].date_range as string)!;
-      expect(range.begin).toBe("2012-01-02");
+      expect((range.begin as Temporal.PlainDate).toString()).toBe("2012-01-02");
     });
 
     it("daterange type cast", async () => {
       const range = dateRange.castValue("[2012-01-02,2012-01-04)")!;
-      expect(range.begin).toBe("2012-01-02");
-      expect(range.end).toBe("2012-01-04");
+      expect((range.begin as Temporal.PlainDate).toString()).toBe("2012-01-02");
+      expect((range.end as Temporal.PlainDate).toString()).toBe("2012-01-04");
     });
 
     it("daterange write", async () => {
@@ -407,26 +411,26 @@ describeIfPg("PostgreSQLAdapter", () => {
 
     it("daterange values", () => {
       const r = dateRange.castValue("[2012-01-02,2012-01-05)")!;
-      expect(r.begin).toBe("2012-01-02");
-      expect(r.end).toBe("2012-01-05");
+      expect((r.begin as Temporal.PlainDate).toString()).toBe("2012-01-02");
+      expect((r.end as Temporal.PlainDate).toString()).toBe("2012-01-05");
     });
 
     it("numrange values", () => {
       const r = numRange.castValue("[0.1,0.2]")!;
-      expect(r.begin).toBeCloseTo(0.1);
-      expect(r.end).toBeCloseTo(0.2);
+      expect((r.begin as BigDecimal).toString("F")).toBe("0.1");
+      expect((r.end as BigDecimal).toString("F")).toBe("0.2");
       expect(r.excludeEnd).toBe(false);
     });
 
     it("tsrange values", () => {
       const r = tsRange.castValue('["2010-01-01 14:30:00","2011-01-01 14:30:00")')!;
-      expect(r.begin as string).toContain("2010-01-01");
-      expect(r.end as string).toContain("2011-01-01");
+      expect((r.begin as RubyTime).toS()).toContain("2010-01-01");
+      expect((r.end as RubyTime).toS()).toContain("2011-01-01");
     });
 
     it("tstzrange values", () => {
       const r = tstzRange.castValue('["2010-01-01 14:30:00+00","2011-01-01 14:30:00+00")')!;
-      expect(r.begin as string).toContain("2010-01-01");
+      expect((r.begin as RubyTime).toS()).toContain("2010-01-01");
     });
 
     it("custom range values", () => {
