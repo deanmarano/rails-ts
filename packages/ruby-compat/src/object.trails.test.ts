@@ -35,9 +35,10 @@ describe("Object#to_s", () => {
 });
 
 describe("Object#respond_to?", () => {
-  it("answers for a method the receiver's class defines, and false for nil", () => {
+  it("answers for a method the receiver's class defines, nil included", () => {
     expect(basicObjRespondTo({ id: 1 }, "id")).toBe(true);
     expect(basicObjRespondTo({}, "id")).toBe(false);
+    expect(basicObjRespondTo(null, "toString")).toBe(true);
     expect(basicObjRespondTo(null, "id")).toBe(false);
   });
 
