@@ -3298,11 +3298,6 @@ export function main() {
     const tsCallsByFileName = new Map<string, Map<string, string[][]>>();
     const tsCallSeqByFileName = new Map<string, Map<string, string[][]>>();
     const tsSkeletonByFileName = new Map<string, Map<string, string[][]>>();
-    // The NON-exported file-local helpers' skeletons, kept in their own map so
-    // the compared population above is unchanged (a file-local helper matches
-    // no Ruby entity) while a body that delegates to one can still resolve the
-    // reach — including a method delegating to a top-level function of its own
-    // name. See the skeleton resolver below.
     const tsLocalSkeletonByFileName = new Map<string, Map<string, string[][]>>();
     const tsCallArgsByFileName = new Map<string, Map<string, CallSite[][]>>();
     // The same two populations narrowed by declaring class (file → name → owner
@@ -4133,18 +4128,12 @@ export function main() {
         const rubySkeleton = rubySkeletonByName.get(rubyName);
         const tsSkeletons = tsSkeletonByFileName.get(tsFile)?.get(tsName);
         if (rubySkeleton !== undefined && tsSkeletons?.length === 1) {
-          // A compared member first, then a file-local helper of that name:
-          // the two populations are disjoint by construction, so the order
-          // only decides which one a name declared on both resolves to.
           const tsSkeletonOf = (name: string) => {
             const sets = tsSkeletonByFileName.get(tsFile)?.get(name);
             if (sets?.length === 1) return sets[0];
             const local = tsLocalSkeletonByFileName.get(tsFile)?.get(name);
             return local?.length === 1 ? local[0] : undefined;
           };
-          // The file-local function the pair's own name ALSO names, when there
-          // is exactly one — the helper a same-named method delegates to
-          // (`markOccurrence`), which is a reach and not recursion.
           const localSets = tsLocalSkeletonByFileName.get(tsFile)?.get(tsName);
           const tsOwnNameDelegate = localSets?.length === 1 ? localSets[0] : undefined;
           const tsFolded = foldSkeletonTokens(tsSkeletons[0], "ts");
