@@ -59,14 +59,15 @@ describe("action_controller.include_all_helpers", () => {
     deprecators = new Deprecators();
     const routes = new RouteSet();
     root = mkdtempSync(join(tmpdir(), "include-all-helpers-"));
-    mkdirSync(join(root, "nested"), { recursive: true });
+    mkdirSync(join(root, "fun"), { recursive: true });
+    writeFileSync(join(root, "abc-helper.ts"), "export const AbcHelper = { bareA: () => 'a' };");
     writeFileSync(
-      join(root, "application-helper.ts"),
-      "export const ApplicationHelper = { statusBadge: (s) => `badge:${s}` };",
+      join(root, "fun", "games-helper.ts"),
+      "export const GamesHelper = { stratego: () => 'Iz guuut!' };",
     );
     writeFileSync(
-      join(root, "nested", "admin-helper.ts"),
-      "export const AdminHelper = { adminBadge: () => 'admin' };",
+      join(root, "fun", "pdf-helper.ts"),
+      "export const PdfHelper = { foobar: () => 'baz' };",
     );
     app = { deprecators, routes: () => routes, config: { helpersPaths: [root] } };
     savedConfig = structuredClone(
@@ -84,20 +85,15 @@ describe("action_controller.include_all_helpers", () => {
     return HelpersReceiver as unknown as AbstractController.HelpersClassMethods;
   }
 
-  it("includes every module under config.helpersPaths", async () => {
+  it("test_all_helpers", async () => {
     const base = receivingController();
     await runTrailtieInitializers(Trailtie, app);
     runLoadHooks("action_controller", base);
 
-    expect(base._helpers!.statusBadge.call({}, "ready")).toBe("badge:ready");
-  });
-
-  it("includes helpers from a nested directory", async () => {
-    const base = receivingController();
-    await runTrailtieInitializers(Trailtie, app);
-    runLoadHooks("action_controller", base);
-
-    expect(base._helpers!.adminBadge.call({})).toBe("admin");
+    const methods = base._helpers!;
+    expect(typeof methods.bareA).toBe("function");
+    expect(typeof methods.stratego).toBe("function");
+    expect(typeof methods.foobar).toBe("function");
   });
 
   it("includes nothing when config.actionController.includeAllHelpers is false", async () => {
@@ -108,7 +104,7 @@ describe("action_controller.include_all_helpers", () => {
     await runTrailtieInitializers(Trailtie, app);
     runLoadHooks("action_controller", base);
 
-    expect(base._helpers?.statusBadge).toBeUndefined();
+    expect(base._helpers?.bareA).toBeUndefined();
   });
 
   it("includes nothing when the app has no app/helpers directory", async () => {
@@ -118,6 +114,6 @@ describe("action_controller.include_all_helpers", () => {
     await runTrailtieInitializers(Trailtie, app);
     runLoadHooks("action_controller", base);
 
-    expect(base._helpers?.statusBadge).toBeUndefined();
+    expect(base._helpers?.bareA).toBeUndefined();
   });
 });

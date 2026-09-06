@@ -57,6 +57,7 @@ export class Trailtie extends BaseTrailtie {
       },
     );
 
+    /** @noRailsEquivalent CONVERGEABLE port-action-controller-helpers-and-the-inherited-hook */
     this.initializer(
       "action_controller.include_all_helpers",
       { after: "prepend_helpers_path" },
