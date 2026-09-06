@@ -48,7 +48,9 @@ export function modulesForHelpers(
   args: ReadonlyArray<HelperMethodsModule | string | symbol | Array<unknown>>,
   options: ResolutionOptions = { resolve: applicationHelperResolver() },
 ): HelperMethodsModule[] {
-  const rest = (args as readonly unknown[]).filter((arg) => arg !== "all");
+  const rest = (args as readonly unknown[]).filter(
+    (arg) => !(arg === "all" || (typeof arg === "symbol" && arg.description === "all")),
+  );
   const argsWithAll = rest.length === args.length ? rest : [...rest, ...allApplicationHelpers()];
   return abstractModulesForHelpers(
     argsWithAll as ReadonlyArray<HelperMethodsModule | string | symbol | Array<unknown>>,
