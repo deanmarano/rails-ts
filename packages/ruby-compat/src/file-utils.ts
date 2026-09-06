@@ -123,28 +123,6 @@ function fuEachSrcDest(
   });
 }
 
-/** `Entry_#join` (`vendor/ruby/lib/fileutils.rb:2432-2446`). */
-function join(dir: string | null, base: string | null): string {
-  if (base == null || base === ".") return dir as string;
-  if (dir == null || dir === ".") return base;
-  return File.join(dir, base);
-}
-
-/**
- * `Entry_#descendant_directory?` (`vendor/ruby/lib/fileutils.rb:2452-2458`),
- * the guard `Entry_#copy`'s directory arm raises on (`fileutils.rb:2245-2247`).
- */
-function descendantDirectory(descendant: string, ascendant: string): boolean {
-  if (File.FNM_SYSCASE !== 0) {
-    return (
-      File.expandPath(File.dirname(descendant)).toLowerCase() ===
-      File.expandPath(ascendant).toLowerCase()
-    );
-  } else {
-    return File.expandPath(File.dirname(descendant)) === File.expandPath(ascendant);
-  }
-}
-
 /**
  * `File.lchown` (`vendor/ruby/file.c:3567`), which raises `NotImplementedError`
  * on a platform whose C library has no `lchown` — spelled here as a backend
@@ -204,11 +182,12 @@ function fileUtime(atime: Date, mtime: Date, path: string): void {
  * (`fileutils.rb:1044-1052`) hands it two procs, `remove_entry`
  * (`fileutils.rb:1450`) traverses it in postorder.
  *
- * `stat` / `stat!` / `link` / `platform_support` and the `chardev?`-through-
- * `door?` predicates are only reachable from members no Rails body sends, and
- * `fu_windows?` is false for every backend here, so `platform_support`'s retry
- * has no arm to select. `Entry_#copy`'s special-file arms read the backend's
- * own `FsStatResult` predicates in their place.
+ * `stat` / `stat!` / `link` and `platform_support` are only reachable from
+ * members no Rails body sends, and `fu_windows?` is false for every backend
+ * here, so `platform_support`'s retry has no arm to select either. The
+ * `chardev?`-through-`pipe?` predicates read the backend's own `FsStatResult`
+ * predicates, which are optional on the contract and answer false when a
+ * backend has none.
  */
 class Entry_ {
   private readonly _prefix: string | null = null;
@@ -216,6 +195,9 @@ class Entry_ {
   private readonly _path: string | null = null;
   private readonly _deref: boolean;
   private _lstat: FsStatResult | null = null;
+
+  /** `Entry_::S_IF_DOOR` (`vendor/ruby/lib/fileutils.rb:2153`). */
+  static readonly S_IF_DOOR = 0xd000;
 
   /** `Entry_#initialize` (`vendor/ruby/lib/fileutils.rb:2072-2083`). */
   constructor(a: string, b: string | null = null, deref = false) {
@@ -233,7 +215,7 @@ class Entry_ {
     if (this._path != null) {
       return this._path;
     } else {
-      return join(this.prefix, this.rel);
+      return this.join(this.prefix, this.rel);
     }
   }
 
@@ -270,11 +252,41 @@ class Entry_ {
     return s != null && s.isSymbolicLink?.() === true;
   }
 
+  /** `Entry_#chardev?` (`vendor/ruby/lib/fileutils.rb:2133-2136`). */
+  get isChardev(): boolean {
+    const s = this.lstatQ();
+    return s != null && s.isCharacterDevice?.() === true;
+  }
+
+  /** `Entry_#blockdev?` (`vendor/ruby/lib/fileutils.rb:2138-2141`). */
+  get isBlockdev(): boolean {
+    const s = this.lstatQ();
+    return s != null && s.isBlockDevice?.() === true;
+  }
+
+  /** `Entry_#socket?` (`vendor/ruby/lib/fileutils.rb:2143-2146`). */
+  get isSocket(): boolean {
+    const s = this.lstatQ();
+    return s != null && s.isSocket?.() === true;
+  }
+
+  /** `Entry_#pipe?` (`vendor/ruby/lib/fileutils.rb:2148-2151`). */
+  get isPipe(): boolean {
+    const s = this.lstatQ();
+    return s != null && s.isFIFO?.() === true;
+  }
+
+  /** `Entry_#door?` (`vendor/ruby/lib/fileutils.rb:2155-2158`). */
+  get isDoor(): boolean {
+    const s = this.lstatQ();
+    return s != null && (s.mode & 0xf000) === Entry_.S_IF_DOOR;
+  }
+
   /** `Entry_#entries` (`vendor/ruby/lib/fileutils.rb:2159-2167`). */
   entries(): Entry_[] {
     const files = Dir.children(this.path);
 
-    return files.map((n) => new Entry_(this.prefix as string, join(this.rel, n)));
+    return files.map((n) => new Entry_(this.prefix as string, this.join(this.rel, n)));
   }
 
   /**
@@ -307,15 +319,14 @@ class Entry_ {
    * The `socket?` and `pipe?` arms each raise before their copy under an
    * interpreter that answers no `UNIXServer` (`fileutils.rb:2258-2263`) and no
    * `File.mkfifo` (`fileutils.rb:2267`); neither constant exists here, so those
-   * are the arms taken. `door?` (`:2269`) is Solaris-only and no backend answers
-   * a predicate for it, so a door reaches the true `else` (`:2273`).
+   * are the arms taken.
    */
   copy(dest: string): void {
-    const st = this.lstat();
+    this.lstat();
     if (this.isFile) {
       this.copyFile(dest);
     } else if (this.isDirectory) {
-      if (!File.isExist(dest) && descendantDirectory(dest, this.path)) {
+      if (!File.isExist(dest) && this.isDescendantDirectory(dest, this.path)) {
         throw new ArgumentError(`cannot copy directory ${this.path} to itself ${dest}`);
       }
       try {
@@ -325,12 +336,14 @@ class Entry_ {
       }
     } else if (this.isSymlink) {
       fileSymlink(fileReadlink(this.path), dest);
-    } else if (st.isCharacterDevice?.() === true || st.isBlockDevice?.() === true) {
+    } else if (this.isChardev || this.isBlockdev) {
       throw new Error("cannot handle device file");
-    } else if (st.isSocket?.() === true) {
+    } else if (this.isSocket) {
       throw new Error("cannot handle socket");
-    } else if (st.isFIFO?.() === true) {
+    } else if (this.isPipe) {
       throw new Error("cannot handle FIFO");
+    } else if (this.isDoor) {
+      throw new Error(`cannot handle door: ${this.path}`);
     } else {
       throw new Error(`unknown file type: ${this.path}`);
     }
@@ -348,7 +361,7 @@ class Entry_ {
     if (!symlink) {
       fileUtime(st.atime, st.mtime, path);
     }
-    let mode = st.mode ?? 0o644;
+    let mode = st.mode;
     try {
       if (symlink) {
         try {
@@ -435,6 +448,28 @@ class Entry_ {
       }
     }
     post(this);
+  }
+
+  /** `Entry_#join` (`vendor/ruby/lib/fileutils.rb:2432-2446`). */
+  private join(dir: string | null, base: string | null): string {
+    if (base == null || base === ".") return dir as string;
+    if (dir == null || dir === ".") return base;
+    return File.join(dir, base);
+  }
+
+  /**
+   * `Entry_#descendant_directory?` (`vendor/ruby/lib/fileutils.rb:2452-2458`),
+   * the guard `Entry_#copy`'s directory arm raises on (`fileutils.rb:2245-2247`).
+   */
+  private isDescendantDirectory(descendant: string, ascendant: string): boolean {
+    if (File.FNM_SYSCASE !== 0) {
+      return (
+        File.expandPath(File.dirname(descendant)).toLowerCase() ===
+        File.expandPath(ascendant).toLowerCase()
+      );
+    } else {
+      return File.expandPath(File.dirname(descendant)) === File.expandPath(ascendant);
+    }
   }
 }
 
@@ -563,13 +598,13 @@ export class FileUtils {
    * `Entry_#copy`'s `socket?` and `pipe?` arms each raise before their copy under
    * an interpreter that answers no `UNIXServer` (`fileutils.rb:2258-2263`) and no
    * `File.mkfifo` (`fileutils.rb:2267`); neither constant exists here, so those
-   * are the arms taken. `door?` (`:2269`) is Solaris-only and no backend answers
-   * a predicate for it, so a door reaches the true `else` (`:2273`).
+   * are the arms taken.
    *
    * `dereference_root` rewrites the root through `File.realpath`
    * (`fileutils.rb:1041-1043`) so a symlinked root is copied as its target, and
    * `remove_destination` unlinks an existing destination entry before each copy
-   * (`fileutils.rb:1047`).
+   * (`fileutils.rb:1047`), through `File.delete` — the name Ruby's `File.unlink`
+   * is an alias of (`vendor/ruby/file.c:3202`).
    *
    * @noRailsEquivalent PERMANENT — Ruby stdlib `FileUtils` module function.
    */
