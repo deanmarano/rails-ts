@@ -51,10 +51,10 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("point type cast", async () => {
-      const p = pointType.cast("(1.5,2.3)");
+      const p = pointType.cast("(1.5,2.3)") as PointValue;
       expect(p).toBeInstanceOf(PointValue);
-      expect(p!.x).toBeCloseTo(1.5);
-      expect(p!.y).toBeCloseTo(2.3);
+      expect(p.x).toBeCloseTo(1.5);
+      expect(p.y).toBeCloseTo(2.3);
     });
 
     it("point write", async () => {
@@ -62,9 +62,9 @@ describeIfPg("PostgreSQLAdapter", () => {
         "(10,25.2)",
       ]);
       const rows = await adapter.execute(`SELECT x FROM postgresql_points`);
-      const p = pointType.cast(rows[0].x);
-      expect(p!.x).toBeCloseTo(10);
-      expect(p!.y).toBeCloseTo(25.2);
+      const p = pointType.cast(rows[0].x) as PointValue;
+      expect(p.x).toBeCloseTo(10);
+      expect(p.y).toBeCloseTo(25.2);
     });
 
     it("column", async () => {
@@ -91,15 +91,15 @@ describeIfPg("PostgreSQLAdapter", () => {
         "(10,25.2)",
       ]);
       const rows = await adapter.execute(`SELECT x FROM postgresql_points`);
-      const p = pointType.cast(rows[0].x);
-      expect(p!.x).toBeCloseTo(10);
-      expect(p!.y).toBeCloseTo(25.2);
+      const p = pointType.cast(rows[0].x) as PointValue;
+      expect(p.x).toBeCloseTo(10);
+      expect(p.y).toBeCloseTo(25.2);
 
       await adapter.execQuery(`UPDATE postgresql_points SET x = $1`, "SQL", ["(30,40)"]);
       const rows2 = await adapter.execute(`SELECT x FROM postgresql_points`);
-      const p2 = pointType.cast(rows2[0].x as string);
-      expect(p2!.x).toBeCloseTo(30);
-      expect(p2!.y).toBeCloseTo(40);
+      const p2 = pointType.cast(rows2[0].x as string) as PointValue;
+      expect(p2.x).toBeCloseTo(30);
+      expect(p2.y).toBeCloseTo(40);
     });
 
     it("mutation", () => {
@@ -110,24 +110,24 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("array assignment", () => {
-      const p = pointType.cast([1, 2]);
+      const p = pointType.cast([1, 2]) as PointValue;
       expect(p).toBeInstanceOf(PointValue);
-      expect(p!.x).toBe(1);
-      expect(p!.y).toBe(2);
+      expect(p.x).toBe(1);
+      expect(p.y).toBe(2);
     });
 
     it("hash assignment", () => {
-      const p = pointType.cast({ x: 1, y: 2 });
+      const p = pointType.cast({ x: 1, y: 2 }) as PointValue;
       expect(p).toBeInstanceOf(PointValue);
-      expect(p!.x).toBe(1);
-      expect(p!.y).toBe(2);
+      expect(p.x).toBe(1);
+      expect(p.y).toBe(2);
     });
 
     it("string assignment", () => {
-      const p = pointType.cast("(1, 2)");
+      const p = pointType.cast("(1, 2)") as PointValue;
       expect(p).toBeInstanceOf(PointValue);
-      expect(p!.x).toBe(1);
-      expect(p!.y).toBe(2);
+      expect(p.x).toBe(1);
+      expect(p.y).toBe(2);
     });
 
     it("empty string assignment", () => {
@@ -173,9 +173,9 @@ describeIfPg("PostgreSQLAdapter", () => {
       await adapter.execQuery(`INSERT INTO postgresql_points (x) VALUES ($1)`, "SQL", ["(5,10)"]);
       const rows = await adapter.execute(`SELECT x FROM postgresql_points`);
       expect(rows[0].x).toBeTruthy();
-      const p = pointType.cast(rows[0].x);
-      expect(p!.x).toBeCloseTo(5);
-      expect(p!.y).toBeCloseTo(10);
+      const p = pointType.cast(rows[0].x) as PointValue;
+      expect(p.x).toBeCloseTo(5);
+      expect(p.y).toBeCloseTo(10);
     });
 
     it("legacy mutation", () => {
