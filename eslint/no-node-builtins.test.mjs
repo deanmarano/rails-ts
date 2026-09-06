@@ -66,7 +66,7 @@ tester.run("no-node-builtins", rule, {
     },
     // A member with no Ruby seat is reported without a fix
     {
-      code: 'import * as fs from "fs";\nfs.readFileSync("x", "utf-8");',
+      code: 'import * as fs from "fs";\nfs.openSync("x", "r");',
       errors: [{ messageId: "useAdapter" }],
       output: null,
     },
@@ -130,6 +130,59 @@ tester.run("no-node-builtins", rule, {
       code: 'const fs = require("fs");',
       errors: [{ messageId: "useAdapter" }],
     },
+    // readFileSync drops the encoding argument — File.read answers a String
+    {
+      code: 'import { readFileSync } from "fs";\nreadFileSync("x", "utf-8");',
+      errors: [{ messageId: "useAdapter" }],
+      output: 'import { File } from "@blazetrails/ruby-compat";\nFile.read("x");',
+    },
+    // writeFileSync's two-argument arm keeps its arguments
+    {
+      code: 'import * as fs from "fs";\nfs.writeFileSync("x", "y");',
+      errors: [{ messageId: "useAdapter" }],
+      output: 'import { File } from "@blazetrails/ruby-compat";\nFile.write("x", "y");',
+    },
+    // writeFileSync's options arm has no seat — autofix declines
+    {
+      code: 'import * as fs from "fs";\nfs.writeFileSync("x", "y", "utf-8");',
+      errors: [{ messageId: "useAdapter" }],
+      output: null,
+    },
+    // chmodSync reorders: File.chmod takes the mode first
+    {
+      code: 'import * as fs from "fs";\nfs.chmodSync("x", 0o600);',
+      errors: [{ messageId: "useAdapter" }],
+      output: 'import { File } from "@blazetrails/ruby-compat";\nFile.chmod(0o600, "x");',
+    },
+    // path.resolve reorders: File.expandPath takes the name first
+    {
+      code: 'import { resolve } from "path";\nresolve(dir, name);',
+      errors: [{ messageId: "useAdapter" }],
+      output: 'import { File } from "@blazetrails/ruby-compat";\nFile.expandPath(name, dir);',
+    },
+    // mkdirSync drops the recursive option — FileUtils.mkdirP is already recursive
+    {
+      code: 'import * as fs from "fs";\nfs.mkdirSync(d, { recursive: true });',
+      errors: [{ messageId: "useAdapter" }],
+      output: 'import { FileUtils } from "@blazetrails/ruby-compat";\nFileUtils.mkdirP(d);',
+    },
+    // Pure renames need no transform
+    {
+      code: 'import * as path from "path";\npath.isAbsolute("x");',
+      errors: [{ messageId: "useAdapter" }],
+      output: 'import { File } from "@blazetrails/ruby-compat";\nFile.isAbsolutePath("x");',
+    },
+    {
+      code: 'import * as fs from "fs";\nfs.realpathSync("x");',
+      errors: [{ messageId: "useAdapter" }],
+      output: 'import { File } from "@blazetrails/ruby-compat";\nFile.realpath("x");',
+    },
+    // A transforming member passed as a value rather than called — autofix declines
+    {
+      code: 'import { readFileSync } from "fs";\nuse(readFileSync);',
+      errors: [{ messageId: "useAdapter" }],
+      output: null,
+    },
     // ruby-compat is no longer a special case: the seat it is pointed at is its own
     {
       filename: "/repo/packages/ruby-compat/src/hash.ts",
@@ -145,9 +198,10 @@ describe("no-node-builtins seats", () => {
   it("every seat the autofix writes exists on @blazetrails/ruby-compat", () => {
     for (const [builtin, replacement] of Object.entries(RUBY_COMPAT_REPLACEMENTS)) {
       expect(rubyCompat[replacement.importName], builtin).toBeDefined();
-      for (const seat of Object.values(replacement.members ?? {})) {
-        const [receiver, member] = seat.split(".");
-        expect(rubyCompat[receiver][member], seat).toBeDefined();
+      for (const member of Object.values(replacement.members ?? {})) {
+        const seat = typeof member === "string" ? member : member.seat;
+        const [receiver, name] = seat.split(".");
+        expect(rubyCompat[receiver][name], seat).toBeDefined();
       }
     }
   });

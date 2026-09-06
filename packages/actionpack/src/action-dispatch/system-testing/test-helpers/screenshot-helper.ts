@@ -1,4 +1,4 @@
-import { File, getFs } from "@blazetrails/ruby-compat";
+import { Encoding, File, getFs } from "@blazetrails/ruby-compat";
 
 export interface ScreenshotPage {
   screenshot(options: { path: string }): Promise<Buffer>;
@@ -29,9 +29,7 @@ export function takeScreenshot(
   incrementUnique.call(this);
   return (showingHtml ? saveHtml.call(this) : Promise.resolve())
     .then(() => saveImage.call(this))
-    .then((imageData) =>
-      show(displayImage.call(this, { html: showingHtml, screenshotOutput: screenshot, imageData })),
-    );
+    .then(() => show(displayImage.call(this, { html: showingHtml, screenshotOutput: screenshot })));
 }
 
 export async function takeFailedScreenshot(this: ScreenshotHelperHost): Promise<void> {
@@ -136,14 +134,14 @@ export function outputType(): string {
   );
 }
 
-/** @internal */
+/**
+ * @internal
+ * @missingRailsArgs read — PERMANENT
+ * @missingRailsArgs inline_base64 — PERMANENT
+ */
 export function displayImage(
   this: ScreenshotHelperHost,
-  {
-    html,
-    screenshotOutput,
-    imageData,
-  }: { html: boolean; screenshotOutput: string | null | undefined; imageData?: Buffer },
+  { html, screenshotOutput }: { html: boolean; screenshotOutput: string | null | undefined },
 ): string {
   const imgPath = imagePath.call(this);
   let message = `[Screenshot Image]: ${imgPath}\n`;
@@ -153,16 +151,19 @@ export function displayImage(
   if (mode === "artifact") {
     message += `\x1b]1338;url=artifact://${imgPath}\x07\n`;
   } else if (mode === "inline") {
-    const name = inlineBase64(File.basename(imgPath));
-    const image = imageData ? imageData.toString("base64") : "";
+    const name = inlineBase64(File.basename(absoluteImagePath.call(this)));
+    const image = inlineBase64(
+      File.read(absoluteImagePath.call(this), { encoding: Encoding.BINARY }),
+      Encoding.BINARY,
+    );
     message += `\x1b]1337;File=name=${name};height=400px;inline=1:${image}\x07\n`;
   }
   return message;
 }
 
 /** @internal */
-export function inlineBase64(path: string): string {
-  return Buffer.from(path).toString("base64");
+export function inlineBase64(path: string, enc: Encoding = Encoding.UTF_8): string {
+  return Buffer.from(path, enc === Encoding.BINARY ? "latin1" : "utf-8").toString("base64");
 }
 
 /** @internal */

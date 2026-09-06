@@ -10,11 +10,25 @@
 /**
  * The Ruby seat for each Node builtin trails packages reach for. `fs` and
  * `path` are `File` / `Dir` — Ruby's own file and directory API, not an adapter
- * accessor — so their usage-site rewrite is a static-method call, and only the
- * members whose Ruby counterpart takes the same arguments are rewritten; a
- * member with no seat is reported without a fix rather than autofixed into a
- * call that does not type-check. `crypto` has no Ruby class of its own, so it
- * keeps the `getCrypto()` adapter accessor.
+ * accessor — so their usage-site rewrite is a static-method call. A member
+ * whose seat takes the same arguments in the same order is a plain
+ * `"Receiver.member"` string and only its callee is rewritten; one whose seat
+ * reorders or drops an argument carries an `args` transform beside the seat,
+ * which is handed the source text of each argument and answers the list the
+ * seat is called with — or `null` for an arity the seat cannot serve, which
+ * declines the fix. A member with no seat at all is reported without a fix
+ * rather than autofixed into a call that does not type-check. `crypto` has no
+ * Ruby class of its own, so it keeps the `getCrypto()` adapter accessor.
+ *
+ * The transforms, each read off the seat's own signature:
+ *
+ * - `readFileSync` — `File.read(name)` answers a String already, so the
+ *   encoding argument has no seat and is dropped.
+ * - `writeFileSync` — `File.write(name, string)`; the options arm has none.
+ * - `chmodSync` — `File.chmod(mode, ...files)` takes the mode FIRST.
+ * - `mkdirSync` — `FileUtils.mkdirP(list)` is already recursive, so
+ *   `{ recursive: true }` is dropped.
+ * - `resolve` — `File.expandPath(fileName, dirString)` takes the name FIRST.
  */
 export const RUBY_COMPAT_REPLACEMENTS = {
   fs: {
@@ -29,6 +43,14 @@ export const RUBY_COMPAT_REPLACEMENTS = {
       unlinkSync: "File.delete",
       readdirSync: "Dir.children",
       rmdirSync: "Dir.delete",
+      realpathSync: "File.realpath",
+      readFileSync: { seat: "File.read", args: (args) => args.slice(0, 1) },
+      writeFileSync: { seat: "File.write", args: (args) => (args.length === 2 ? args : null) },
+      chmodSync: {
+        seat: "File.chmod",
+        args: (args) => (args.length === 2 ? [args[1], args[0]] : null),
+      },
+      mkdirSync: { seat: "FileUtils.mkdirP", args: (args) => args.slice(0, 1) },
     },
   },
   path: {
@@ -41,6 +63,11 @@ export const RUBY_COMPAT_REPLACEMENTS = {
       basename: "File.basename",
       extname: "File.extname",
       sep: "File.SEPARATOR",
+      isAbsolute: "File.isAbsolutePath",
+      resolve: {
+        seat: "File.expandPath",
+        args: (args) => (args.length === 2 ? [args[1], args[0]] : null),
+      },
     },
   },
   crypto: {
@@ -117,12 +144,19 @@ const rule = {
       return existingImport.specifiers.every((s) => s.type === "ImportSpecifier");
     }
 
+    /** The `"Receiver.member"` string of a seat, whether or not it carries a transform. */
+    function seatFor(replacement, memberName) {
+      const member = replacement.members[memberName];
+      if (!member) return null;
+      return typeof member === "string" ? member : member.seat;
+    }
+
     /** The import names the rewrite of `members` needs, or null if one has no seat. */
     function importNamesFor(replacement, memberNames) {
       if (replacement.accessor) return [replacement.importName];
       const names = [];
       for (const memberName of memberNames) {
-        const seat = replacement.members[memberName];
+        const seat = seatFor(replacement, memberName);
         if (!seat) return null;
         const receiver = seat.slice(0, seat.indexOf("."));
         if (!names.includes(receiver)) names.push(receiver);
@@ -135,9 +169,29 @@ const rule = {
       if (replacement.accessor) {
         return `${localNames[replacement.importName]}().${memberName}`;
       }
-      const seat = replacement.members[memberName];
+      const seat = seatFor(replacement, memberName);
       const dot = seat.indexOf(".");
       return `${localNames[seat.slice(0, dot)]}.${seat.slice(dot + 1)}`;
+    }
+
+    /**
+     * The one fix a usage site takes: the callee alone where the seat's
+     * arguments are Ruby's own, and the whole call — arguments rewritten by
+     * the seat's transform — where they are not. A transform that declines the
+     * arity answers null, which declines the fix for the file.
+     */
+    function rewriteSite(fixer, localNames, replacement, site) {
+      const member = replacement.accessor ? null : replacement.members[site.memberName];
+      const callee = rewriteMember(localNames, replacement, site.memberName);
+      if (!member || typeof member === "string" || !member.args) {
+        return fixer.replaceText(site.node, callee);
+      }
+      const call = site.node.parent;
+      if (!(call && call.type === "CallExpression" && call.callee === site.node)) return null;
+      const sourceCode = context.sourceCode || context.getSourceCode();
+      const args = member.args(call.arguments.map((arg) => sourceCode.getText(arg)));
+      if (!args) return null;
+      return fixer.replaceText(call, `${callee}(${args.join(", ")})`);
     }
 
     function replaceNodeImport(fixer, node, replacement, names) {
@@ -196,12 +250,9 @@ const rule = {
       const fixes = replaceNodeImport(fixer, node, replacement, names);
       if (!fixes) return null;
       for (const site of sites) {
-        fixes.push(
-          fixer.replaceText(
-            site.node,
-            rewriteMember(fixes._localNames, replacement, site.memberName),
-          ),
-        );
+        const fix = rewriteSite(fixer, fixes._localNames, replacement, site);
+        if (!fix) return null;
+        fixes.push(fix);
       }
       return fixes;
     }
@@ -225,12 +276,9 @@ const rule = {
       const fixes = replaceNodeImport(fixer, node, replacement, names);
       if (!fixes) return null;
       for (const site of sites) {
-        fixes.push(
-          fixer.replaceText(
-            site.node,
-            rewriteMember(fixes._localNames, replacement, site.memberName),
-          ),
-        );
+        const fix = rewriteSite(fixer, fixes._localNames, replacement, site);
+        if (!fix) return null;
+        fixes.push(fix);
       }
       return fixes;
     }
