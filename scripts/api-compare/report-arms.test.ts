@@ -323,6 +323,13 @@ describe("filterRows", () => {
   it("restricts the population to one package", () => {
     expect(filterRows(rows, { package: "arel" })).toEqual([rows[2]]);
   });
+
+  it("restricts the population to one token, on whichever side the direction names", () => {
+    expect(filterRows(rows, { token: "throw" })).toEqual([rows[0], rows[1]]);
+    expect(filterRows(rows, { direction: "missing", token: "throw" })).toEqual([rows[0]]);
+    expect(filterRows(rows, { direction: "invented", token: "throw" })).toEqual([rows[1]]);
+    expect(filterRows(rows, { direction: "invented", token: "if" })).toEqual([rows[2]]);
+  });
 });
 
 describe("renderSample with a stratum", () => {
@@ -387,6 +394,13 @@ describe("parseFilter", () => {
       direction: "missing",
       package: "arel",
     });
+    expect(parseFilter(["--report", "--token=throw"])).toEqual({ token: "throw" });
+  });
+
+  it("rejects a token that is not a control arm", () => {
+    expect(() => parseFilter(["--token=or"])).toThrow(
+      "--token takes one of if, loop, rescue, throw, try.",
+    );
   });
 
   it("rejects a direction that is neither side of the difference", () => {

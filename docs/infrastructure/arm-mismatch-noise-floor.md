@@ -291,7 +291,15 @@ The eight artefacts were two named classes and nothing else:
 - **Ruby-only guards with no JS counterpart** — `require "bcrypt" rescue
 LoadError` (`secure_password.rb:120-124`), `constantize` / `NameError`
   (`request.rb:98-103`), and the raise-to-build-a-backtrace trick
-  (`error_reporter.rb:258-263`).
+  (`error_reporter.rb:258-263`). These are NOT folded, and could not be: each is
+  one Ruby construct with no TS token at all — there is no `require` to fail, no
+  `NameError` to rescue, and no interpreter that fills a backtrace on raise — so
+  there is nothing on the port's side to fold the Ruby `throw` onto, the way the
+  halt helper folds. Unlike the helper class they are also per-row rather than a
+  shape: a rule broad enough to cover all three would drop real dropped raises
+  with them. They stay in the population and are carried by the seeded mark, to
+  be converged or receipted one at a time by RFC 0113's burndown — which is what
+  the mark is for.
 
 ### The seed run
 
