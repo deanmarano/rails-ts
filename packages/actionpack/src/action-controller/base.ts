@@ -570,7 +570,7 @@ export class Base extends Metal {
       const blocker = new BrowserBlocker(base.request, versions);
       if (!blocker.blocked) return true;
 
-      await Notifications.instrumentAsync(
+      await Notifications.instrument(
         "browser_block.action_controller",
         {
           user_agent: base.request?.userAgent ?? "",

@@ -33,7 +33,7 @@ export async function processAction(
 
   Notifications.instrument("start_processing.action_controller", rawPayload);
 
-  await Notifications.instrumentAsync(
+  await Notifications.instrument(
     "process_action.action_controller",
     rawPayload,
     async (payload) => {

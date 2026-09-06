@@ -146,7 +146,7 @@ export async function rateLimiting(
     .join(":");
   const count = await args.store.increment(cacheKey, 1, { expiresIn: args.within });
   if (count != null && isRateLimited(count, args.to)) {
-    await Notifications.instrumentAsync(
+    await Notifications.instrument(
       "rate_limit.action_controller",
       { request: this.request },
       async () => {

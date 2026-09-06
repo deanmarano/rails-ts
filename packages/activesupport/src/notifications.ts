@@ -155,18 +155,6 @@ export class Notifications {
     return this.instrumenter.instrument(name, payload, block) as any;
   }
 
-  static async instrumentAsync<T>(
-    name: string,
-    payload?: EventPayload,
-    block?: (payload: EventPayload) => Promise<T>,
-  ): Promise<T extends undefined ? void : T> {
-    const resolved = payload ?? {};
-    if (!this.notifier.listening(name)) {
-      return (block ? await block(resolved) : undefined) as any;
-    }
-    return (await this.instrumenter.instrument(name, resolved, block)) as any;
-  }
-
   static publish(name: string, ...args: [EventPayload?]): void {
     const resolved = args[0] ?? {};
     const event = this.instrumenter.newEvent(name, resolved);

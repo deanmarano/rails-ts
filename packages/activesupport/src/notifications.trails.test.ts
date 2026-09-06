@@ -39,24 +39,29 @@ describe("Notifications (trails)", () => {
     });
 
     it("runs an async block when nothing is listening", async () => {
-      const result = await Notifications.instrumentAsync(
-        "unlistened",
-        { a: 1 },
-        async (payload) => {
-          expect(payload.a).toBe(1);
-          return "value";
-        },
-      );
+      const result = await Notifications.instrument("unlistened", { a: 1 }, async (payload) => {
+        expect(payload.a).toBe(1);
+        return "value";
+      });
       expect(result).toBe("value");
+    });
+
+    it("yields the payload to an async block for further modification", async () => {
+      const events: Event[] = [];
+      Notifications.subscribe("modify.async", (e) => events.push(e));
+      await Notifications.instrument("modify.async", { row_count: 0 }, async (payload) => {
+        payload.row_count = 3;
+      });
+      expect(events[0].payload.row_count).toBe(3);
     });
   });
 
-  describe("instrumentAsync rescue arm", () => {
+  describe("instrument rescue arm", () => {
     it("records exception and exception_object, then rethrows", async () => {
       const events: Event[] = [];
       Notifications.subscribe("crash", (e) => events.push(e));
       await expect(
-        Notifications.instrumentAsync("crash", {}, async () => {
+        Notifications.instrument("crash", {}, async () => {
           throw new TypeError("Oopsies");
         }),
       ).rejects.toThrow("Oopsies");
@@ -69,7 +74,7 @@ describe("Notifications (trails)", () => {
       const events: Event[] = [];
       Notifications.subscribe("crash", (e) => events.push(e));
       await expect(
-        Notifications.instrumentAsync("crash", {}, async () => {
+        Notifications.instrument("crash", {}, async () => {
           throw new Error("boom");
         }),
       ).rejects.toThrow("boom");
@@ -80,7 +85,7 @@ describe("Notifications (trails)", () => {
       const events: Event[] = [];
       Notifications.subscribe("crash", (e) => events.push(e));
       await expect(
-        Notifications.instrumentAsync("crash", {}, async () => {
+        Notifications.instrument("crash", {}, async () => {
           throw "bare string";
         }),
       ).rejects.toBe("bare string");
@@ -98,7 +103,7 @@ describe("Notifications (trails)", () => {
       const events: Event[] = [];
       Notifications.subscribe("crash", (e) => events.push(e));
       await expect(
-        Notifications.instrumentAsync("crash", {}, async () => {
+        Notifications.instrument("crash", {}, async () => {
           throw new ParamError("bad param");
         }),
       ).rejects.toThrow("bad param");
@@ -108,7 +113,7 @@ describe("Notifications (trails)", () => {
     it("leaves exception keys unset on success", async () => {
       const events: Event[] = [];
       Notifications.subscribe("ok", (e) => events.push(e));
-      await Notifications.instrumentAsync("ok", {}, async () => "fine");
+      await Notifications.instrument("ok", {}, async () => "fine");
       expect(events[0].payload.exception).toBeUndefined();
       expect(events[0].payload.exception_object).toBeUndefined();
     });

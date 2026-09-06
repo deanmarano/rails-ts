@@ -27,26 +27,19 @@ export function ownerForeignKeyColumns(
   throw new NoMethodError(`undefined method 'foreign_key' for nil`);
 }
 
-/**
- * @internal
- * @noRailsEquivalent CONVERGEABLE association-helpers-extracted-for-the-collection-proxy
- */
-export function foreignKeyPresentFor(reflection: AssociationReflection, owner: Base): boolean {
-  const klass = (reflection as { klass?: { primaryKey?: unknown } }).klass;
-  if (klass && klass.primaryKey == null) return false;
-  const arPk = (reflection as { activeRecordPrimaryKey?: string | string[] })
-    .activeRecordPrimaryKey;
-  const keys = Array.isArray(arPk) ? arPk : [arPk ?? "id"];
-  const rec = owner as Base & {
-    attributePresent?: (key: string) => boolean;
-    _readAttribute?: (key: string) => unknown;
-    [key: string]: unknown;
-  };
-  return keys.every((key) =>
-    typeof rec.attributePresent === "function"
-      ? rec.attributePresent(key)
-      : (typeof rec._readAttribute === "function" ? rec._readAttribute(key) : rec[key]) != null,
-  );
+interface ForeignAssociationHost {
+  reflection: AssociationReflection;
+  owner: Base;
+}
+
+export function foreignKeyPresent(this: ForeignAssociationHost): boolean {
+  if ((this.reflection as { klass?: { primaryKey?: unknown } }).klass?.primaryKey != null) {
+    return (this.owner as Base & { attributePresent(name: string): boolean }).attributePresent(
+      (this.reflection as unknown as { activeRecordPrimaryKey: string }).activeRecordPrimaryKey,
+    );
+  } else {
+    return false;
+  }
 }
 
 export class ForeignAssociation {

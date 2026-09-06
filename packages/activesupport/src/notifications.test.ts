@@ -302,15 +302,6 @@ describe("InstrumentationTest", () => {
     expect(events[0].payload.added).toBe("later");
   });
 
-  it("instrumentAsync yields the payload for further modification", async () => {
-    const events: Event[] = [];
-    Notifications.subscribe("modify.async", (e) => events.push(e));
-    await Notifications.instrumentAsync("modify.async", { row_count: 0 }, async (payload) => {
-      payload.row_count = 3;
-    });
-    expect(events[0].payload.row_count).toBe(3);
-  });
-
   it("instrumenter exposes its id", () => {
     const events: Event[] = [];
     Notifications.subscribe("id.test", (e) => events.push(e));

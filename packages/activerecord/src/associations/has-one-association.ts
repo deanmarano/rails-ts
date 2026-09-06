@@ -6,10 +6,9 @@ import { underscore, wrap as arrayWrap } from "@blazetrails/activesupport";
 import { _reflectOnAssociation, reflectOnAllAssociations } from "../reflection.js";
 import {
   ForeignAssociation,
-  foreignKeyPresentFor,
+  foreignKeyPresent,
   ownerForeignKeyColumns,
 } from "./foreign-association.js";
-import type { AssociationReflection } from "../reflection.js";
 import { SingularAssociation } from "./singular-association.js";
 import { queryConstraintsList } from "../persistence.js";
 import { assertAssignedSynchronously } from "@blazetrails/activemodel";
@@ -33,11 +32,6 @@ export class HasOneAssociation extends SingularAssociation {
 
   override writer(record: Base | null): void | Promise<void> {
     return this.replace(record);
-  }
-
-  /** @internal */
-  protected override foreignKeyPresent(): boolean {
-    return foreignKeyPresentFor(this.reflection as unknown as AssociationReflection, this.owner);
   }
 
   async handleDependency(): Promise<void | false> {
@@ -439,3 +433,5 @@ function nullifiedOwnerAttributes(assoc: HasOneAssociation): Record<string, null
   const typeCol = reflTypeCol ?? (asName ? `${underscore(asName)}_type` : null);
   return ForeignAssociation.nullifiedOwnerAttributes({ foreignKey, type: typeCol });
 }
+
+Object.assign(HasOneAssociation.prototype, { foreignKeyPresent });
