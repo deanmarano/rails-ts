@@ -1,3 +1,4 @@
+import { ConverterNotFoundError } from "./converter-not-found-error.js";
 import { Encoding } from "./encoding.js";
 import { getFs, type FsStatResult } from "./fs-adapter.js";
 import { EOFError } from "./eof-error.js";
@@ -89,24 +90,6 @@ function binaryBytes(string: string): Uint8Array {
   const buffer = new Uint8Array(string.length);
   for (let i = 0; i < string.length; i++) buffer[i] = string.charCodeAt(i) & 0xff;
   return buffer;
-}
-
-/**
- * Ruby's core `Encoding::ConverterNotFoundError`
- * (`vendor/ruby/transcode.c:4740` `rb_eConverterNotFoundError`), an
- * `EncodingError` subclass — what `rb_econv_open_exc`
- * (`vendor/ruby/transcode.c:2097-2105`) raises where no converter between two
- * encodings exists. It is module-private rather than a `./` file of its own
- * because ruby-compat's extra-surface mark is only-shrink and a new public
- * name raises it; nothing in the repo catches the class yet, and exporting it
- * is filed as `export-converter-not-found-error`, which moves the mark as the
- * reviewed line of its own diff.
- */
-class ConverterNotFoundError extends Error {
-  constructor(message?: string) {
-    super(message ?? new.target.name);
-    this.name = new.target.name;
-  }
 }
 
 /**
