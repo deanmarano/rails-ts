@@ -1,7 +1,9 @@
 import { getCrypto, type CipherAdapter, type DecipherAdapter } from "./crypto-adapter.js";
 import type { Bytes } from "./fs-adapter.js";
-import { Digest } from "./digest.js";
+import { Digest, type DigestInstance } from "./digest.js";
 import { SecureRandom } from "./secure-random.js";
+
+const AEAD_MODES = ["gcm", "ccm", "ocb", "chacha20-poly1305", "siv"];
 
 /**
  * `OpenSSL::Cipher` (`vendor/ruby/ext/openssl/lib/openssl/cipher.rb:16`), the
@@ -33,6 +35,17 @@ export class Cipher {
   /** @noRailsEquivalent PERMANENT — vendor/ruby/ext/openssl/ossl_cipher.c:868 */
   get ivLen(): number {
     return this.cipherInfo().ivLength;
+  }
+
+  /**
+   * `OpenSSL::Cipher#authenticated?` (`vendor/ruby/ext/openssl/ossl_cipher.c:547`),
+   * `EVP_CIPH_FLAG_AEAD_CIPHER` on the cipher — the AEAD modes the adapter
+   * names.
+   *
+   * @noRailsEquivalent PERMANENT — vendor/ruby/ext/openssl/ossl_cipher.c:547
+   */
+  authenticated(): boolean {
+    return AEAD_MODES.includes(this.cipherInfo().mode);
   }
 
   /** @noRailsEquivalent PERMANENT — vendor/ruby/ext/openssl/ossl_cipher.c:283 */
@@ -101,7 +114,7 @@ export class Cipher {
     return (this.started() as CipherAdapter).final();
   }
 
-  private cipherInfo(): { keyLength: number; ivLength: number } {
+  private cipherInfo(): { keyLength: number; ivLength: number; mode: string } {
     const crypto = getCrypto();
     const info = crypto.getCipherInfo?.(this.name);
     if (!info) {
@@ -124,6 +137,10 @@ export class Cipher {
   }
 }
 
+function digestName(digest: string | DigestInstance): string {
+  return typeof digest === "string" ? digest : digest.algorithm;
+}
+
 /**
  * `OpenSSL::HMAC` (`vendor/ruby/ext/openssl/lib/openssl/hmac.rb:4`), the two
  * class methods Rails calls (`request_forgery_protection.rb:466`,
@@ -135,13 +152,21 @@ export class Cipher {
  */
 export const HMAC = {
   /** @noRailsEquivalent PERMANENT — vendor/ruby/ext/openssl/lib/openssl/hmac.rb:34 */
-  digest(digest: string, key: string | Uint8Array, data: string | Uint8Array): Bytes {
-    return getCrypto().createHmac(digest, key).update(data).digest();
+  digest(
+    digest: string | DigestInstance,
+    key: string | Uint8Array,
+    data: string | Uint8Array,
+  ): Bytes {
+    return getCrypto().createHmac(digestName(digest), key).update(data).digest();
   },
 
   /** @noRailsEquivalent PERMANENT — vendor/ruby/ext/openssl/lib/openssl/hmac.rb:56 */
-  hexdigest(digest: string, key: string | Uint8Array, data: string | Uint8Array): string {
-    return getCrypto().createHmac(digest, key).update(data).digest("hex");
+  hexdigest(
+    digest: string | DigestInstance,
+    key: string | Uint8Array,
+    data: string | Uint8Array,
+  ): string {
+    return getCrypto().createHmac(digestName(digest), key).update(data).digest("hex");
   },
 };
 

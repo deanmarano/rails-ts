@@ -208,6 +208,20 @@ export class Dir {
   }
 
   /**
+   * `vendor/ruby/dir.c:1494` `dir_s_mkdir` — ONE directory, so a missing
+   * parent is an `Errno::ENOENT` and an existing `dirname` an `Errno::EEXIST`,
+   * which is the pair `Entry_#copy`'s directory arm rescues
+   * (`vendor/ruby/lib/fileutils.rb:2248-2252`).
+   *
+   * @noRailsEquivalent PERMANENT — Ruby core `Dir.mkdir`
+   * (`vendor/ruby/dir.c:1494`).
+   */
+  static mkdir(dirname: string): number {
+    getFs().mkdirSync(dirname);
+    return 0;
+  }
+
+  /**
    * `vendor/ruby/dir.c:3421` `dir_s_children`: every entry EXCEPT `"."` and
    * `".."`, and it raises rather than answering `[]` when the directory is
    * missing.

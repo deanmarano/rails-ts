@@ -50,7 +50,7 @@ export interface CryptoAdapter {
     digest: string,
   ): Promise<Bytes>;
   timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean;
-  getCipherInfo?(name: string): { keyLength: number; ivLength: number } | undefined;
+  getCipherInfo?(name: string): { keyLength: number; ivLength: number; mode: string } | undefined;
 }
 
 /** @noRailsEquivalent PERMANENT */
@@ -114,7 +114,7 @@ interface NodeCrypto {
     callback: (err: Error | null, key: Bytes) => void,
   ): void;
   timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean;
-  getCipherInfo(name: string): { keyLength?: number; ivLength?: number } | undefined;
+  getCipherInfo(name: string): { keyLength?: number; ivLength?: number; mode?: string } | undefined;
 }
 
 function wrapNodeCrypto(nodeCrypto: NodeCrypto): CryptoAdapter {
@@ -158,10 +158,10 @@ function wrapNodeCrypto(nodeCrypto: NodeCrypto): CryptoAdapter {
     timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
       return nodeCrypto.timingSafeEqual(a, b);
     },
-    getCipherInfo(name: string): { keyLength: number; ivLength: number } | undefined {
+    getCipherInfo(name: string): { keyLength: number; ivLength: number; mode: string } | undefined {
       const info = nodeCrypto.getCipherInfo(name);
       if (!info || info.keyLength == null || info.ivLength == null) return undefined;
-      return { keyLength: info.keyLength, ivLength: info.ivLength };
+      return { keyLength: info.keyLength, ivLength: info.ivLength, mode: info.mode ?? "" };
     },
   };
 }

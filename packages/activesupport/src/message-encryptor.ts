@@ -1,4 +1,4 @@
-import { getCrypto, prepend, SecureRandom, type Bytes } from "@blazetrails/ruby-compat";
+import { Cipher, prepend, type Bytes } from "@blazetrails/ruby-compat";
 import { MessageVerifier } from "./message-verifier.js";
 import { Codec, type MessageSerializer } from "./messages/codec.js";
 import type { ExpectedMetadataOptions, MetadataOptions } from "./messages/metadata.js";
@@ -50,10 +50,8 @@ export class MessageEncryptor extends Codec {
     return this.useAuthenticatedMessageEncryption ? "aes-256-gcm" : "aes-256-cbc";
   }
 
-  /** @missingRailsCall new — PERMANENT */
   static keyLen(cipher: string = this.defaultCipher()): number {
-    const match = cipher.match(/(\d+)/);
-    return match ? parseInt(match[1], 10) / 8 : 32;
+    return new Cipher(cipher).keyLen;
   }
 
   declare rotate: (...args: unknown[]) => this;
@@ -90,7 +88,7 @@ export class MessageEncryptor extends Codec {
 
     this.secret = typeof secret === "string" ? Buffer.from(secret) : secret;
     this.cipher = opts.cipher ?? (this.constructor as typeof MessageEncryptor).defaultCipher();
-    this.aeadMode = this.newCipher().authenticated;
+    this.aeadMode = this.newCipher().authenticated();
     this.verifier = !this.aeadMode
       ? new MessageVerifier(resolvedSignSecret ?? secret, {
           ...opts,
@@ -134,35 +132,41 @@ export class MessageEncryptor extends Codec {
   }
 
   private encrypt(data: string): string {
-    const spec = this.newCipher();
-    const key = this.secret.slice(0, spec.keyLen);
-    const iv = SecureRandom.randomBytes(spec.ivLen);
+    const cipher = this.newCipher();
+    cipher.encrypt();
+    cipher.key = this.secret;
 
-    const cipher = getCrypto().createCipheriv(this.cipher, key, iv);
-    if (this.aeadMode) cipher.setAAD?.(Buffer.alloc(0));
+    const iv = cipher.randomIv();
+    if (this.aeadMode) cipher.authData = "";
 
-    const encryptedData = Buffer.concat([cipher.update(data, "latin1"), cipher.final()]);
+    let encryptedData = cipher.update(Buffer.from(data, "latin1"));
+    encryptedData = Buffer.concat([encryptedData, cipher.final()]);
 
     const parts: Bytes[] = [encryptedData, iv];
-    if (this.aeadMode) parts.push(cipher.getAuthTag!());
+    if (this.aeadMode) parts.push(cipher.authTag);
 
     return this.joinParts(parts);
   }
 
   private decrypt(encryptedMessage: string): string {
+    const cipher = this.newCipher();
     const [encryptedData, iv, authTag] = this.extractParts(encryptedMessage);
 
     if (this.aeadMode && authTag.length !== AUTH_TAG_LENGTH) {
       throw new Thrown("invalid_message_format", "truncated auth_tag");
     }
 
-    const key = this.secret.slice(0, this.newCipher().keyLen);
-
     try {
-      const decipher = getCrypto().createDecipheriv(this.cipher, key, iv);
-      if (this.aeadMode) decipher.setAuthTag?.(authTag);
-      const decryptedData = Buffer.concat([decipher.update(encryptedData), decipher.final()]);
-      return decryptedData.toString("latin1");
+      cipher.decrypt();
+      cipher.key = this.secret;
+      cipher.iv = iv;
+      if (this.aeadMode) {
+        cipher.authTag = authTag;
+        cipher.authData = "";
+      }
+
+      const decryptedData = Buffer.concat([cipher.update(encryptedData), cipher.final()]);
+      return Buffer.from(decryptedData).toString("latin1");
     } catch (error) {
       throw new Thrown("invalid_message_format", error);
     }
@@ -217,11 +221,8 @@ export class MessageEncryptor extends Codec {
     return parts.reverse().map((part) => this.decode(part));
   }
 
-  /** @missingRailsCall new — PERMANENT */
-  private newCipher(): { keyLen: number; ivLen: number; authenticated: boolean } {
-    const ctor = this.constructor as typeof MessageEncryptor;
-    const authenticated = /gcm|ccm/i.test(this.cipher);
-    return { keyLen: ctor.keyLen(this.cipher), ivLen: authenticated ? 12 : 16, authenticated };
+  private newCipher(): Cipher {
+    return new Cipher(this.cipher);
   }
 }
 
