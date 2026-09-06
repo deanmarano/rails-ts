@@ -75,7 +75,18 @@ export { defaultFormBuilder } from "./form-builder.js";
 export { assertTemplate } from "./template-assertions.js";
 export { LogSubscriber } from "./log-subscriber.js";
 export { renderForApi } from "./api/api-rendering.js";
-export { resolveHelperPath, inheritedWithHelpers } from "./trailties/helpers.js";
+export {
+  inherited as inheritedWithHelpers,
+  type HelpersPathControllerClass,
+} from "./trailties/helpers.js";
+export {
+  helpersPath,
+  setHelpersPath,
+  setApplicationHelpers,
+  applicationHelperResolver,
+  loadApplicationHelperNames,
+  modulesForHelpers,
+} from "./metal/helpers.js";
 export { RescueRegistry } from "./metal/rescue.js";
 export { FlashTypeRegistry } from "./metal/flash.js";
 export { ParameterEncodingRegistry } from "./metal/parameter-encoding.js";

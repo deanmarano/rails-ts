@@ -101,6 +101,20 @@ describe("allHelpersFromPath", () => {
     ]);
   });
 
+  it("finds the kebab-case spelling a trails app writes", async () => {
+    const r = mkdtempSync(join(tmpdir(), "helpers-kebab-"));
+    mkdirSync(join(r, "nested"), { recursive: true });
+    writeFileSync(join(r, "application-helper.ts"), "export const x = 1;");
+    writeFileSync(join(r, "markdown-helper.js"), "export const x = 1;");
+    writeFileSync(join(r, "nested", "admin-helper.ts"), "export const x = 1;");
+    writeFileSync(join(r, "application-controller.ts"), "export const x = 1;");
+    try {
+      expect(await allHelpersFromPath(r)).toEqual(["application", "markdown", "nested/admin"]);
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  }, 15_000);
+
   it("sorts within each path, then concatenates across paths (Rails ordering)", async () => {
     const r1 = mkdtempSync(join(tmpdir(), "helpers-order-1-"));
     const r2 = mkdtempSync(join(tmpdir(), "helpers-order-2-"));

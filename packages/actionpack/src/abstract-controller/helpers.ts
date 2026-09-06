@@ -118,6 +118,14 @@ function makeIncludeLink(
     has(t, prop) {
       return Object.prototype.hasOwnProperty.call(mod, prop) || Reflect.has(t, prop);
     },
+    ownKeys(t) {
+      return [...new Set([...Reflect.ownKeys(mod), ...Reflect.ownKeys(t)])];
+    },
+    getOwnPropertyDescriptor(t, prop) {
+      const own = Object.getOwnPropertyDescriptor(mod, prop);
+      if (own) return { ...own, configurable: true };
+      return Reflect.getOwnPropertyDescriptor(t, prop);
+    },
   });
 }
 
@@ -185,8 +193,10 @@ export async function allHelpersFromPath(path: string | readonly string[]): Prom
   const out: string[] = [];
   const seen = new Set<string>();
   for (const root of roots) {
-    const matches = await glob("**/*_helper.{ts,js,rb}", { cwd: root });
-    const names = matches.map((f) => f.replace(/\.(ts|js|rb)$/, "").replace(/_helper$/, "")).sort();
+    const matches = await glob("**/*{-,_}helper.{ts,js,rb}", { cwd: root });
+    const names = matches
+      .map((f) => f.replace(/\.(ts|js|rb)$/, "").replace(/[-_]helper$/, ""))
+      .sort();
     for (const name of names) {
       if (!seen.has(name)) {
         seen.add(name);
