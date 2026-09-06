@@ -14,19 +14,19 @@ export class UploadedFile {
   tempfile: Tempfile;
   headers: string | null;
 
-  constructor(hash: UploadedFileOptions = {}) {
+  constructor(hash: UploadedFileOptions) {
     this.tempfile = hash.tempfile!;
-    if (!this.tempfile) throw new ArgumentError(":tempfile is required");
+    if (this.tempfile == null) throw new ArgumentError(":tempfile is required");
 
     this.contentType = hash.type ?? null;
 
-    if (hash.filename) {
+    if (hash.filename != null) {
       this.originalFilename = hash.filename;
     } else {
       this.originalFilename = null;
     }
 
-    if (hash.head) {
+    if (hash.head != null) {
       this.headers = hash.head;
     } else {
       this.headers = null;
@@ -59,7 +59,7 @@ export class UploadedFile {
     return this.tempfile.rewind();
   }
 
-  get size(): number {
+  size(): number {
     return this.tempfile.size;
   }
 
