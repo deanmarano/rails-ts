@@ -54,7 +54,6 @@ The Web Crypto adapter serves the members Web Crypto can serve synchronously:
 | Member                                                                         | Browser implementation                                                  |
 | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
 | `randomBytes`                                                                  | `crypto.getRandomValues`                                                |
-| `randomUUID`                                                                   | `crypto.randomUUID`                                                     |
 | `timingSafeEqual`                                                              | constant-time compare over the two arrays                               |
 | `pbkdf2` (async)                                                               | `crypto.subtle.importKey` + `deriveBits`                                |
 | `createHash`, `createHmac`, `createCipheriv`, `createDecipheriv`, `pbkdf2Sync` | none — `crypto.subtle` is Promise-returning and has no streaming cipher |

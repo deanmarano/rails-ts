@@ -98,12 +98,15 @@ function createTmpname(
  */
 export class Tempfile {
   /** `__getobj__` (`vendor/ruby/lib/tempfile.rb:165`), the delegated `File`. */
-  private readonly tmpfile: File;
+  private tmpfile: File;
   /** `@unlinked` (`vendor/ruby/lib/tempfile.rb:153`). */
   private unlinked = false;
+  /** `@opts` (`vendor/ruby/lib/tempfile.rb:152`). */
+  private readonly opts: TempfileOptions;
 
-  private constructor(tmpfile: File) {
+  private constructor(tmpfile: File, opts: TempfileOptions = {}) {
     this.tmpfile = tmpfile;
+    this.opts = opts;
   }
 
   /**
@@ -119,7 +122,7 @@ export class Tempfile {
     tmpdir?: string,
     options: TempfileOptions = {},
   ): Tempfile {
-    return new Tempfile(openExclusive(basename, tmpdir, options));
+    return new Tempfile(openExclusive(basename, tmpdir, options), options);
   }
 
   /**
@@ -219,6 +222,56 @@ export class Tempfile {
   }
 
   /**
+   * `Tempfile#open` (`vendor/ruby/lib/tempfile.rb:188`) — closes the delegated
+   * `File` and reopens the same path with the creation flags cleared, which is
+   * mode `"r+"`, then answers the reopened stream (`tempfile.rb:194`
+   * `__getobj__`).
+   *
+   * @noRailsEquivalent PERMANENT — Ruby stdlib `Tempfile#open`
+   * (`vendor/ruby/lib/tempfile.rb:188`).
+   */
+  open(): File {
+    const path = this.tmpfile.path()!;
+    this.tmpfile.close();
+    this.tmpfile = File.open(path, "r+");
+    if (this.opts.encoding != null) this.tmpfile.setEncoding(this.opts.encoding);
+    return this.tmpfile;
+  }
+
+  /**
+   * `File#to_path` (`vendor/ruby/file.c:311` `rb_file_path`) on the delegated
+   * `File` (`vendor/ruby/lib/tempfile.rb:89`).
+   *
+   * @noRailsEquivalent PERMANENT — Ruby core `File#to_path`
+   * (`vendor/ruby/file.c:311`), delegated by Ruby stdlib `Tempfile`.
+   */
+  toPath(): string | null {
+    return this.tmpfile.path();
+  }
+
+  /**
+   * `IO#to_io` (`vendor/ruby/io.c:5093` `rb_io_to_io`), which answers the
+   * stream itself — the delegated `File` (`vendor/ruby/lib/tempfile.rb:89`).
+   *
+   * @noRailsEquivalent PERMANENT — Ruby core `IO#to_io`
+   * (`vendor/ruby/io.c:5093`), delegated by Ruby stdlib `Tempfile`.
+   */
+  toIo(): File {
+    return this.tmpfile;
+  }
+
+  /**
+   * `IO#closed?` (`vendor/ruby/io.c:5442`) on the delegated `File`
+   * (`vendor/ruby/lib/tempfile.rb:89`).
+   *
+   * @noRailsEquivalent PERMANENT — Ruby core `IO#closed?`
+   * (`vendor/ruby/io.c:5442`), delegated by Ruby stdlib `Tempfile`.
+   */
+  isClosed(): boolean {
+    return this.tmpfile.isClosed();
+  }
+
+  /**
    * `IO#pos` (`vendor/ruby/io.c:2039`) on the delegated `File`
    * (`vendor/ruby/lib/tempfile.rb:89`).
    *
@@ -313,8 +366,10 @@ export class Tempfile {
    * @noRailsEquivalent PERMANENT — Ruby core `IO#read`
    * (`vendor/ruby/io.c:3774`), delegated by Ruby stdlib `Tempfile`.
    */
-  read(): string {
-    return this.tmpfile.read();
+  read(): string;
+  read(length: number | null, buffer?: Uint8Array | null): string | null;
+  read(length: number | null = null, buffer: Uint8Array | null = null): string | null {
+    return this.tmpfile.read(length, buffer);
   }
 
   /**

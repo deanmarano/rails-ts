@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { File, Rational, StringIO } from "@blazetrails/ruby-compat";
+import { File, Rational, StringIO, type Tempfile } from "@blazetrails/ruby-compat";
 import { Date, DateTime, Time } from "@blazetrails/date";
 import { UploadedFile as RackTestUploadedFile } from "@blazetrails/rack-test";
 import { BigDecimal } from "@blazetrails/activesupport";
@@ -25,7 +25,7 @@ function permittedScalarValues(): unknown[] {
     DateTime.now(),
     File.open(thisFile, "r"),
     new StringIO(),
-    new UploadedFile({ tempfile: thisFile }),
+    new UploadedFile({ tempfile: thisFile as unknown as Tempfile }),
     new RackTestUploadedFile(thisFile),
   ];
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { File, StringIO } from "@blazetrails/ruby-compat";
+import { File, StringIO, type Tempfile } from "@blazetrails/ruby-compat";
 import { Date, DateTime, Time } from "@blazetrails/date";
 import { UploadedFile as RackTestUploadedFile } from "@blazetrails/rack-test";
 import { BigDecimal } from "@blazetrails/activesupport";
@@ -151,7 +151,7 @@ describe("ParametersExpectTest", () => {
     values = values.concat([
       STDOUT,
       new StringIO(),
-      new UploadedFile({ tempfile: thisFile }),
+      new UploadedFile({ tempfile: thisFile as unknown as Tempfile }),
       new RackTestUploadedFile(thisFile),
     ]);
 

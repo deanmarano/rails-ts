@@ -21,7 +21,6 @@ export interface DecipherAdapter {
 
 export interface CryptoAdapter {
   randomBytes(size: number): Bytes;
-  randomUUID(): string;
   createHash(algorithm: string): HashAdapter;
   createHmac(algorithm: string, key: string | Uint8Array): HmacAdapter;
   createCipheriv(
@@ -85,7 +84,6 @@ export interface HmacAdapter {
 
 interface NodeCrypto {
   randomBytes(size: number): Bytes;
-  randomUUID(): string;
   createHash(algorithm: string): HashAdapter;
   createHmac(algorithm: string, key: string | Uint8Array): HmacAdapter;
   createCipheriv(
@@ -123,9 +121,6 @@ function wrapNodeCrypto(nodeCrypto: NodeCrypto): CryptoAdapter {
   return {
     randomBytes(size: number): Bytes {
       return nodeCrypto.randomBytes(size);
-    },
-    randomUUID(): string {
-      return nodeCrypto.randomUUID();
     },
     createHash(algorithm: string): HashAdapter {
       return nodeCrypto.createHash(algorithm);
@@ -227,7 +222,6 @@ function tryAutoRegisterNode(): boolean {
 
 interface WebCrypto {
   getRandomValues<T extends Uint8Array>(array: T): T;
-  randomUUID?(): string;
   subtle?: {
     importKey(
       format: string,
@@ -283,7 +277,9 @@ function wrapWebCrypto(crypto: WebCrypto): CryptoAdapter {
     },
     timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
       if (a.length !== b.length) {
-        throw new RangeError("Input buffers must have the same byte length");
+        const error = new RangeError("Input buffers must have the same byte length");
+        (error as { code?: string }).code = "ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH";
+        throw error;
       }
       let diff = 0;
       for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
@@ -319,9 +315,6 @@ function wrapWebCrypto(crypto: WebCrypto): CryptoAdapter {
       return toBytes(new Uint8Array(bits));
     },
   };
-  if (typeof crypto.randomUUID === "function") {
-    adapter.randomUUID = (): string => crypto.randomUUID!();
-  }
   return adapter as CryptoAdapter;
 }
 
@@ -339,7 +332,6 @@ function tryAutoRegisterWebCrypto(): boolean {
 
 const REQUIRED_MEMBERS = [
   "randomBytes",
-  "randomUUID",
   "createHash",
   "createHmac",
   "createCipheriv",
