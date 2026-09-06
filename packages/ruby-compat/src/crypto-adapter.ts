@@ -282,7 +282,9 @@ function wrapWebCrypto(crypto: WebCrypto): CryptoAdapter {
       return toBytes(crypto.getRandomValues(new Uint8Array(size)));
     },
     timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
-      if (a.length !== b.length) return false;
+      if (a.length !== b.length) {
+        throw new RangeError("Input buffers must have the same byte length");
+      }
       let diff = 0;
       for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
       return diff === 0;

@@ -125,6 +125,7 @@ describe("getCrypto in a browser", () => {
       `console.log(crypto.randomUUID().length);\n` +
       `console.log(crypto.timingSafeEqual(new Uint8Array([1, 2]), new Uint8Array([1, 2])));\n` +
       `console.log(crypto.timingSafeEqual(new Uint8Array([1, 2]), new Uint8Array([1, 3])));\n` +
+      `try { crypto.timingSafeEqual(new Uint8Array(1), new Uint8Array(2)); } catch (e) { console.log(e.constructor.name + ": " + e.message); }\n` +
       `console.log((await pbkdf2Async(crypto, "password", "salt", 2, 16, "sha256")).length);\n` +
       `try { crypto.createHash("sha256"); } catch (e) { console.log(e.message); }`;
 
@@ -142,6 +143,7 @@ describe("getCrypto in a browser", () => {
       "36",
       "true",
       "false",
+      "RangeError: Input buffers must have the same byte length",
       "16",
       'Crypto adapter "web" does not implement createHash.',
     ]);
