@@ -919,6 +919,9 @@ Base.prototype.expireFragment = expireFragment;
   Base as unknown as CachingClassMethods & { viewCacheDependency: typeof viewCacheDependency }
 ).viewCacheDependency = viewCacheDependency;
 
+classAttribute.call(Base, "fragmentCacheKeys", { default: [] });
+helperMethod(Base as unknown as HelpersClassMethods, "combinedFragmentCacheKey");
+
 for (const slot of CACHING_SLOTS) {
   Object.defineProperty(Base.prototype, slot, {
     configurable: true,

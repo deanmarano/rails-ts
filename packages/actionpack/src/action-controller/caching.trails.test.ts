@@ -38,6 +38,19 @@ describe("AbstractController::Caching included into ActionController::Base", () 
     ).toEqual([]);
   });
 
+  it("initializes fragment_cache_keys to the included-state default", () => {
+    expect((Base as unknown as { fragmentCacheKeys: unknown[] }).fragmentCacheKeys).toEqual([]);
+  });
+
+  it("resolves an assigned cache store through Cache.lookup_store", () => {
+    class LookupController extends Base {}
+    const controller = new LookupController() as unknown as { cacheStore: unknown };
+    controller.cacheStore = ":memory_store";
+    expect((LookupController as unknown as { cacheStore: unknown }).cacheStore).toBeInstanceOf(
+      MemoryStore,
+    );
+  });
+
   it("instruments read_fragment / write_fragment when a template caches", async () => {
     class CachedController extends Base {
       static cacheStore: MemoryStore | null = new MemoryStore();

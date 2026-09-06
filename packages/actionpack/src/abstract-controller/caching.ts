@@ -1,5 +1,6 @@
 /** @internal */
 
+import { expandCacheKey, lookupStore } from "@blazetrails/activesupport/cache";
 import type { CacheOptions, CacheStore } from "@blazetrails/activesupport";
 
 import {
@@ -43,8 +44,8 @@ export class ConfigMethods {
     return (this as unknown as CachingHost).constructor.cacheStore ?? null;
   }
 
-  set cacheStore(store: CacheStore | null) {
-    (this as unknown as CachingHost).constructor.cacheStore = store;
+  set cacheStore(store: unknown) {
+    (this as unknown as CachingHost).constructor.cacheStore = lookupStore(store);
   }
 }
 
@@ -85,13 +86,7 @@ export function cache<T>(
   if (!cacheConfigured(this)) return block();
 
   const store = this.constructor.cacheStore!;
-  const expanded = expandControllerCacheKey(key);
-  return store.fetch(expanded, options, block) as T;
-}
-
-function expandControllerCacheKey(key: unknown): string {
-  const flat = Array.isArray(key) ? key.map(stringify).join("/") : stringify(key);
-  return `controller/${flat}`;
+  return store.fetch(expandCacheKey(key, "controller"), options, block) as T;
 }
 
 export function combinedFragmentCacheKey(this: FragmentsHost, key: unknown): unknown[] {
@@ -130,19 +125,4 @@ export function instrumentFragmentCache<T>(
   block: () => T,
 ): T {
   return _instrumentFragmentCache(host, name, key, block);
-}
-
-function stringify(part: unknown): string {
-  if (part == null) return "";
-  if (typeof part === "string") return part;
-  if (typeof part === "number" || typeof part === "boolean" || typeof part === "bigint") {
-    return String(part);
-  }
-  const maybe = (part as { cacheKey?: () => string }).cacheKey;
-  if (typeof maybe === "function") return maybe.call(part);
-  try {
-    return JSON.stringify(part) ?? "";
-  } catch {
-    return String(part);
-  }
 }
