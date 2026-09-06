@@ -1222,8 +1222,11 @@ export interface CallSkeleton {
 /**
  * The folded skeletons of the same-file methods `skeleton`'s `ref:` reaches
  * resolve to, excluding the body's own name so a self-recursive call cannot
- * splice a body into itself. One hop only: the entries are recorded as their
- * authors wrote them, so a helper's own reaches stay reaches and the splice
+ * splice a body into itself — unless `ownNameDelegate` names a SECOND
+ * declaration of that name in the same file (a method delegating to a
+ * same-named top-level function, `has-many-through-association.ts`'s
+ * `markOccurrence`), which is a helper reach rather than recursion. One hop
+ * only: the entries are recorded as their authors wrote them, so a helper's own reaches stay reaches and the splice
  * cannot walk a mutual-recursion cycle.
  *
  * Accumulated in a Map, because a reach is a method name and `ref:constructor`
@@ -1236,12 +1239,19 @@ export function sameFileHelperSkeletons(
   skeleton: readonly string[],
   resolve: (name: string) => string[] | undefined,
   side: SkeletonSide = "ruby",
+  ownNameDelegate?: readonly string[],
 ): Record<string, string[]> | undefined {
   const helpers = new Map<string, string[]>();
   for (const token of skeleton) {
     if (!token.startsWith("ref:")) continue;
     const name = token.slice("ref:".length);
-    if (name === ownName || helpers.has(name)) continue;
+    if (helpers.has(name)) continue;
+    if (name === ownName) {
+      if (ownNameDelegate !== undefined) {
+        helpers.set(name, foldSkeletonTokens(ownNameDelegate, side));
+      }
+      continue;
+    }
     const resolved = resolve(name);
     if (resolved !== undefined) helpers.set(name, foldSkeletonTokens(resolved, side));
   }
@@ -3288,6 +3298,12 @@ export function main() {
     const tsCallsByFileName = new Map<string, Map<string, string[][]>>();
     const tsCallSeqByFileName = new Map<string, Map<string, string[][]>>();
     const tsSkeletonByFileName = new Map<string, Map<string, string[][]>>();
+    // The NON-exported file-local helpers' skeletons, kept in their own map so
+    // the compared population above is unchanged (a file-local helper matches
+    // no Ruby entity) while a body that delegates to one can still resolve the
+    // reach — including a method delegating to a top-level function of its own
+    // name. See the skeleton resolver below.
+    const tsLocalSkeletonByFileName = new Map<string, Map<string, string[][]>>();
     const tsCallArgsByFileName = new Map<string, Map<string, CallSite[][]>>();
     // The same two populations narrowed by declaring class (file → name → owner
     // → sets), consulted when one file declares the name on SEVERAL owners and
@@ -3480,6 +3496,11 @@ export function main() {
         const byName = tsSkeletonByFileName.get(file) ?? new Map<string, string[][]>();
         byName.set(m.name, [...(byName.get(m.name) ?? []), m.skeleton]);
         tsSkeletonByFileName.set(file, byName);
+      }
+      if (m.localSkeleton !== undefined && scope === "package") {
+        const byName = tsLocalSkeletonByFileName.get(file) ?? new Map<string, string[][]>();
+        byName.set(m.name, [...(byName.get(m.name) ?? []), m.localSkeleton]);
+        tsLocalSkeletonByFileName.set(file, byName);
       }
       if (m.calls !== undefined) {
         if (scope === "package") {
@@ -4112,10 +4133,20 @@ export function main() {
         const rubySkeleton = rubySkeletonByName.get(rubyName);
         const tsSkeletons = tsSkeletonByFileName.get(tsFile)?.get(tsName);
         if (rubySkeleton !== undefined && tsSkeletons?.length === 1) {
+          // A compared member first, then a file-local helper of that name:
+          // the two populations are disjoint by construction, so the order
+          // only decides which one a name declared on both resolves to.
           const tsSkeletonOf = (name: string) => {
             const sets = tsSkeletonByFileName.get(tsFile)?.get(name);
-            return sets?.length === 1 ? sets[0] : undefined;
+            if (sets?.length === 1) return sets[0];
+            const local = tsLocalSkeletonByFileName.get(tsFile)?.get(name);
+            return local?.length === 1 ? local[0] : undefined;
           };
+          // The file-local function the pair's own name ALSO names, when there
+          // is exactly one — the helper a same-named method delegates to
+          // (`markOccurrence`), which is a reach and not recursion.
+          const localSets = tsLocalSkeletonByFileName.get(tsFile)?.get(tsName);
+          const tsOwnNameDelegate = localSets?.length === 1 ? localSets[0] : undefined;
           const tsFolded = foldSkeletonTokens(tsSkeletons[0], "ts");
           callSkeletons.push({
             rubyFile,
@@ -4130,7 +4161,13 @@ export function main() {
               (n) => rubySkeletonByName.get(n),
               "ruby",
             ),
-            tsHelpers: sameFileHelperSkeletons(tsName, tsSkeletons[0], tsSkeletonOf, "ts"),
+            tsHelpers: sameFileHelperSkeletons(
+              tsName,
+              tsSkeletons[0],
+              tsSkeletonOf,
+              "ts",
+              tsOwnNameDelegate,
+            ),
           });
         }
         const seqSets = tsCallSeqByFileName.get(tsFile)?.get(tsName);

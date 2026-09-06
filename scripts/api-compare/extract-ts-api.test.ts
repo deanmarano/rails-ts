@@ -513,6 +513,23 @@ describe("body call capture", () => {
     expect(f.skeleton).toEqual(["ref:where"]);
   });
 
+  it("records a non-exported helper's skeleton as localSkeleton", () => {
+    const info = extractFromFiles("/p", {
+      "has-many-through-association.ts": `function markOccurrence(x: number) {
+          if (x <= 0) return false;
+          return true;
+        }
+        export function multisetDifference(x: number) {
+          return markOccurrence(x);
+        }`,
+    });
+    const helper = fileFunctionsOf(info, "has-many-through-association.ts").find(
+      (fn) => fn.name === "markOccurrence",
+    )!;
+    expect(helper.localSkeleton).toEqual(["if"]);
+    expect(helper.skeleton).toBeUndefined();
+  });
+
   it("emits an ordered control + call skeleton, with duplicates, alongside calls", () => {
     const cls = extractFromSource(
       `class Foo {
