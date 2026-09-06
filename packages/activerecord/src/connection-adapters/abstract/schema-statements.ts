@@ -227,8 +227,8 @@ export class SchemaStatements {
 
     if (typeof options === "function") {
       definer = options;
-    } else if (options) {
-      kwargs = options;
+    } else {
+      kwargs = options ?? {};
       definer = fn;
     }
 
@@ -659,8 +659,8 @@ export class SchemaStatements {
     let definer: ((t: TableDefinitionOf<this>) => void) | undefined;
     if (typeof options === "function") {
       definer = options;
-    } else if (options) {
-      kwargs = options;
+    } else {
+      kwargs = options ?? {};
       definer = fn;
     }
     const joinOptions: JoinTableOptions = { ...kwargs };

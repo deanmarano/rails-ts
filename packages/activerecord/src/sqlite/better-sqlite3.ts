@@ -22,24 +22,50 @@ function bindArgs(binds?: SqliteBinds): unknown[] {
 }
 
 /** @internal */
+function withNullBinds<T>(source: string, args: unknown[], call: (args: unknown[]) => T): T {
+  const limit = args.length + (source.split("?").length - 1);
+  let padded = args;
+  for (;;) {
+    try {
+      return call(padded);
+    } catch (e) {
+      if (
+        !(e instanceof RangeError) ||
+        !e.message.startsWith("Too few parameter values were provided") ||
+        padded.length >= limit
+      ) {
+        throw e;
+      }
+      padded = [...padded, null];
+    }
+  }
+}
+
+/** @internal */
 class BetterSqlite3Statement implements SqliteStatement, SyncSqliteStatement {
   constructor(private readonly stmt: Database.Statement) {}
 
+  private bind<T>(binds: SqliteBinds | undefined, call: (args: unknown[]) => T): T {
+    const args = bindArgs(binds);
+    if (binds !== undefined && !Array.isArray(binds)) return call(args);
+    return withNullBinds(this.stmt.source, args, call);
+  }
+
   run(binds?: SqliteBinds): RunResult {
-    const result = this.stmt.run(...bindArgs(binds));
+    const result = this.bind(binds, (args) => this.stmt.run(...args));
     return { changes: result.changes, lastInsertRowid: result.lastInsertRowid };
   }
 
   get(binds?: SqliteBinds): unknown {
-    return this.stmt.get(...bindArgs(binds));
+    return this.bind(binds, (args) => this.stmt.get(...args));
   }
 
   all(binds?: SqliteBinds): unknown[] {
-    return this.stmt.all(...bindArgs(binds));
+    return this.bind(binds, (args) => this.stmt.all(...args));
   }
 
   iterate(binds?: SqliteBinds): IterableIterator<unknown> {
-    return this.stmt.iterate(...bindArgs(binds));
+    return this.bind(binds, (args) => this.stmt.iterate(...args));
   }
 
   get reader(): boolean {

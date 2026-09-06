@@ -1,5 +1,4 @@
 import { PostgreSQLAdapter } from "../../connection-adapters/postgresql-adapter.js";
-import { pgDatetimeConfig } from "../../connection-adapters/postgresql/pg-datetime-config.js";
 import { Notifications, squish } from "@blazetrails/activesupport";
 import type { NotificationSubscriber, NotificationEvent } from "@blazetrails/activesupport";
 import { pgAvailable, pgHasHintPlan, pgServerVersion } from "../../support/describe-if-pg.js";
@@ -10,18 +9,25 @@ export { describeIfPg, pgServerVersion, PG_TEST_URL } from "../../support/descri
 export const pgSupportsOptimizerHints = pgAvailable && pgHasHintPlan;
 export const pgSupportsNativePartitioning = pgServerVersion >= 100000;
 
+import { removeNativeDatabaseTypesMemo } from "../../support/with-postgresql-datetime-type.js";
+
 export { withPostgresqlDatetimeType } from "../../support/with-postgresql-datetime-type.js";
 
 export async function withNativeDatabaseTypeOverrides<T>(
   overrides: Record<string, string | { name?: string; limit?: number }>,
   fn: () => T | Promise<T>,
 ): Promise<T> {
-  const saved = { ...pgDatetimeConfig.nativeDatabaseTypesOverrides };
-  Object.assign(pgDatetimeConfig.nativeDatabaseTypesOverrides, overrides);
+  const types = PostgreSQLAdapter.NATIVE_DATABASE_TYPES;
+  const added = Object.keys(overrides).filter((key) => !(key in types));
+  const saved = { ...types };
+  Object.assign(types, overrides);
+  removeNativeDatabaseTypesMemo(PostgreSQLAdapter);
   try {
     return await fn();
   } finally {
-    pgDatetimeConfig.nativeDatabaseTypesOverrides = saved;
+    Object.assign(types, saved);
+    for (const key of added) delete types[key];
+    removeNativeDatabaseTypesMemo(PostgreSQLAdapter);
   }
 }
 

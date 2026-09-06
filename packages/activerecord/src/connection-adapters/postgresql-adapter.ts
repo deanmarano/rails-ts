@@ -39,7 +39,6 @@ import {
 import { TypeMapInitializer, type PgTypeRow } from "./postgresql/oid/type-map-initializer.js";
 import { Money } from "./postgresql/oid/money.js";
 import {
-  initializeInstanceTypeMap,
   initializeTypeMap as staticInitializeTypeMap,
   registerClassWithPrecision,
 } from "./postgresql/type-map-init.js";
@@ -158,7 +157,6 @@ import { pgDatetimeConfig } from "./postgresql/pg-datetime-config.js";
 import { abandonRawSocket } from "./abandon-raw-socket.js";
 import {
   POSTGRESQL_NATIVE_DATABASE_TYPES,
-  postgresqlNativeDatabaseTypes,
   type NativeDatabaseTypes,
 } from "./abstract/native-database-types.js";
 
@@ -265,6 +263,8 @@ export class PostgreSQLAdapter
   }
 
   static readonly NATIVE_DATABASE_TYPES: NativeDatabaseTypes = POSTGRESQL_NATIVE_DATABASE_TYPES;
+
+  private static _nativeDatabaseTypes?: NativeDatabaseTypes;
 
   static get datetimeType(): string {
     return pgDatetimeConfig.datetimeType;
@@ -493,7 +493,7 @@ export class PostgreSQLAdapter
       this._typeMapEagerLoaded = true;
       this._typeMap = null;
       this._regtypeOids.clear();
-      await this.loadAdditionalTypes();
+      await this.initializeTypeMap();
     }
   }
 
@@ -525,8 +525,11 @@ export class PostgreSQLAdapter
   /** @internal */
   get typeMap(): HashLookupTypeMap {
     if (this._typeMap == null) {
-      this._typeMap = new HashLookupTypeMap();
-      initializeInstanceTypeMap(this._typeMap, ActiveRecord.defaultTimezone);
+      const m = (this._typeMap = new HashLookupTypeMap());
+      (this.constructor as typeof PostgreSQLAdapter).initializeTypeMap(m);
+      registerClassWithPrecision(m, "time", TimeType, { timezone: this._defaultTimezone });
+      registerClassWithPrecision(m, "timestamp", Timestamp, { timezone: this._defaultTimezone });
+      registerClassWithPrecision(m, "timestamptz", TimestampWithTimeZone);
     }
     return this._typeMap;
   }
@@ -534,9 +537,8 @@ export class PostgreSQLAdapter
   private async initializeTypeMap(m: HashLookupTypeMap = this.typeMap): Promise<void> {
     (this.constructor as typeof PostgreSQLAdapter).initializeTypeMap(m);
 
-    const timezone = ActiveRecord.defaultTimezone;
-    registerClassWithPrecision(m, "time", TimeType, { timezone });
-    registerClassWithPrecision(m, "timestamp", Timestamp, { timezone });
+    registerClassWithPrecision(m, "time", TimeType, { timezone: this._defaultTimezone });
+    registerClassWithPrecision(m, "timestamp", Timestamp, { timezone: this._defaultTimezone });
     registerClassWithPrecision(m, "timestamptz", TimestampWithTimeZone);
 
     await this.loadAdditionalTypes();
@@ -1179,11 +1181,13 @@ export class PostgreSQLAdapter
     await this.internalExecute(`ROLLBACK TO SAVEPOINT "${name}"`, "TRANSACTION");
   }
 
-  static nativeDatabaseTypes(): NativeDatabaseTypes {
-    return postgresqlNativeDatabaseTypes(
-      this.datetimeType,
-      pgDatetimeConfig.nativeDatabaseTypesOverrides,
-    );
+  static nativeDatabaseTypes(this: typeof PostgreSQLAdapter): NativeDatabaseTypes {
+    if (this._nativeDatabaseTypes == null) {
+      const types: NativeDatabaseTypes = { ...this.NATIVE_DATABASE_TYPES };
+      types["datetime"] = types[this.datetimeType];
+      this._nativeDatabaseTypes = types;
+    }
+    return this._nativeDatabaseTypes;
   }
 
   nativeDatabaseTypes(): NativeDatabaseTypes {

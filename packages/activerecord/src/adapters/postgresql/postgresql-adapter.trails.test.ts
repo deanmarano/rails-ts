@@ -4,7 +4,12 @@ import { Temporal } from "@blazetrails/date";
 import { ValueType } from "@blazetrails/activemodel";
 import { ActiveRecord } from "../../ar-config.js";
 import { Base } from "../../base.js";
-import { describeIfPg, PostgreSQLAdapter, PG_TEST_URL } from "./test-helper.js";
+import {
+  describeIfPg,
+  PostgreSQLAdapter,
+  PG_TEST_URL,
+  withPostgresqlDatetimeType,
+} from "./test-helper.js";
 import {
   ConnectionNotEstablished,
   Deadlocked,
@@ -1079,15 +1084,11 @@ describeIfPg("PostgreSQLAdapter", () => {
       expect(types.datetime).toBeDefined();
     });
 
-    it("nativeDatabaseTypes datetime resolves from datetimeType", () => {
-      const original = PostgreSQLAdapter.datetimeType;
-      try {
-        PostgreSQLAdapter.datetimeType = "timestamptz";
+    it("nativeDatabaseTypes datetime resolves from datetimeType", async () => {
+      await withPostgresqlDatetimeType("timestamptz", () => {
         const types = PostgreSQLAdapter.nativeDatabaseTypes();
         expect(types.datetime).toEqual({ name: "timestamptz" });
-      } finally {
-        PostgreSQLAdapter.datetimeType = original;
-      }
+      });
     });
 
     it("isUseInsertReturning defaults to true", () => {

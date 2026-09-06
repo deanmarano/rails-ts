@@ -108,6 +108,33 @@ describe("SchemaStatements mixed into AbstractAdapter", () => {
     expect(await conn.columnExists("posts", "title = 'active'")).toBe(false);
   });
 
+  it("createTable runs the block when options is passed explicitly as undefined", async () => {
+    adapter = new BetterSQLite3Adapter(":memory:");
+    await adapter.createTable("things", undefined, (t) => {
+      t.string("name");
+    });
+    expect((await adapter.columns("things")).map((c) => c.name)).toContain("name");
+  });
+
+  it("changeTable runs the block when options is passed explicitly as undefined", async () => {
+    adapter = new BetterSQLite3Adapter(":memory:");
+    await adapter.createTable("things", (t) => {
+      t.string("name");
+    });
+    await adapter.changeTable("things", undefined, async (t) => {
+      await t.column("quantity", "integer");
+    });
+    expect((await adapter.columns("things")).map((c) => c.name)).toContain("quantity");
+  });
+
+  it("createJoinTable runs the block when options is passed explicitly as undefined", async () => {
+    adapter = new BetterSQLite3Adapter(":memory:");
+    await adapter.createJoinTable("artists", "musics", undefined, (t) => {
+      t.column("nickname", "string");
+    });
+    expect((await adapter.columns("artists_musics")).map((c) => c.name)).toContain("nickname");
+  });
+
   it("createTable is callable directly on the adapter", async () => {
     adapter = new BetterSQLite3Adapter(":memory:");
     await adapter.createTable("things", (t) => {

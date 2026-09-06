@@ -376,13 +376,7 @@ export class Migration<A extends DatabaseAdapter = DatabaseAdapter> {
     fn?: (t: TableDefinitionOf<A>) => void,
   ): Promise<void> {
     const tname = this._pt(tableName);
-    if (fn !== undefined) {
-      await this.connection.createTable(tname, options, fn);
-    } else if (options !== undefined) {
-      await this.connection.createTable(tname, options);
-    } else {
-      await this.connection.createTable(tname);
-    }
+    await this.connection.createTable(tname, options, fn);
   }
 
   /**
@@ -784,13 +778,7 @@ export class Migration<A extends DatabaseAdapter = DatabaseAdapter> {
     fn?: (t: TableDefinitionOf<A>) => void,
   ): Promise<void> {
     table1 = this._pt(table1);
-    if (fn !== undefined) {
-      await this.connection.createJoinTable(table1, table2, options, fn);
-    } else if (options !== undefined) {
-      await this.connection.createJoinTable(table1, table2, options);
-    } else {
-      await this.connection.createJoinTable(table1, table2);
-    }
+    await this.connection.createJoinTable(table1, table2, options, fn);
   }
 
   async dropJoinTable(
@@ -815,13 +803,7 @@ export class Migration<A extends DatabaseAdapter = DatabaseAdapter> {
     options?: ((t: TableOf<A>) => void | Promise<void>) | { bulk?: boolean },
     fn?: (t: TableOf<A>) => void | Promise<void>,
   ): Promise<void> {
-    if (fn !== undefined) {
-      await this.connection.changeTable(this._pt(tableName), options, fn);
-    } else if (options !== undefined) {
-      await this.connection.changeTable(this._pt(tableName), options);
-    } else {
-      await this.connection.changeTable(this._pt(tableName));
-    }
+    await this.connection.changeTable(this._pt(tableName), options, fn);
   }
 
   async renameIndex(tableName: string, oldName: string, newName: string): Promise<void> {
@@ -2023,7 +2005,7 @@ export class Current<A extends DatabaseAdapter = DatabaseAdapter> extends Migrat
     const block = typeof options === "function" ? options : fn;
     if (block === undefined) {
       await super.createTable(tableName, options);
-    } else if (options === undefined || options === block) {
+    } else if (options === block) {
       await super.createTable(tableName, (t) => block(this.compatibleTableDefinition(t)));
     } else {
       await super.createTable(tableName, options, (t) => block(this.compatibleTableDefinition(t)));
@@ -2038,7 +2020,7 @@ export class Current<A extends DatabaseAdapter = DatabaseAdapter> extends Migrat
     const block = typeof options === "function" ? options : fn;
     if (block === undefined) {
       await super.changeTable(tableName, options);
-    } else if (options === undefined || options === block) {
+    } else if (options === block) {
       await super.changeTable(tableName, (t) => block(this.compatibleTableDefinition(t)));
     } else {
       await super.changeTable(tableName, options, (t) => block(this.compatibleTableDefinition(t)));
@@ -2054,7 +2036,7 @@ export class Current<A extends DatabaseAdapter = DatabaseAdapter> extends Migrat
     const block = typeof options === "function" ? options : fn;
     if (block === undefined) {
       await super.createJoinTable(table1, table2, options);
-    } else if (options === undefined || options === block) {
+    } else if (options === block) {
       await super.createJoinTable(table1, table2, (t) => block(this.compatibleTableDefinition(t)));
     } else {
       await super.createJoinTable(table1, table2, options, (t) =>
