@@ -63,7 +63,7 @@ describe("ArEnvironmentTest", () => {
   it("expands a url-style sqlite config without flattening it to a HashConfig", () => {
     const config = normalizeUrl("db/test.sqlite3");
     expect(config).toBeInstanceOf(UrlConfig);
-    expect((config as UrlConfig).url).toBe(join("/project", "db", "test.sqlite3"));
+    expect((config as UrlConfig).url).toBe(`sqlite3:${join("/project", "db", "test.sqlite3")}`);
     expect(config?.database).toBe(join("/project", "db", "test.sqlite3"));
   });
 
