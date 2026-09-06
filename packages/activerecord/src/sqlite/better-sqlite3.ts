@@ -86,7 +86,15 @@ class BetterSqlite3Statement implements SqliteStatement, SyncSqliteStatement {
     this.stmt.safeIntegers(on);
   }
 
-  finalize(): void {}
+  private _closed = false;
+
+  get closed(): boolean {
+    return this._closed;
+  }
+
+  close(): void {
+    this._closed = true;
+  }
 }
 
 /** @internal */

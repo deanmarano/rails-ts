@@ -34,3 +34,19 @@ it("writes the mtime into the gzip header, as Zlib::GzipWriter#mtime= does", asy
   expect(compressed.readUInt32LE(4)).toBe(mtime);
   expect(getZlib().gunzip(compressed).toString()).toBe("hello");
 });
+
+it("takes the streaming branch for a body that answers read but is not a File", async () => {
+  const body = {
+    read: () => {
+      throw new Error("read must not be called for a non-File body");
+    },
+    each: (visit: (part: string) => void) => {
+      visit("one");
+      visit("two");
+    },
+  };
+  const written: Uint8Array[] = [];
+  await new GzipStream(body, null, true).each((data) => written.push(data));
+
+  expect(getZlib().gunzip(Buffer.concat(written)).toString()).toBe("onetwo");
+});

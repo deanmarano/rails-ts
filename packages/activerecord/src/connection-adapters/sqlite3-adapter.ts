@@ -1788,7 +1788,7 @@ export class StatementPool extends GenericStatementPool<SqliteStatement> {
 
   /** @internal */
   protected override dealloc(stmt: SqliteStatement): void | Promise<void> {
-    return stmt.finalize?.();
+    if (!stmt.closed) return stmt.close();
   }
 }
 

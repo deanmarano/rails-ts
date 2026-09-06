@@ -755,6 +755,8 @@ describeIfSqlite("SQLite3AdapterTest", () => {
       columns: () => [],
       setReadBigInts: () => {},
       reader: true,
+      close: () => {},
+      closed: false,
     };
     const fakeConn: SyncSqliteConnection = {
       prepare: () => fakeStmt,

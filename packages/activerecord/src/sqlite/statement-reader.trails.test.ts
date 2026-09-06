@@ -56,6 +56,20 @@ describe.each(drivers)("SqliteStatement#reader — %s", (_name, driver, availabl
   });
 });
 
+describe.each(drivers)("SqliteStatement#close — %s", (_name, driver, available) => {
+  it.skipIf(!available)("reports closed only once close has been called", async () => {
+    const conn: SqliteConnection = await driver.open({ database: ":memory:" });
+    try {
+      const stmt = await conn.prepare("SELECT 1");
+      expect(stmt.closed).toBe(false);
+      await stmt.close();
+      expect(stmt.closed).toBe(true);
+    } finally {
+      await conn.close();
+    }
+  });
+});
+
 const adapters: [string, () => SQLite3Adapter, boolean][] = [
   ["better-sqlite3", () => new BetterSQLite3Adapter(":memory:"), true],
   ["libsql", () => new LibSQLAdapter(":memory:"), true],

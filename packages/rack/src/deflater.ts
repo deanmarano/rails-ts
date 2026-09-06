@@ -1,4 +1,4 @@
-import { GzipWriter, hasKey } from "@blazetrails/ruby-compat";
+import { File, GzipWriter, hasKey } from "@blazetrails/ruby-compat";
 import { Time } from "@blazetrails/date";
 import { BodyProxy } from "./body-proxy.js";
 import { Request } from "./request.js";
@@ -133,21 +133,20 @@ export class GzipStream {
     const gzip = new GzipWriter(this);
     if (this.mtime) gzip.mtime = this.mtime;
     try {
-      if (typeof this.body.read === "function") {
+      if (this.body instanceof File) {
         let part: string | null;
         while ((part = this.body.read(GzipStream.BUFFER_LENGTH)) != null) {
           gzip.write(Buffer.from(String(part), "binary"));
           if (this.sync) gzip.flush();
         }
       } else {
-        const each = (this.body.each ?? this.body.forEach) as (
-          visit: (part: string) => void,
-        ) => void;
-        each.call(this.body, (part: string) => {
+        const visit = (part: string) => {
           if (part.length === 0) return;
           gzip.write(Buffer.from(String(part), "binary"));
           if (this.sync) gzip.flush();
-        });
+        };
+        if (Array.isArray(this.body)) for (const part of this.body) visit(part);
+        else this.body.each(visit);
       }
     } finally {
       await gzip.finish();
