@@ -1,4 +1,4 @@
-import { included, pluralize, toF } from "@blazetrails/activesupport";
+import { included, initialize, pluralize, toF } from "@blazetrails/activesupport";
 import * as RuntimeRegistry from "../runtime-registry.js";
 
 interface ControllerRuntimeHost {
@@ -115,7 +115,10 @@ export const ControllerRuntime = {
     });
     supers.set(base, supers.get(proto)!);
     Object.assign(proto, { processAction, cleanupViewRuntime, appendInfoToPayload });
-    proto.dbRuntime = null;
     base.logProcessAction = logProcessAction;
+  },
+
+  [initialize](this: ControllerRuntimeHost): void {
+    this.dbRuntime = null;
   },
 };

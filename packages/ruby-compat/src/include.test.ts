@@ -5,6 +5,8 @@ import {
   included,
   extended,
   Module,
+  initialize,
+  initializeIncludedModules,
   isModuleIncluded,
   defineModule,
   moduleVisibility,
@@ -17,6 +19,87 @@ import {
 type DynMethods = Record<string, (...args: unknown[]) => unknown>;
 type DynProps = Record<string, unknown>;
 type DynSymbols = Record<symbol, unknown>;
+
+describe("initializeIncludedModules", () => {
+  it("seats a module's per-instance state as an own property at construction", () => {
+    class Controller {
+      constructor() {
+        initializeIncludedModules(this);
+      }
+    }
+    const mod = {
+      [initialize](this: DynProps) {
+        this.dbRuntime = null;
+      },
+    };
+    include(Controller, mod);
+
+    const controller = new Controller();
+    expect(Object.hasOwn(controller, "dbRuntime")).toBe(true);
+    expect((controller as DynProps).dbRuntime).toBe(null);
+  });
+
+  it("runs the initializers of every included module, in include order", () => {
+    const order: string[] = [];
+    class Controller {
+      constructor() {
+        initializeIncludedModules(this);
+      }
+    }
+    include(Controller, { [initialize]: () => order.push("first") });
+    include(Controller, { [initialize]: () => order.push("second") });
+
+    new Controller();
+    expect(order).toEqual(["first", "second"]);
+  });
+
+  it("does not re-register the initializer of an already-included module", () => {
+    let seatings = 0;
+    class Controller {
+      constructor() {
+        initializeIncludedModules(this);
+      }
+    }
+    const mod = { [initialize]: () => void seatings++ };
+    include(Controller, mod);
+    include(Controller, mod);
+
+    new Controller();
+    expect(seatings).toBe(1);
+  });
+
+  it("does not re-register a module a superclass already included", () => {
+    let seatings = 0;
+    class Base {
+      constructor() {
+        initializeIncludedModules(this);
+      }
+    }
+    const mod = { [initialize]: () => void seatings++ };
+    include(Base, mod);
+    class Sub extends Base {}
+    include(Sub, mod);
+
+    new Sub();
+    expect(seatings).toBe(1);
+  });
+
+  it("runs the initializers a superclass included", () => {
+    class Base {
+      constructor() {
+        initializeIncludedModules(this);
+      }
+    }
+    include(Base, {
+      [initialize](this: DynProps) {
+        this.seated = true;
+      },
+    });
+    class Sub extends Base {}
+
+    expect(Object.hasOwn(new Sub(), "seated")).toBe(true);
+  });
+});
 
 describe("include", () => {
   it("copies instance methods onto the prototype", () => {

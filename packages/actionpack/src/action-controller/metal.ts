@@ -4,7 +4,7 @@ import { Response } from "../action-dispatch/http/response.js";
 import type { Session } from "../action-dispatch/request/session.js";
 import { Parameters } from "./metal/strong-parameters.js";
 import type { RackResponse } from "@blazetrails/rack";
-import { underscore } from "@blazetrails/activesupport";
+import { initializeIncludedModules, underscore } from "@blazetrails/activesupport";
 import { ArgumentError, rbInspect } from "@blazetrails/ruby-compat";
 import {
   MiddlewareStack as AbstractMiddlewareStack,
@@ -107,6 +107,11 @@ export class Metal extends AbstractController {
   _request!: Request;
   _response!: Response;
   _params: Parameters = new Parameters({});
+
+  constructor() {
+    super();
+    initializeIncludedModules(this);
+  }
 
   get params(): Parameters {
     return this._params;

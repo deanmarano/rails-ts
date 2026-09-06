@@ -106,6 +106,8 @@ export {
   extended,
   include,
   included,
+  initialize,
+  initializeIncludedModules,
   isModuleIncluded,
   moduleVisibility,
   publicInstanceMethods,
