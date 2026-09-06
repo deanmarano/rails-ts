@@ -419,3 +419,37 @@ describe("AbstractAdapter#adapterName", () => {
     expect(Mysql2Adapter.ADAPTER_NAME).toBe("Mysql2");
   });
 });
+
+describe("AbstractAdapter.buildReadQueryRegexp", () => {
+  it("matches the default read statements", () => {
+    const re = AbstractAdapter.buildReadQueryRegexp();
+    for (const sql of [
+      "BEGIN",
+      "COMMIT",
+      "EXPLAIN SELECT 1",
+      "RELEASE SAVEPOINT a",
+      "ROLLBACK",
+      "SAVEPOINT a",
+      "select 1",
+      "WITH a AS (SELECT 1) SELECT * FROM a",
+    ]) {
+      expect(re.test(sql)).toBe(true);
+    }
+    expect(re.test("INSERT INTO posts (id) VALUES (1)")).toBe(false);
+    expect(re.test("UPDATE posts SET id = 1")).toBe(false);
+  });
+
+  it("adds the given parts to the default read statements", () => {
+    const re = AbstractAdapter.buildReadQueryRegexp("pragma");
+    expect(re.test("PRAGMA foreign_keys")).toBe(true);
+    expect(AbstractAdapter.buildReadQueryRegexp().test("PRAGMA foreign_keys")).toBe(false);
+  });
+
+  it("skips leading whitespace, parens and comments", () => {
+    const re = AbstractAdapter.buildReadQueryRegexp();
+    expect(re.test("  (SELECT 1)")).toBe(true);
+    expect(re.test("/* comment */ SELECT 1")).toBe(true);
+    expect(re.test("-- comment\nSELECT 1")).toBe(true);
+    expect(re.test("/* comment */ DELETE FROM posts")).toBe(false);
+  });
+});

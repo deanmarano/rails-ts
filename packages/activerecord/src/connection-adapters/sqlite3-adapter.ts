@@ -73,9 +73,9 @@ import {
   execute as sqliteExecute,
   defaultInsertValue as sqliteDefaultInsertValue,
   explain as sqliteExplain,
+  isWriteQuery as sqliteIsWriteQuery,
 } from "./sqlite3/database-statements.js";
 import { Result } from "../result.js";
-import { isWriteQuerySql } from "./sql-classification.js";
 import {
   quote as sqliteQuote,
   typeCast as sqliteTypeCast,
@@ -313,7 +313,7 @@ export class SQLite3Adapter extends AbstractAdapter implements DatabaseAdapter {
   }
 
   private _maybeEnableReadBigInts(sql: string, stmt: SqliteStatement): void {
-    if (isWriteQuerySql(sql) || !stmt.reader) return;
+    if (this.isWriteQuery(sql) || !stmt.reader) return;
     const cols = stmt.columns();
     if (cols.some((c) => c.type !== null && /bigint/i.test(c.type))) {
       stmt.setReadBigInts(true);
@@ -1843,6 +1843,7 @@ SQLite3Adapter.prototype.resetIsolationLevel = sqliteResetIsolationLevel;
 SQLite3Adapter.prototype.execute = sqliteExecute;
 SQLite3Adapter.prototype.defaultInsertValue = sqliteDefaultInsertValue;
 SQLite3Adapter.prototype.explain = sqliteExplain;
+SQLite3Adapter.prototype.isWriteQuery = sqliteIsWriteQuery;
 
 dirtiesQueryCache(SQLite3Adapter, "execute");
 
@@ -1862,6 +1863,7 @@ export interface SQLite3Adapter {
   execute: typeof sqliteExecute;
   defaultInsertValue: typeof sqliteDefaultInsertValue;
   explain: typeof sqliteExplain;
+  isWriteQuery: typeof sqliteIsWriteQuery;
 }
 /* eslint-enable @typescript-eslint/no-unsafe-declaration-merging */
 
