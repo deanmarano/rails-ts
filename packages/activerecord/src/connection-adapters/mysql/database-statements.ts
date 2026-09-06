@@ -1,5 +1,6 @@
 import { sql as arelSql } from "@blazetrails/arel";
 import { ArgumentError } from "@blazetrails/activemodel";
+import { b } from "@blazetrails/ruby-compat";
 import { ActiveRecordError } from "../../errors.js";
 import type { ExplainOption } from "../abstract/database-statements.js";
 import type { Nodes } from "@blazetrails/arel";
@@ -36,7 +37,12 @@ const READ_QUERY = AbstractAdapter.buildReadQueryRegexp(
 );
 
 export function isWriteQuery(sql: string): boolean {
-  return !READ_QUERY.test(sql);
+  try {
+    return !READ_QUERY.test(sql);
+  } catch (error) {
+    if (!(error instanceof ArgumentError)) throw error;
+    return !READ_QUERY.test(b(sql));
+  }
 }
 
 export interface BuildExplainClauseHost {

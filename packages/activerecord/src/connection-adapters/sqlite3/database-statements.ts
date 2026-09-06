@@ -1,4 +1,6 @@
 import { sql as arelSql } from "@blazetrails/arel";
+import { ArgumentError } from "@blazetrails/activemodel";
+import { b } from "@blazetrails/ruby-compat";
 import type { SqliteBinds, SqliteConnection, SqliteStatement } from "../../sqlite-adapter.js";
 import { TransactionIsolationError } from "../../errors.js";
 import { Result } from "../../result.js";
@@ -28,7 +30,12 @@ export interface DatabaseStatements {
 }
 
 export function isWriteQuery(sql: string): boolean {
-  return !READ_QUERY.test(sql);
+  try {
+    return !READ_QUERY.test(sql);
+  } catch (error) {
+    if (!(error instanceof ArgumentError)) throw error;
+    return !READ_QUERY.test(b(sql));
+  }
 }
 
 /** @missingRailsArgs internal_exec_query — CONVERGEABLE sqlite3-explain-passes-empty-binds */
