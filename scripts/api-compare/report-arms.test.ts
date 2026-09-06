@@ -4,6 +4,7 @@ import {
   cluster,
   compareArms,
   compareShortCircuits,
+  filterRows,
   controlArms,
   shortCircuitOps,
   renderReport,
@@ -296,5 +297,84 @@ describe("renderSample", () => {
     expect(sample).toContain("ruby active_record/connection_adapters/sqlite3_adapter.rb");
     expect(sample).toContain("ruby-skeleton if");
     expect(sample).toContain("ts-skeleton   if throw");
+  });
+});
+
+function inPackage(pkg: string, ruby: string[], ts: string[]): SkeletonRow {
+  return { ...row(ruby, ts), package: pkg };
+}
+
+describe("filterRows", () => {
+  const rows = [
+    compareArms(row(["if", "throw"], ["if"]))!,
+    compareArms(row(["if"], ["if", "throw"]))!,
+    compareArms(inPackage("arel", ["if"], ["if", "if"]))!,
+  ];
+
+  it("keeps only the rows that drop an arm under the missing direction", () => {
+    expect(filterRows(rows, { direction: "missing" })).toEqual([rows[0]]);
+  });
+
+  it("keeps only the rows that invent an arm under the invented direction", () => {
+    expect(filterRows(rows, { direction: "invented" })).toEqual([rows[1], rows[2]]);
+  });
+
+  it("restricts the population to one package", () => {
+    expect(filterRows(rows, { package: "arel" })).toEqual([rows[2]]);
+  });
+});
+
+describe("renderSample with a stratum", () => {
+  const artifact = {
+    packages: ["activerecord", "arel"],
+    skeletons: [
+      { ...named("dropsAnArm", ["if", "throw"], ["if"]) },
+      { ...named("inventsAnArm", ["if"], ["if", "if"]), package: "arel" },
+    ],
+  };
+
+  it("draws only from the named package and names the stratum in the header", () => {
+    const sample = renderSample(artifact, 5, 113, { package: "arel", direction: "invented" });
+
+    expect(sample).toContain(
+      "1 of 1 mismatched pair(s), seed 113, invented direction, package arel",
+    );
+    expect(sample).toContain("inventsAnArm");
+    expect(sample).not.toContain("dropsAnArm");
+  });
+});
+
+describe("renderReport strata", () => {
+  const artifact = {
+    packages: ["activerecord", "arel"],
+    skeletons: [
+      named("dropsAnArm", ["if", "throw"], ["if"]),
+      named("swapsAnArm", ["if", "throw"], ["if", "loop"]),
+      { ...named("inventsAnArm", ["if"], ["if", "if"]), package: "arel" },
+    ],
+  };
+
+  it("tallies the missing-only rows by package", () => {
+    const report = renderReport(artifact, 20);
+
+    expect(report).toContain("Missing-only rows by package (1)");
+    expect(report).toMatch(/Missing-only rows by package \(1\)\n\s+activerecord\s+1/);
+  });
+
+  it("prints a token table per package", () => {
+    const report = renderReport(artifact, 20);
+
+    expect(report).toContain("Arm tokens — activerecord (2 row(s))");
+    expect(report).toContain("Arm tokens — arel (1 row(s))");
+    expect(report).toMatch(/token\s+missing\s+invented\s+rows-missing\s+rows-invented/);
+    expect(report).toMatch(/\n\s+throw\s+2\s+0\s+2\s+0/);
+  });
+
+  it("restricts every tally to the named package", () => {
+    const report = renderReport(artifact, 20, { package: "arel" });
+
+    expect(report).toContain("1 mismatched pair(s) across 1 file(s), 3 pair(s) compared");
+    expect(report).toContain("Arm tokens — arel");
+    expect(report).not.toContain("Arm tokens — activerecord");
   });
 });
