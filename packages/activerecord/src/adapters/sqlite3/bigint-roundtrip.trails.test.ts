@@ -16,7 +16,7 @@ describeIfSqlite("SQLite3 bigint round-trip", () => {
 
   beforeEach(async () => {
     adapter = (await Base.leaseConnection()) as unknown as SQLite3Adapter;
-    await adapter.exec(`
+    await adapter.execute(`
       CREATE TABLE "big_items" (
         "id"     INTEGER PRIMARY KEY AUTOINCREMENT,
         "score"  BIGINT NOT NULL,

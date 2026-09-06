@@ -72,4 +72,19 @@ describe("Request", () => {
     expect(req.getHeader("REQUEST_METHOD")).toBe("PATCH");
     expect(new Request({ REQUEST_METHOD: "POST" }).formData).toBe(false);
   });
+
+  it("port falls back to standard_port, and reads the forwarded host's port", () => {
+    const https = new Request({
+      HTTP_HOST: "example.com",
+      SERVER_PORT: "80",
+      "rack.url_scheme": "https",
+    });
+    expect(https.port).toBe(443);
+
+    const forwarded = new Request({
+      HTTP_X_FORWARDED_HOST: "first.example.com:8080, last.example.com:9090",
+      HTTP_HOST: "example.com:3000",
+    });
+    expect(forwarded.port).toBe(9090);
+  });
 });

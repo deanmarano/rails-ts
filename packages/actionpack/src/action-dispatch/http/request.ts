@@ -179,6 +179,7 @@ export class Request {
 
   #method?: string;
   #requestMethod?: string;
+  #port?: number;
 
   constructor(env: RackEnv = {}) {
     this.env = env;
@@ -232,16 +233,17 @@ export class Request {
   }
 
   get port(): number {
-    const httpHost = this.env["HTTP_HOST"] as string | undefined;
-    if (httpHost) {
-      const match = httpHost.match(/:(\d+)$/);
-      if (match) return parseInt(match[1], 10);
-    }
-    return parseInt((this.env["SERVER_PORT"] as string) || "80", 10);
+    const match = this.rawHostWithPort.match(/:(\d+)$/);
+    this.#port ??= match ? parseInt(match[1], 10) : this.standardPort;
+    return this.#port;
   }
 
   get standardPort(): number {
-    return this.scheme === "https" ? 443 : 80;
+    if ("https://" === this.protocol) {
+      return 443;
+    } else {
+      return 80;
+    }
   }
 
   get isStandardPort(): boolean {

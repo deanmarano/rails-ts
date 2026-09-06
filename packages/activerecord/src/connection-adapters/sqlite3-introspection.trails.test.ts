@@ -19,11 +19,9 @@ describe("SQLite3Adapter schema introspection", () => {
   });
 
   afterEach(async () => {
-    await adapter
-      .exec(
-        "DROP TABLE IF EXISTS widgets; DROP TABLE IF EXISTS memberships; DROP TABLE IF EXISTS temp_widgets",
-      )
-      .catch(() => undefined);
+    await adapter.execute(`DROP TABLE IF EXISTS widgets`).catch(() => undefined);
+    await adapter.execute(`DROP TABLE IF EXISTS memberships`).catch(() => undefined);
+    await adapter.execute(`DROP TABLE IF EXISTS temp_widgets`).catch(() => undefined);
     await pool.disconnect();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

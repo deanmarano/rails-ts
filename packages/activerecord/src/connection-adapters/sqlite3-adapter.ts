@@ -522,11 +522,6 @@ export class SQLite3Adapter extends AbstractAdapter implements DatabaseAdapter {
     return this._rawConnection?.isOpen() ?? false;
   }
 
-  async exec(sql: string): Promise<void> {
-    await this.ensureConnected();
-    await this._rawConnection.exec(sql);
-  }
-
   get raw(): unknown {
     return this._rawConnection?.raw;
   }

@@ -10,7 +10,7 @@ interface RawAdapter {
 
 describe("setupAdapterSuite — schema + transactional rollback", () => {
   const setup = vi.fn(async (adapter: SQLite3Adapter) => {
-    await adapter.exec(`CREATE TABLE widgets (id INTEGER PRIMARY KEY, name TEXT)`);
+    await adapter.execute(`CREATE TABLE widgets (id INTEGER PRIMARY KEY, name TEXT)`);
   });
 
   const suite = setupAdapterSuite({
@@ -21,7 +21,7 @@ describe("setupAdapterSuite — schema + transactional rollback", () => {
   const a = (): RawAdapter => suite.adapter as unknown as RawAdapter;
 
   it("first insert is rolled back between tests", async () => {
-    await a().exec(`INSERT INTO widgets (id, name) VALUES (1, 'alpha')`);
+    await a().execute(`INSERT INTO widgets (id, name) VALUES (1, 'alpha')`);
     const rows = await a().execute(`SELECT * FROM widgets`);
     expect(rows).toHaveLength(1);
   });
@@ -29,7 +29,7 @@ describe("setupAdapterSuite — schema + transactional rollback", () => {
   it("second test sees clean schema (rollback isolated row from first test)", async () => {
     const before = await a().execute(`SELECT * FROM widgets`);
     expect(before).toHaveLength(0);
-    await a().exec(`INSERT INTO widgets (id, name) VALUES (2, 'beta')`);
+    await a().execute(`INSERT INTO widgets (id, name) VALUES (2, 'beta')`);
     expect(await a().execute(`SELECT * FROM widgets`)).toHaveLength(1);
   });
 

@@ -29,9 +29,11 @@ describeIfSqlite("SQLite3Adapter table-rebuild cluster", () => {
   const internals = (): TableRebuildInternals => db as unknown as TableRebuildInternals;
 
   const dropCopyTargets = async (): Promise<void> => {
-    await leased?.exec(
-      `DROP TABLE IF EXISTS customers2; DROP TABLE IF EXISTS customers3; DROP TABLE IF EXISTS books2; DROP TABLE IF EXISTS auto_id_tests2; DROP TABLE IF EXISTS "acustomers2"`,
-    );
+    await leased?.execute(`DROP TABLE IF EXISTS customers2`);
+    await leased?.execute(`DROP TABLE IF EXISTS customers3`);
+    await leased?.execute(`DROP TABLE IF EXISTS books2`);
+    await leased?.execute(`DROP TABLE IF EXISTS auto_id_tests2`);
+    await leased?.execute(`DROP TABLE IF EXISTS "acustomers2"`);
   };
 
   beforeEach(async () => {
@@ -130,14 +132,14 @@ describeIfSqlite("SQLite3Adapter table-rebuild cluster", () => {
   });
 
   it("addColumn of a primary_key through the rebuild creates the definition's index", async () => {
-    await db.exec('CREATE TABLE "customers2" ("name" TEXT)');
+    await db.execute('CREATE TABLE "customers2" ("name" TEXT)');
     await db.addColumn("customers2", "id", "primary_key", { index: true });
     const names = ((await db.indexes("customers2")) as Array<{ name: string }>).map((i) => i.name);
     expect(names).toContain("index_customers2_on_id");
   });
 
   it("alterTable keeps a composite primary key through the rebuild", async () => {
-    await db.exec(
+    await db.execute(
       'CREATE TABLE "customers2" ("shop_id" integer NOT NULL, "id" integer NOT NULL, "name" TEXT, PRIMARY KEY ("shop_id", "id"))',
     );
     await db.removeColumn("customers2", "name");
@@ -145,7 +147,7 @@ describeIfSqlite("SQLite3Adapter table-rebuild cluster", () => {
   });
 
   it("alterTable keeps the primary key of a lowercase integer-like declared type", async () => {
-    await db.exec('CREATE TABLE "customers2" ("id" bigint PRIMARY KEY, "name" TEXT)');
+    await db.execute('CREATE TABLE "customers2" ("id" bigint PRIMARY KEY, "name" TEXT)');
     await db.removeColumn("customers2", "name");
     const pk = (await internals().tableInfo("customers2")).filter((c) => Number(c["pk"]) > 0);
     expect(pk.map((c) => c["name"])).toEqual(["id"]);

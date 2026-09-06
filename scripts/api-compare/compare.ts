@@ -3739,6 +3739,28 @@ export function main() {
     const bodyHashRecords: BodyHashRecord[] = [];
     const fileResults: FileResult[] = [];
 
+    /**
+     * The Ruby member that has already claimed a given TS member, keyed
+     * `${tsFile}#${tsName}#${writer}`.
+     *
+     * A TS member is ONE port, so it answers for ONE Ruby member. Two Ruby
+     * names that resolve to the same TS name — `content_for?` onto its bare
+     * sibling `content_for`'s port (`capture_helper.rb:172,215`), `delete`
+     * defined in both `base.rb` and `persistence.rb` — otherwise both get
+     * scored against that single body, so the loser's report is a diff against
+     * a body that is not its counterpart at all. First claimer wins: the Ruby
+     * file loop is sorted and `seen` preserves Ruby source order, so the
+     * winner is stable across runs. The loser keeps its name-match credit —
+     * the name IS ported, once — but is held out of the CALL gates through
+     * `checkArity`'s existing `skipCalls`, because reading someone else's body
+     * is exactly what it must not do.
+     *
+     * The writer flag keeps a reader/writer pair (`name` / `name=`) apart —
+     * both spell the same TS name, and a get/set accessor pair really is two
+     * ports under one name.
+     */
+    const tsMemberClaims = new Map<string, string>();
+
     for (const [rubyFile, items] of [...byFile.entries()].sort(([a], [b]) => a.localeCompare(b))) {
       const expectedTs = rubyFileToTs(rubyFile, pkg);
       const tsMethods = tsMethodsByFile.get(expectedTs) || new Set<string>();
@@ -4441,7 +4463,11 @@ export function main() {
         _dedupeKey,
         { rubyName, rubyModule, umbrellaConfig, notes, mixinFile, definedInFile },
       ] of seen) {
-        const tsCandidates = rubyMethodToTsForFqn(rubyModule, rubyName, siblingRubyNames)!;
+        // Null once the sibling set is known — the `new`-beside-`initialize`
+        // wrapper — so it is dropped the way `seen`'s own no-candidate gate
+        // (`rubyMethodToTsForFqn(...) === null`) drops an unportable name.
+        const tsCandidates = rubyMethodToTsForFqn(rubyModule, rubyName, siblingRubyNames);
+        if (tsCandidates === null) continue;
 
         // Check direct match first — find which candidate matched
         const directMatch = tsCandidates.find((c) => tsMethods.has(c));
@@ -4467,6 +4493,15 @@ export function main() {
         // below is not `directMatch` (that arm runs because the expected file
         // does not exist at all).
         let declOnlyTsName = declOnly ? directMatch : undefined;
+        const claimKey =
+          directMatch === undefined
+            ? null
+            : `${expectedTs}#${directMatch}#${rubyName.endsWith("=") ? "w" : "r"}`;
+        const claimant = claimKey === null ? undefined : tsMemberClaims.get(claimKey);
+        if (claimKey !== null && claimant === undefined) {
+          tsMemberClaims.set(claimKey, `${rubyFile}#${rubyName}`);
+        }
+        const claimedByAnother = claimant !== undefined && claimant !== `${rubyFile}#${rubyName}`;
         if (directMatch && !declOnly) {
           fileMatched++;
           // A method Ruby flattened onto this host through `include` is ported
@@ -4488,7 +4523,9 @@ export function main() {
             directMatch,
             expectedTs,
             rubyModule,
-            seam || writerPairedWithReader(rubyName, directMatch, siblingRubyNames),
+            seam ||
+              claimedByAnother ||
+              writerPairedWithReader(rubyName, directMatch, siblingRubyNames),
           );
           continue;
         }
