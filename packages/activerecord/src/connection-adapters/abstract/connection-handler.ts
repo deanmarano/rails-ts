@@ -190,7 +190,7 @@ export class ConnectionHandler {
       connection_name: poolConfig.connectionDescriptor.name,
       role,
       shard,
-      config: poolConfig.dbConfig.configuration,
+      config: poolConfig.dbConfig.configurationHash,
     };
 
     Notifications.instrument("!connection.active_record", payload);

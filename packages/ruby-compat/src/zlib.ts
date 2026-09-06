@@ -1,4 +1,5 @@
 import { File } from "./file.js";
+import type { Tempfile } from "./tempfile.js";
 import { getZlib } from "./zlib-adapter.js";
 
 /**
@@ -6,8 +7,8 @@ import { getZlib } from "./zlib-adapter.js";
  * (`zlib.c:3233`) opens `filename` in the subclass' mode and hands the stream
  * to `gzfile_wrap` (`zlib.c:3178`), which closes it on the way out of a block.
  */
-class GzipFile {
-  constructor(protected io: File) {}
+class GzipFile<IO extends { close(): void } = File> {
+  constructor(protected io: IO) {}
 
   close(): void {
     this.io.close();
@@ -18,7 +19,7 @@ class GzipFile {
  * `Zlib::GzipReader` (`vendor/ruby/ext/zlib/zlib.c:4877`); `open` is
  * `gzfile_s_open(argc, argv, klass, "rb")` (`zlib.c:3871`).
  */
-class GzipReader extends GzipFile {
+class GzipReader extends GzipFile<File> {
   static open(filename: string): GzipReader;
   static open<T>(filename: string, block: (gz: GzipReader) => T): T;
   static open<T>(filename: string, block?: (gz: GzipReader) => T): T | GzipReader {
@@ -41,13 +42,34 @@ class GzipReader extends GzipFile {
 }
 
 /**
+ * `gzfile_make_header` writes the mtime as a 4-byte little-endian field at
+ * offset 4 of the 10-byte gzip header (`vendor/ruby/ext/zlib/zlib.c:2648,2672`).
+ */
+const GZIP_HEADER_LENGTH = 10;
+
+function setGzipHeaderMtime(header: Uint8Array, mtime: number): void {
+  header[4] = mtime & 0xff;
+  header[5] = (mtime >>> 8) & 0xff;
+  header[6] = (mtime >>> 16) & 0xff;
+  header[7] = (mtime >>> 24) & 0xff;
+}
+
+/**
  * `Zlib::GzipWriter` (`vendor/ruby/ext/zlib/zlib.c:4859`); `open` is
  * `gzfile_s_open(argc, argv, klass, "wb")` (`zlib.c:3661`). The `ZlibAdapter`
  * seam is one-shot rather than streaming, so the deflate stream is finished
  * into the associated IO at `close` (`rb_gzfile_close`, `zlib.c:3524`).
  */
-class GzipWriter extends GzipFile {
+class GzipWriter extends GzipFile<File | Tempfile> {
   private buffer = "";
+
+  /**
+   * `rb_gzfile_mtime` / `rb_gzfile_set_mtime`
+   * (`vendor/ruby/ext/zlib/zlib.c:3356,3576`) — the MTIME field of the gzip
+   * header, which `SchemaCache#open` zeroes so two dumps of the same cache are
+   * byte-identical (`schema_cache.rb:468`).
+   */
+  mtime: number | null = null;
 
   static open(filename: string): GzipWriter;
   static open<T>(filename: string, block: (gz: GzipWriter) => T): T;
@@ -67,9 +89,21 @@ class GzipWriter extends GzipFile {
     return new TextEncoder().encode(string).length;
   }
 
+  /**
+   * `rb_gzwriter_flush` (`vendor/ruby/ext/zlib/zlib.c:3720`). The `ZlibAdapter`
+   * seam is one-shot rather than streaming, so there is no partial deflate
+   * output to push and the whole buffer is written at {@link close}.
+   */
+  flush(): this {
+    return this;
+  }
+
   close(): void {
     const bytes = new TextEncoder().encode(this.buffer);
     const gzipped = getZlib().gzip(bytes, Zlib.DEFAULT_COMPRESSION, Zlib.DEFAULT_STRATEGY);
+    if (this.mtime !== null && gzipped.length >= GZIP_HEADER_LENGTH) {
+      setGzipHeaderMtime(gzipped, this.mtime);
+    }
     let out = "";
     for (const byte of gzipped) out += String.fromCharCode(byte);
     this.io.write(out);

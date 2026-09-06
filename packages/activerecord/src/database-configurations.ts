@@ -114,13 +114,13 @@ export class DatabaseConfigurations {
 
     if (!options.includeHidden) {
       configs = configs.filter((c) => {
-        if (c.configuration._hidden === true) return false;
+        if (c.configurationHash._hidden === true) return false;
         if (c instanceof HashConfig) return c.databaseTasks();
         return true;
       });
     }
     if (options.configKey) {
-      configs = configs.filter((c) => hasKey(c.configuration, options.configKey!));
+      configs = configs.filter((c) => hasKey(c.configurationHash, options.configKey!));
     }
     if (options.name) {
       const nameStr = String(options.name);

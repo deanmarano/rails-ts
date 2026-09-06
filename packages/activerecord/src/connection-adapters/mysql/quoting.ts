@@ -17,10 +17,10 @@ import {
   toBytes,
   type QuotingDispatchHost,
 } from "../abstract/quoting.js";
-import { Temporal } from "@blazetrails/date";
+import { Temporal, Time as RubyTime } from "@blazetrails/date";
 import { Rational, rbObjAsString as toS } from "@blazetrails/ruby-compat";
-import { BigDecimal } from "@blazetrails/activesupport";
-import { Value as TimeValue } from "../../type/time.js";
+import { BigDecimal, TimeWithZone } from "@blazetrails/activesupport";
+import { ActiveRecord } from "../../ar-config.js";
 import { BinaryData } from "@blazetrails/activemodel";
 
 export function unquotedTrue(): number {
@@ -150,14 +150,21 @@ export function columnNameWithOrderMatcher(): RegExp {
 }
 
 export function typeCast(this: QuotingDispatchHost, value: unknown): unknown {
-  if (value instanceof TimeValue || value instanceof Temporal.PlainTime)
-    return this.quotedTime(value);
-  if (
-    value instanceof Temporal.Instant ||
-    value instanceof Temporal.PlainDateTime ||
-    value instanceof Temporal.PlainDate ||
-    value instanceof Temporal.ZonedDateTime
-  ) {
+  if (value instanceof TimeWithZone) {
+    if (ActiveRecord.defaultTimezone === "utc") {
+      return this.quotedDate(value.getutc());
+    } else {
+      return this.quotedDate(value.getlocal());
+    }
+  }
+  if (value instanceof RubyTime) {
+    if (ActiveRecord.defaultTimezone === "utc") {
+      return this.quotedDate(value.isUtc() ? value : value.getutc());
+    } else {
+      return this.quotedDate(value.isUtc() ? value.getlocal() : value);
+    }
+  }
+  if (value instanceof Temporal.PlainDate) {
     return this.quotedDate(value);
   }
   return abstractTypeCast.call(this, value);

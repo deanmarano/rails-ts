@@ -584,8 +584,8 @@ export class DatabaseTasks {
     const envSchema = getEnv("SCHEMA");
     if (envSchema !== undefined) return envSchema;
 
-    const rawCfg = (dbConfig as unknown as { configuration?: Record<string, unknown> })
-      ?.configuration;
+    const rawCfg = (dbConfig as unknown as { configurationHash?: Record<string, unknown> })
+      ?.configurationHash;
     const hasExplicitSchemaDump =
       rawCfg != null && Object.hasOwn(rawCfg, "schemaDump") && rawCfg["schemaDump"] !== undefined;
 

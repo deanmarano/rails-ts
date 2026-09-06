@@ -173,3 +173,80 @@ describe("SchemaCacheDeepDeduplicateTest", () => {
     expect(index.name).toBe("index_people_on_id");
   });
 });
+
+describe("SchemaCacheGzipDumpTest", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "schema-cache-gzip-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  async function populatedCache(): Promise<SchemaCache> {
+    const pool = new FakePool({
+      indexes: async () => [],
+      dataSourceExists: async () => true,
+      dataSources: async () => ["people"],
+    });
+    const cache = new SchemaCache();
+    await cache.indexes(pool, "people");
+    return cache;
+  }
+
+  it("dumping the same cache twice is byte-identical", async () => {
+    const cache = await populatedCache();
+    const first = path.join(tmpDir, "first.gz");
+    const second = path.join(tmpDir, "second.gz");
+
+    cache.dumpTo(first);
+    cache.dumpTo(second);
+
+    expect(fs.readFileSync(second)).toEqual(fs.readFileSync(first));
+  });
+
+  it("the gzip header carries mtime 0", async () => {
+    const cache = await populatedCache();
+    const filename = path.join(tmpDir, "schema_cache.json.gz");
+
+    cache.dumpTo(filename);
+
+    expect([...fs.readFileSync(filename).subarray(4, 8)]).toEqual([0, 0, 0, 0]);
+  });
+
+  it("a non-ASCII column name survives the dump", async () => {
+    const pool = new FakePool({
+      columns: async () => [
+        new Column(
+          "なまえ",
+          null,
+          new SqlTypeMetadata({ sqlType: "varchar(255)", type: "string" }),
+        ),
+      ],
+      indexes: async () => [],
+      dataSourceExists: async () => true,
+      dataSources: async () => ["weirds"],
+    });
+    const cache = new SchemaCache();
+    await cache.columns(pool, "weirds");
+
+    const filename = path.join(tmpDir, "schema_cache.json");
+    cache.dumpTo(filename);
+
+    const loaded = SchemaCache._loadFrom(filename);
+    expect(loaded).not.toBeNull();
+    const columns = await loaded!.columns(new FakePool({}), "weirds");
+    expect(columns!.map((c) => c.name)).toEqual(["なまえ"]);
+  });
+
+  it("dumping into a missing directory creates it", async () => {
+    const cache = await populatedCache();
+    const filename = path.join(tmpDir, "nested", "deeper", "schema_cache.json");
+
+    cache.dumpTo(filename);
+
+    expect(fs.existsSync(filename)).toBe(true);
+  });
+});

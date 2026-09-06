@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { findJoinTableName, joinTableName } from "./join-table.js";
+import { findJoinTableName as _findJoinTableName, joinTableName } from "./join-table.js";
 import { SchemaStatements } from "../connection-adapters/abstract/schema-statements.js";
+
+const findJoinTableName = _findJoinTableName.bind({ joinTableName });
 
 describe("JoinTable#joinTableName", () => {
   it("sorts table names alphabetically", () => {

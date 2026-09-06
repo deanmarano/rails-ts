@@ -1,4 +1,5 @@
-import { File, FileUtils, Zlib } from "@blazetrails/ruby-compat";
+import { Encoding, File, FileUtils, Zlib } from "@blazetrails/ruby-compat";
+import { atomicWrite } from "@blazetrails/activesupport";
 import { Column } from "./column.js";
 import { deduplicate } from "./deduplicable.js";
 import type { Deduplicable } from "./deduplicable.js";
@@ -377,15 +378,11 @@ export class SchemaCache {
   }
 
   dumpTo(filename: string): void {
-    FileUtils.mkdirP(File.dirname(filename));
-    const coder: Record<string, unknown> = {};
-    this.encodeWith(coder);
-    const payload = JSON.stringify(coder, null, 2);
-    if (File.extname(filename) === ".gz") {
-      Zlib.GzipWriter.open(filename, (gz) => gz.write(payload));
-    } else {
-      File.write(filename, payload);
-    }
+    this.open(filename, (f) => {
+      const coder: Record<string, unknown> = {};
+      this.encodeWith(coder);
+      f.write(JSON.stringify(coder, null, 2));
+    });
   }
 
   marshalDump(): unknown[] {
@@ -461,6 +458,27 @@ export class SchemaCache {
         return tables.filter((table) => !this.isIgnoredTable(table));
       }
       return [];
+    });
+  }
+
+  /**
+   * @internal
+   * @missingRailsArgs atomic_write — PERMANENT
+   */
+  private open(filename: string, block: (file: { write(string: string): unknown }) => void): void {
+    FileUtils.mkdirP(File.dirname(filename));
+
+    atomicWrite(filename, undefined, (file) => {
+      if (File.extname(filename) === ".gz") {
+        const zipper = new Zlib.GzipWriter(file);
+        zipper.mtime = 0;
+        block(zipper);
+        zipper.flush();
+        zipper.close();
+      } else {
+        file.setEncoding(Encoding.UTF_8);
+        block(file);
+      }
     });
   }
 }
@@ -774,22 +792,4 @@ export function deepDeduplicate<T>(value: T): T {
     return deduplicate(value as unknown as Deduplicable) as unknown as T;
   }
   return value;
-}
-
-/**
- * @internal
- * @missingRailsCall new — PERMANENT
- */
-export function open(
-  filename: string,
-  callback: (file: { write(data: string): void }) => void,
-): void {
-  FileUtils.mkdirP(File.dirname(filename));
-  let content = "";
-  callback({
-    write: (data: string) => {
-      content += data;
-    },
-  });
-  File.write(filename, content);
 }

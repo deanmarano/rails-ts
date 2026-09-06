@@ -37,7 +37,7 @@ describeIfSqlite("SqliteStructureDumpTest", () => {
   afterEach(async () => {
     SchemaDumper.ignoreTables = [];
     Base.removeConnection();
-    if (previous) await Base.establishConnection(previous.configuration);
+    if (previous) await Base.establishConnection(previous.configurationHash);
     for (const file of created) {
       try {
         fs.unlinkSync(file);
