@@ -246,9 +246,8 @@ function completeAdapter(name: string, adapter: CryptoAdapter): CryptoAdapter {
   for (const member of missing) {
     completed[member] = (): never => {
       throw new Error(
-        `Crypto adapter "${name}" does not implement ${member}. It is a partial adapter: ` +
-          `Web Crypto can serve randomBytes and randomUUID, but has no synchronous digest or ` +
-          `streaming cipher, so a host needing ${member} must register a complete adapter.`,
+        `Crypto adapter "${name}" does not implement ${member}. ` +
+          `Register a complete adapter to use ${member}.`,
       );
     };
   }
