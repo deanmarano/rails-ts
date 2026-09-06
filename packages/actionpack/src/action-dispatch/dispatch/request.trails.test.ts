@@ -86,5 +86,9 @@ describe("Request", () => {
       HTTP_HOST: "example.com:3000",
     });
     expect(forwarded.port).toBe(9090);
+
+    const served = new Request({ SERVER_NAME: "example.com", SERVER_PORT: "3000" });
+    expect(served.rawHostWithPort).toBe("example.com:3000");
+    expect(served.port).toBe(3000);
   });
 });

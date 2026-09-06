@@ -228,7 +228,7 @@ export class Request {
     }
     return (
       (this.getHeader("HTTP_HOST") as string) ||
-      `${this.getHeader("SERVER_NAME") ?? ""}:${this.getHeader("SERVER_PORT") ?? ""}`
+      `${this.serverName ?? ""}:${this.getHeader("SERVER_PORT") ?? ""}`
     );
   }
 
