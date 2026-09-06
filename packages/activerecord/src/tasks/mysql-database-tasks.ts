@@ -16,7 +16,7 @@ export class MySQLDatabaseTasks {
 
   constructor(dbConfig: HashConfig) {
     this.dbConfig = dbConfig;
-    this.configurationHash = { ...dbConfig.configuration };
+    this.configurationHash = { ...dbConfig.configurationHash };
   }
 
   async create(): Promise<void> {
@@ -154,7 +154,7 @@ export class MySQLDatabaseTasks {
 
   /** @internal */
   private async establishConnection(
-    config: Record<string, unknown> = this.dbConfig.configuration,
+    config: Record<string, unknown> = this.dbConfig.configurationHash,
   ): Promise<void> {
     await Base.establishConnection({ ...config } as { adapter?: string; [key: string]: unknown });
   }

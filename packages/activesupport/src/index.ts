@@ -247,6 +247,7 @@ export {
   presenceIn,
 } from "./enumerable-utils.js";
 
+export { atomicWrite } from "./core-ext/file/atomic.js";
 export { sliceBang } from "./core-ext/hash/slice.js";
 export { BASE36_ALPHABET, BASE58_ALPHABET, base36, base58 } from "./core-ext/securerandom.js";
 export {

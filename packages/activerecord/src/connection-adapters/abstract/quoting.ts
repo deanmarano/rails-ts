@@ -19,6 +19,7 @@ import { BigDecimal, TimeWithZone } from "@blazetrails/activesupport";
 import { Attribute as ModelAttribute, BinaryData, type ValueType } from "@blazetrails/activemodel";
 import type { TypeMap } from "../../type/type-map.js";
 import { NotImplementedError } from "../../errors.js";
+import { ActiveRecord } from "../../ar-config.js";
 import {
   defaultSqlTimezone,
   formatInstantForSql,
@@ -243,11 +244,55 @@ export function isSqlLiteral(value: unknown): value is { value: string } {
   );
 }
 
-export function quotedDate(value: TemporalDateLike): string {
+function actsLikeTime(value: unknown): value is TimeLike {
+  return (
+    value instanceof TimeWithZone ||
+    value instanceof RubyTime ||
+    value instanceof Temporal.Instant ||
+    value instanceof Temporal.ZonedDateTime
+  );
+}
+
+type TimeLike = TimeWithZone | RubyTime | Temporal.Instant | Temporal.ZonedDateTime;
+
+function instantOf(value: TimeLike): Temporal.Instant {
   if (value instanceof TimeWithZone) value = value.utc();
-  if (value instanceof RubyTime) value = value.toTime().toInstant();
+  if (value instanceof RubyTime) return value.toTime().toInstant();
+  if (value instanceof Temporal.ZonedDateTime) return value.toInstant();
+  return value;
+}
+
+/** Ruby's `Time#utc?` (`vendor/ruby/time.c:4340`). */
+function utcQ(value: TimeLike): boolean {
+  if (value instanceof TimeWithZone || value instanceof RubyTime) return value.isUtc();
+  if (value instanceof Temporal.ZonedDateTime) return value.timeZoneId === "UTC";
+  return true;
+}
+
+/** Ruby's `Time#getutc` (`vendor/ruby/time.c:4425`). */
+function getutc(value: TimeLike): Temporal.ZonedDateTime {
+  return instantOf(value).toZonedDateTimeISO("UTC");
+}
+
+/** Ruby's `Time#getlocal` (`vendor/ruby/time.c:4374`). */
+function getlocal(value: TimeLike): Temporal.ZonedDateTime {
+  return instantOf(value).toZonedDateTimeISO(Temporal.Now.timeZoneId());
+}
+
+export function quotedDate(value: TemporalDateLike): string {
+  if (actsLikeTime(value)) {
+    if (ActiveRecord.defaultTimezone === "utc") {
+      if (!utcQ(value)) value = getutc(value);
+    } else {
+      value = getlocal(value);
+    }
+  }
+
+  if (value instanceof TimeWithZone || value instanceof RubyTime) value = instantOf(value);
+
   if (value instanceof Temporal.Instant) return formatInstantForSql(value);
-  if (value instanceof Temporal.ZonedDateTime) return formatInstantForSql(value.toInstant());
+  if (value instanceof Temporal.ZonedDateTime)
+    return formatPlainDateTimeForSql(value.toPlainDateTime());
   if (value instanceof Temporal.PlainDateTime) return formatPlainDateTimeForSql(value);
   if (value instanceof Temporal.PlainDate) return formatPlainDateForSql(value);
   if (value instanceof Temporal.PlainTime) {

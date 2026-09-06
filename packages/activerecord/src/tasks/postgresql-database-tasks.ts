@@ -32,7 +32,7 @@ export class PostgreSQLDatabaseTasks {
 
   constructor(dbConfig: HashConfig) {
     this.dbConfig = dbConfig;
-    this.configurationHash = { ...dbConfig.configuration };
+    this.configurationHash = { ...dbConfig.configurationHash };
   }
 
   /** @missingRailsCall merge — PERMANENT */

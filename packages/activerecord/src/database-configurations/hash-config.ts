@@ -14,14 +14,6 @@ export class HashConfig extends DatabaseConfig {
     return this._configurationHash;
   }
 
-  /**
-   * @internal
-   * @noRailsEquivalent CONVERGEABLE converge-hash-config-configuration-alias
-   */
-  get configuration(): DatabaseConfigOptions {
-    return this.configurationHash;
-  }
-
   override get replica(): boolean | undefined {
     return this.configurationHash.replica;
   }

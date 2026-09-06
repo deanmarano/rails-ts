@@ -1,6 +1,6 @@
-import { block, fetch, KeyError, OpenSSL, slice } from "@blazetrails/ruby-compat";
+import { block, fetch, include, KeyError, OpenSSL, slice } from "@blazetrails/ruby-compat";
 import { NotImplementedError } from "../../errors.js";
-import { joinTableName as _joinTableName } from "../../migration/join-table.js";
+import { findJoinTableName, joinTableName } from "../../migration/join-table.js";
 import { CommandRecorder } from "../../migration/command-recorder.js";
 import type { MigrationCommand } from "../../migration/command-recorder.js";
 import { ArgumentError } from "@blazetrails/activemodel";
@@ -170,7 +170,12 @@ export interface SchemaStatements
       | "tableAliasLength"
       | "visitor"
     >,
-    SchemaQuoter {}
+    SchemaQuoter {
+  /** @internal */
+  findJoinTableName(table1: string, table2: string, options?: { tableName?: string }): string;
+  /** @internal */
+  joinTableName(table1: string, table2: string): string;
+}
 
 export class SchemaStatements {
   /* eslint-enable @typescript-eslint/no-unsafe-declaration-merging */
@@ -1912,16 +1917,6 @@ export class SchemaStatements {
       "ActiveRecord::ConnectionAdapters::SchemaStatements#quoted_scope is not implemented",
     );
   }
-
-  /** @internal */
-  findJoinTableName(table1: string, table2: string, options: { tableName?: string } = {}): string {
-    const tableName = options.tableName;
-    delete options.tableName;
-    return tableName ?? this.joinTableName(table1, table2);
-  }
-
-  /** @internal */
-  joinTableName(table1: string, table2: string): string {
-    return _joinTableName(table1, table2);
-  }
 }
+
+include(SchemaStatements, { findJoinTableName, joinTableName });

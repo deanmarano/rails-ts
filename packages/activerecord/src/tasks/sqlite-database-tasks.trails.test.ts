@@ -19,11 +19,11 @@ function withRestoredConnection(): void {
   let previous: ReturnType<typeof Base.removeConnection>;
   beforeEach(async () => {
     previous = Base.removeConnection();
-    if (previous) await Base.establishConnection(previous.configuration);
+    if (previous) await Base.establishConnection(previous.configurationHash);
   });
   afterEach(async () => {
     Base.removeConnection();
-    if (previous) await Base.establishConnection(previous.configuration);
+    if (previous) await Base.establishConnection(previous.configurationHash);
   });
 }
 
@@ -200,7 +200,7 @@ describe("SQLiteDatabaseTasks in-memory structure dump", () => {
   afterEach(async () => {
     SchemaDumper.ignoreTables = [];
     Base.removeConnection();
-    if (previous) await Base.establishConnection(previous.configuration);
+    if (previous) await Base.establishConnection(previous.configurationHash);
     for (const file of created) {
       try {
         fs.unlinkSync(file);
