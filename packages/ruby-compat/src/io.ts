@@ -229,6 +229,60 @@ function rbIoModestrFmode(modestr: string): number {
 }
 
 /**
+ * `rb_io_ext_int_to_encs` (`vendor/ruby/io.c:6604`) — the pair of encodings a
+ * stream records, given an external and an internal one. `enc` is the INTERNAL
+ * of a transcoding pair and `enc2` the external, which is why
+ * {@link IO#externalEncoding} answers `enc2` first.
+ *
+ * Ruby distinguishes `NULL` (no encoding given, so fall back to a default) from
+ * `Qnil` (one was given and it means "no transcoding"); `undefined` is the
+ * former here and `null` the latter.
+ */
+function rbIoExtIntToEncs(
+  ext: Encoding | null | undefined,
+  intern: Encoding | null | undefined,
+): { enc: Encoding | null; enc2: Encoding | null } {
+  let defaultExt = false;
+  if (ext == null) {
+    ext = Encoding.defaultExternal;
+    defaultExt = true;
+  }
+  if (ext === Encoding.ASCII_8BIT) {
+    intern = undefined;
+  } else if (intern === undefined) {
+    intern = Encoding.defaultInternal;
+  }
+  if (intern == null || intern === ext) {
+    return { enc: defaultExt && intern !== ext ? null : ext, enc2: null };
+  }
+  return { enc: intern, enc2: ext };
+}
+
+/**
+ * `parse_mode_enc` (`vendor/ruby/io.c:6786`), which reads one string as `"enc"`,
+ * `"enc2:enc"` or `"enc:-"` — the form both a mode string's encoding half and
+ * `IO#set_encoding`'s one-argument String take.
+ */
+function parseModeEnc(estr: string): { enc: Encoding | null; enc2: Encoding | null } {
+  const p = estr.lastIndexOf(":");
+  const len = p === -1 ? estr.length : p;
+  const ext = len === 0 ? undefined : Encoding.find(estr.slice(0, len));
+
+  let intern: Encoding | null | undefined;
+  if (p !== -1) {
+    const name = estr.slice(p + 1);
+    if (name === "-") {
+      intern = null;
+    } else {
+      const idx2 = Encoding.find(name);
+      intern = idx2 === ext ? null : idx2;
+    }
+  }
+
+  return rbIoExtIntToEncs(ext, intern);
+}
+
+/**
  * `IO` (`vendor/ruby/io.c:15371` `rb_cIO`), the sliver of it trails calls.
  *
  * Rails writes a credentials file through this class —
@@ -323,9 +377,10 @@ export class IO {
         enc = enc2;
         enc2 = null;
       }
+    } else if (typeof extEnc === "string") {
+      ({ enc, enc2 } = parseModeEnc(extEnc));
     } else {
-      enc = Encoding.find(extEnc);
-      enc2 = null;
+      ({ enc, enc2 } = rbIoExtIntToEncs(Encoding.find(extEnc), undefined));
     }
     this.enc = enc;
     this.enc2 = enc2;
