@@ -87,7 +87,13 @@ describe("sameFileHelperSkeletons", () => {
   });
 
   it("folds a stdlib idiom onto the loop AND guard its faithful port is forced to spell", () => {
-    expect(foldSkeletonTokens(["ref:filter_map", "ref:push"])).toEqual(["loop", "if", "ref:push"]);
+    expect(
+      foldSkeletonTokens(["ref:filter_map", "ref:push"], "ruby", ["loop", "if", "ref:push"]),
+    ).toEqual(["loop", "if", "ref:push"]);
+  });
+
+  it("credits nothing for a stdlib idiom whose port has a token-free JS spelling", () => {
+    expect(foldSkeletonTokens(["ref:uniq"], "ruby", ["new:Set"])).toEqual([]);
   });
 
   it("takes the alternative lowering the counterpart stream supports", () => {
@@ -101,7 +107,7 @@ describe("sameFileHelperSkeletons", () => {
 
   it("reads the idiom table on the Ruby side only, so a TS `concat` is not a loop", () => {
     expect(foldSkeletonTokens(["ref:concat"], "ts")).toEqual(["ref:concat"]);
-    expect(foldSkeletonTokens(["ref:concat"], "ruby")).toEqual(["loop"]);
+    expect(foldSkeletonTokens(["ref:concat"], "ruby", ["loop", "ref:push"])).toEqual(["loop"]);
   });
 
   it("cannot hide an if the TS side dropped: the folded Ruby stream still runs one over", () => {
