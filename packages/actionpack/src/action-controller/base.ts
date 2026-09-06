@@ -1,4 +1,11 @@
-import { ArgumentError, Benchmark, Notifications, runLoadHooks } from "@blazetrails/activesupport";
+import {
+  ArgumentError,
+  Benchmark,
+  Notifications,
+  classAttribute,
+  include,
+  runLoadHooks,
+} from "@blazetrails/activesupport";
 import { File, getCrypto, symbolToS } from "@blazetrails/ruby-compat";
 import type { Temporal } from "@blazetrails/activesupport/temporal";
 import { Metal } from "./metal.js";
@@ -48,8 +55,29 @@ import {
   isContentSecurityPolicy,
 } from "./metal/content-security-policy.js";
 import { helperMethod, type HelpersClassMethods } from "../abstract-controller/helpers.js";
+import { lookupStore } from "@blazetrails/activesupport/cache";
+import type { CacheStore } from "@blazetrails/activesupport";
 import { defaultFormBuilder } from "./form-builder.js";
 import { instrumentPayload, instrumentName } from "./caching.js";
+import {
+  CACHING_DEFAULTS,
+  CACHING_SLOTS,
+  ConfigMethods,
+  cache,
+  viewCacheDependencies,
+  viewCacheDependency,
+  type CachingClassMethods,
+  type CachingHost,
+} from "../abstract-controller/caching.js";
+import {
+  combinedFragmentCacheKey,
+  expireFragment,
+  fragmentCacheKey,
+  fragmentExist,
+  readFragment,
+  writeFragment,
+  type FragmentsClassMethods,
+} from "../abstract-controller/caching/fragments.js";
 import {
   authenticateOrRequestWithHttpBasic,
   authenticateWithHttpBasic,
@@ -772,6 +800,15 @@ export class Base extends Metal {
   }
 
   /** @internal */
+  declare viewCacheDependencies: typeof viewCacheDependencies;
+  declare cache: typeof cache;
+  declare combinedFragmentCacheKey: typeof combinedFragmentCacheKey;
+  declare writeFragment: typeof writeFragment;
+  declare readFragment: typeof readFragment;
+  declare fragmentExist: typeof fragmentExist;
+  declare expireFragment: typeof expireFragment;
+
+  /** @internal */
   declare sendFileHeadersBang: typeof sendFileHeadersBang;
   /** @internal */
   declare appendInfoToPayload: typeof appendInfoToPayload;
@@ -881,6 +918,54 @@ export class Base extends Metal {
   }
 }
 
+include(Base, ConfigMethods);
+const cacheStoreConfig = Symbol("cache_store");
+Object.defineProperty(Base, "cacheStore", {
+  configurable: true,
+  get(this: Record<symbol, unknown>): CacheStore | null {
+    return (this[cacheStoreConfig] as CacheStore | null) ?? null;
+  },
+  set(this: Record<symbol, unknown>, store: unknown) {
+    this[cacheStoreConfig] = lookupStore(store);
+  },
+});
+Base.prototype.viewCacheDependencies = viewCacheDependencies;
+Base.prototype.cache = cache;
+Base.prototype.combinedFragmentCacheKey = combinedFragmentCacheKey;
+Base.prototype.writeFragment = writeFragment;
+Base.prototype.readFragment = readFragment;
+Base.prototype.fragmentExist = fragmentExist;
+Base.prototype.expireFragment = expireFragment;
+(
+  Base as unknown as FragmentsClassMethods & { fragmentCacheKey: typeof fragmentCacheKey }
+).fragmentCacheKey = fragmentCacheKey;
+(
+  Base as unknown as CachingClassMethods & { viewCacheDependency: typeof viewCacheDependency }
+).viewCacheDependency = viewCacheDependency;
+
+classAttribute.call(Base, "fragmentCacheKeys", { default: [] });
+helperMethod(Base as unknown as HelpersClassMethods, "combinedFragmentCacheKey");
+
+for (const slot of CACHING_SLOTS) {
+  Object.defineProperty(Base.prototype, slot, {
+    configurable: true,
+    get(this: CachingHost): unknown {
+      return (this.constructor as unknown as Record<string, unknown>)[slot];
+    },
+    set(this: CachingHost, value: unknown) {
+      (this.constructor as unknown as Record<string, unknown>)[slot] = value;
+    },
+  });
+}
+
+const _CachingConfig = Base as unknown as CachingClassMethods;
+_CachingConfig.defaultStaticExtension ??= CACHING_DEFAULTS.defaultStaticExtension;
+_CachingConfig.performCaching ??= CACHING_DEFAULTS.performCaching;
+_CachingConfig.enableFragmentCacheLogging = CACHING_DEFAULTS.enableFragmentCacheLogging;
+
+classAttribute.call(Base, "_viewCacheDependencies", { default: [] });
+helperMethod(Base as unknown as HelpersClassMethods, "viewCacheDependencies");
+
 runLoadHooks("action_controller_base", Base);
 runLoadHooks("action_controller", Base);
 
@@ -894,7 +979,6 @@ helperMethod(
   Base as unknown as HelpersClassMethods,
   "isContentSecurityPolicy",
   "contentSecurityPolicyNonce",
-  "viewCacheDependencies",
 );
 
 export { DoubleRenderError };

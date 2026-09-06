@@ -47,8 +47,8 @@ afterEach(() => {
 describe("class config", () => {
   it("fragmentCacheKey appends constants-as-thunks and blocks in order", () => {
     const cls: FragmentsClassMethods = { fragmentCacheKeys: [() => "a"] };
-    fragmentCacheKey(cls, "b");
-    fragmentCacheKey(cls, undefined, function (this: FragmentsHost) {
+    fragmentCacheKey.call(cls, "b");
+    fragmentCacheKey.call(cls, undefined, function (this: FragmentsHost) {
       return 42;
     });
     expect(cls.fragmentCacheKeys!.map((f) => f.call({} as FragmentsHost))).toEqual(["a", "b", 42]);

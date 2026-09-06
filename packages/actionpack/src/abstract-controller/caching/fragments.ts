@@ -24,16 +24,13 @@ export interface FragmentsHost {
 }
 
 export function fragmentCacheKey(
-  cls: FragmentsClassMethods,
-  valueOrBlock: unknown | FragmentCacheKeyBlock,
-  block?: FragmentCacheKeyBlock,
+  this: FragmentsClassMethods,
+  value?: unknown | FragmentCacheKeyBlock,
+  key?: FragmentCacheKeyBlock,
 ): void {
   const entry: FragmentCacheKeyBlock =
-    block ??
-    (typeof valueOrBlock === "function"
-      ? (valueOrBlock as FragmentCacheKeyBlock)
-      : () => valueOrBlock);
-  cls.fragmentCacheKeys = [...(cls.fragmentCacheKeys ?? []), entry];
+    key ?? (typeof value === "function" ? (value as FragmentCacheKeyBlock) : () => value);
+  this.fragmentCacheKeys = [...(this.fragmentCacheKeys ?? []), entry];
 }
 
 export function combinedFragmentCacheKey(this: FragmentsHost, key: unknown): unknown[] {
