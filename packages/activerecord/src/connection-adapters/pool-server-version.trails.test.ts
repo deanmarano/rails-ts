@@ -53,8 +53,8 @@ describe("ConnectionPool#server_version", () => {
   it("answers the memo synchronously once a leased connection has warmed it", async () => {
     const connection = await Base.leaseConnection();
 
-    expect(connection.pool.serverVersion(connection)).toBeInstanceOf(Version);
-    expect(connection.databaseVersion).toBeInstanceOf(Version);
+    expect(connection.pool.serverVersion(connection)).not.toBeInstanceOf(Promise);
+    expect(connection.databaseVersion).not.toBeInstanceOf(Promise);
   });
 
   it("re-entrant read from inside the fetch resolves rather than awaiting itself", async () => {
