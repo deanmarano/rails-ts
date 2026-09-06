@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as path from "path";
-import { Generator, MULTIPART_BOUNDARY } from "./generator.js";
+import { Generator } from "./generator.js";
+import { MULTIPART_BOUNDARY } from "../multipart.js";
 import { StringIO } from "@blazetrails/ruby-compat";
 import { UploadedFile } from "./uploaded-file.js";
 

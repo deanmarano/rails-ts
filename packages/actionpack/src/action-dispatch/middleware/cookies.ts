@@ -1,16 +1,4 @@
-/**
- * ActionDispatch::Cookies
- *
- * Cookie jar implementation mirroring Rails cookie handling.
- *
- * @boundary-file: HTTP `Set-Cookie` `Expires` is defined by the cookie spec
- *   (RFC 6265 / 6265bis); its on-wire date value aligns with HTTP-date /
- *   IMF-fixdate from RFC 7231, which JS `Date#toUTCString` produces. The
- *   jar accepts `Date | Temporal.Instant` from Rails-aware callers and
- *   bridges Temporal inputs to Date for on-wire serialization.
- */
-
-import { getCrypto, KeyError } from "@blazetrails/ruby-compat";
+import { getCrypto, KeyError, rbEqual } from "@blazetrails/ruby-compat";
 import { isPresent } from "@blazetrails/activesupport";
 import { Temporal } from "@blazetrails/activesupport/temporal";
 import { Response } from "@blazetrails/rack";
@@ -23,10 +11,17 @@ function isFromNow(expires: unknown): expires is { fromNow(): CookieExpires } {
   return expires != null && typeof (expires as { fromNow?: unknown }).fromNow === "function";
 }
 
-function toUTCString(expires: CookieExpires): string {
-  return expires instanceof Temporal.Instant
-    ? new Date(expires.epochMilliseconds).toUTCString()
-    : expires.toUTCString();
+/* Ruby's `Hash#==` (`vendor/ruby/hash.c:3670` `rb_hash_equal`), which
+   `deleted?` (`cookies.rb:400`) sends between the stored delete options and
+   the caller's: same key set, each value `==` the other's. */
+function hashEqual(a: Record<string, unknown> | undefined, b: Record<string, unknown>): boolean {
+  if (a === undefined) return false;
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every(
+    (key) => Object.prototype.hasOwnProperty.call(b, key) && rbEqual(a[key], b[key]),
+  );
 }
 
 /** @internal */
@@ -138,19 +133,26 @@ export class CookieJar implements Iterable<[string, string]> {
     return result;
   }
 
-  set(key: string, valueOrOptions: string | SetCookieOptions): void {
-    if (this._committed) return;
-    let options: SetCookieOptions;
-    if (typeof valueOrOptions === "string") {
-      options = { value: valueOrOptions };
+  set(name: string, options: string | SetCookieOptions): string | undefined {
+    if (this._committed) return undefined;
+    let value: string | undefined;
+    if (typeof options === "string") {
+      value = options;
+      options = { value };
     } else {
-      if (valueOrOptions.value === undefined || valueOrOptions.value === null) return;
-      options = valueOrOptions;
+      value = options.value;
+      if (value === undefined || value === null) return undefined;
     }
+
     this.handleOptions(options);
-    this._cookies.set(key, options.value);
-    this._setCookies.set(key, options);
-    this._deletedCookies.delete(key);
+
+    if (this._cookies.get(name) !== value || options.expires) {
+      this._cookies.set(name, value);
+      this._setCookies.set(name, options);
+      this._deletedCookies.delete(name);
+    }
+
+    return value;
   }
 
   /**
@@ -214,14 +216,9 @@ export class CookieJar implements Iterable<[string, string]> {
     return val ?? undefined;
   }
 
-  isDeleted(name: string, options?: { path?: string; domain?: string }): boolean {
-    this.handleOptions(options ?? {});
-    if (!this._deletedCookies.has(name)) return false;
-    if (!options) return true;
-    const delOpts = this._deletedCookies.get(name)!;
-    if (options.path && delOpts.path !== options.path) return false;
-    if (options.domain && delOpts.domain !== options.domain) return false;
-    return true;
+  isDeleted(name: string, options: { path?: string; domain?: string } = {}): boolean {
+    this.handleOptions(options);
+    return hashEqual(this._deletedCookies.get(name), options);
   }
 
   each(fn: (key: string, value: string) => void): this {
@@ -282,17 +279,6 @@ export class CookieJar implements Iterable<[string, string]> {
     );
   }
 
-  getSetCookieHeaders(): string[] {
-    const headers: string[] = [];
-    for (const [name, opts] of this._setCookies) {
-      headers.push(formatSetCookie(name, opts, this._options));
-    }
-    for (const [name, opts] of this._deletedCookies) {
-      headers.push(formatDeleteCookie(name, opts));
-    }
-    return headers;
-  }
-
   /** @internal */
   static parse(cookieHeader: string, options: CookieJarOptions = {}): CookieJar {
     const jar = new CookieJar(options);
@@ -316,6 +302,7 @@ export class PermanentCookieJar {
   }
 
   set(key: string, valueOrOptions: string | SetCookieOptions): void {
+    // boundary: the cookie `Expires` attribute is serialized as an HTTP-date.
     const expires = new Date(Date.now() + PermanentCookieJar.TWENTY_YEARS_MS);
     if (typeof valueOrOptions === "string") {
       this.jar.set(key, { value: valueOrOptions, expires });
@@ -470,30 +457,6 @@ export class EncryptedCookieJar {
       return undefined;
     }
   }
-}
-
-function formatSetCookie(name: string, opts: SetCookieOptions, defaults: CookieJarOptions): string {
-  let header = `${encodeURIComponent(name)}=${encodeURIComponent(opts.value)}`;
-  const path = opts.path ?? defaults.path ?? "/";
-  header += `; path=${path}`;
-  if (opts.domain ?? defaults.domain) header += `; domain=${opts.domain ?? defaults.domain}`;
-  if (opts.expires) header += `; expires=${toUTCString(opts.expires)}`;
-  if (opts.maxAge !== undefined) header += `; max-age=${opts.maxAge}`;
-  if (opts.secure ?? defaults.secure) header += "; secure";
-  if (opts.httpOnly ?? defaults.httpOnly) header += "; HttpOnly";
-  const sameSite = opts.sameSite !== undefined ? opts.sameSite : defaults.sameSite;
-  if (sameSite) header += `; SameSite=${capitalize(sameSite)}`;
-  return header;
-}
-
-function formatDeleteCookie(name: string, opts: { path?: string; domain?: string }): string {
-  let header = `${encodeURIComponent(name)}=; path=${opts.path ?? "/"}; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-  if (opts.domain) header += `; domain=${opts.domain}`;
-  return header;
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /** @internal */

@@ -65,6 +65,10 @@ export class MockResponse extends Response {
     this._body = value;
   }
 
+  override isEmpty(): boolean {
+    return [201, 204, 304].includes(this.status);
+  }
+
   cookie(name: string): MockCookie | undefined {
     return this.cookies[name];
   }

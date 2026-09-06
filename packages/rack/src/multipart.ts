@@ -7,7 +7,9 @@ import {
   RACK_MULTIPART_TEMPFILE_FACTORY,
   RACK_TEMPFILES,
 } from "./constants.js";
+import { include } from "@blazetrails/ruby-compat";
 import type { QueryParser } from "./query-parser.js";
+import { BadRequest } from "./bad-request.js";
 
 export { UploadedFile } from "./multipart/uploaded-file.js";
 import {
@@ -25,6 +27,8 @@ export {
   EmptyContentError,
 } from "./multipart/parser.js";
 
+export const MULTIPART_BOUNDARY = "AaB03x";
+
 export interface UploadedFileInfo {
   filename: string;
   type: string;
@@ -39,6 +43,7 @@ export class MissingInputError extends Error {
     this.name = "MissingInputError";
   }
 }
+include(MissingInputError, BadRequest);
 
 export function parseMultipart(
   env: Record<string, any>,
@@ -100,6 +105,7 @@ export function buildMultipart(
 }
 
 export const Multipart = {
+  MULTIPART_BOUNDARY,
   parseMultipart,
   extractMultipart,
   buildMultipart,

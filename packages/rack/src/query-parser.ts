@@ -1,10 +1,12 @@
-import { ArgumentError, rbObjClass } from "@blazetrails/ruby-compat";
+import { ArgumentError, include, rbObjClass } from "@blazetrails/ruby-compat";
+import { BadRequest } from "./bad-request.js";
 export class ParameterTypeError extends TypeError {
   constructor(message: string) {
     super(message);
     this.name = "ParameterTypeError";
   }
 }
+include(ParameterTypeError, BadRequest);
 
 export class InvalidParameterError extends ArgumentError {
   constructor(message: string) {
@@ -12,6 +14,7 @@ export class InvalidParameterError extends ArgumentError {
     this.name = "InvalidParameterError";
   }
 }
+include(InvalidParameterError, BadRequest);
 
 export class QueryLimitError extends RangeError {
   constructor(message: string) {
@@ -19,6 +22,7 @@ export class QueryLimitError extends RangeError {
     this.name = "QueryLimitError";
   }
 }
+include(QueryLimitError, BadRequest);
 
 export class ParamsTooDeepError extends QueryLimitError {
   constructor(message: string) {

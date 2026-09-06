@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 import { File, Tempfile } from "@blazetrails/ruby-compat";
 
 import { MockRequest } from "../mock-request.js";
-import { Generator, MULTIPART_BOUNDARY } from "./generator.js";
+import { Generator } from "./generator.js";
+import { MULTIPART_BOUNDARY } from "../multipart.js";
 import { UploadedFile } from "./uploaded-file.js";
 
 const fixtureDir = path.join(__dirname, "..", "..", "test", "multipart");

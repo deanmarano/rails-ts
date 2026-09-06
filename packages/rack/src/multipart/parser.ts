@@ -1,4 +1,13 @@
-import { ArgumentError, Encoding, File, forceEncoding, Tempfile } from "@blazetrails/ruby-compat";
+import {
+  ArgumentError,
+  EOFError,
+  Encoding,
+  File,
+  forceEncoding,
+  include,
+  Tempfile,
+} from "@blazetrails/ruby-compat";
+import { BadRequest } from "../bad-request.js";
 import { QueryParser } from "../query-parser.js";
 import { getMultipartFileLimit, getMultipartTotalPartLimit, unescapePath } from "../utils.js";
 
@@ -8,24 +17,28 @@ export class MultipartPartLimitError extends Error {
     this.name = "MultipartPartLimitError";
   }
 }
+include(MultipartPartLimitError, BadRequest);
 export class MultipartTotalPartLimitError extends Error {
   constructor(message = "Maximum total multiparts in content reached") {
     super(message);
     this.name = "MultipartTotalPartLimitError";
   }
 }
-export class EmptyContentError extends Error {
+include(MultipartTotalPartLimitError, BadRequest);
+export class EmptyContentError extends EOFError {
   constructor(message = "bad content body") {
     super(message);
     this.name = "EmptyContentError";
   }
 }
+include(EmptyContentError, BadRequest);
 export class BoundaryTooLongError extends Error {
   constructor(message = "multipart boundary is too long") {
     super(message);
     this.name = "BoundaryTooLongError";
   }
 }
+include(BoundaryTooLongError, BadRequest);
 
 export const EOL = "\r\n";
 export const MULTIPART = /^multipart\/.*boundary="?([^";,]+)"?/i;
@@ -61,7 +74,7 @@ export class BoundedIO {
     if (str) {
       this.cursor += str.length;
     } else {
-      throw new EmptyContentError("bad content body");
+      throw new EOFError("bad content body");
     }
     return str;
   }
