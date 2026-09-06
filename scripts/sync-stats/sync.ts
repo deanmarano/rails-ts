@@ -489,7 +489,9 @@ async function columnExists(
   column: string,
 ): Promise<boolean> {
   const quoted = `"${table.replace(/"/g, '""')}"`;
-  const cols = (await adapter.execute(`PRAGMA table_info(${quoted})`)) as { name: string }[];
+  const cols = (await adapter.selectAll(`PRAGMA table_info(${quoted})`)).toArray() as {
+    name: string;
+  }[];
   return cols.some((c) => c.name === column);
 }
 
@@ -1248,9 +1250,9 @@ async function syncPullRequests(mode: "latest" | "refresh"): Promise<number> {
   }
 
   if (mode === "refresh") {
-    const staleCount = (await Base.adapter.execute(
-      `SELECT COUNT(*) as cnt FROM pull_requests WHERE state IS NULL`,
-    ))!;
+    const staleCount = (
+      await Base.adapter.selectAll(`SELECT COUNT(*) as cnt FROM pull_requests WHERE state IS NULL`)
+    ).toArray();
     const cnt = (staleCount[0] as { cnt: number }).cnt;
     if (cnt > 0) {
       console.log(`Backfilling state for ${cnt} existing PRs from merged_at/closed_at...`);
@@ -1926,7 +1928,8 @@ function parseApiCompareFromLogs(logs: string) {
 
 async function syncCheckAnnotations(mode: "latest" | "refresh" | "backfill") {
   const limitClause = mode === "latest" ? "LIMIT 50" : "";
-  const jobsToSync = (await Base.adapter.execute(`
+  const jobsToSync = (
+    await Base.adapter.selectAll(`
     SELECT wj.id as job_id, wr.id as run_id
     FROM workflow_jobs wj
     JOIN workflow_runs wr ON wr.id = wj.run_id
@@ -1936,7 +1939,8 @@ async function syncCheckAnnotations(mode: "latest" | "refresh" | "backfill") {
     )
     ORDER BY wr.pr_number DESC, wj.id
     ${limitClause}
-  `))!;
+  `)
+  ).toArray();
 
   if (jobsToSync.length === 0) return;
   console.log(`Backfilling annotations for ${jobsToSync.length} jobs...`);
@@ -1977,7 +1981,8 @@ async function syncCheckAnnotations(mode: "latest" | "refresh" | "backfill") {
 
 async function syncJobLogs(mode: "latest" | "refresh" | "backfill"): Promise<number> {
   const limitClause = mode === "latest" ? "LIMIT 50" : "";
-  const jobsToFetch = (await Base.adapter.execute(`
+  const jobsToFetch = (
+    await Base.adapter.selectAll(`
     SELECT wj.id as job_id, wj.run_id, wj.name as job_name,
            wr.head_sha, wr.pr_number
     FROM workflow_jobs wj
@@ -1992,7 +1997,8 @@ async function syncJobLogs(mode: "latest" | "refresh" | "backfill"): Promise<num
     )
     ORDER BY wr.pr_number DESC, wj.run_id, wj.id
     ${limitClause}
-  `))!;
+  `)
+  ).toArray();
 
   if (jobsToFetch.length === 0) {
     console.log("All job logs already synced");
@@ -2117,7 +2123,8 @@ async function syncCompareStats(
 ): Promise<number> {
   const limitClause = mode === "latest" ? "LIMIT 50" : "";
   const missingStatsClause = mode === "reparse" ? "" : `AND (${MISSING_STATS_PREDICATE})`;
-  const runsToProcess = (await Base.adapter.execute(`
+  const runsToProcess = (
+    await Base.adapter.selectAll(`
     SELECT rjl.job_id, rjl.merge_commit_sha, rjl.pr_number
     FROM raw_job_logs rjl
     JOIN workflow_jobs wj ON wj.id = rjl.job_id
@@ -2135,7 +2142,8 @@ async function syncCompareStats(
     ${missingStatsClause}
     ORDER BY rjl.pr_number DESC
     ${limitClause}
-  `))!;
+  `)
+  ).toArray();
 
   if (runsToProcess.length === 0) {
     console.log("All compare stats already synced");
@@ -2310,13 +2318,13 @@ async function syncCompareStats(
 
 async function printSummary() {
   const count = async (table: string) => {
-    const rows = (await Base.adapter.execute(`SELECT COUNT(*) as cnt FROM ${table}`))!;
+    const rows = (await Base.adapter.selectAll(`SELECT COUNT(*) as cnt FROM ${table}`)).toArray();
     return (rows[0] as { cnt: number }).cnt;
   };
   const countDistinct = async (table: string, col: string) => {
-    const rows = (await Base.adapter.execute(
-      `SELECT COUNT(DISTINCT ${col}) as cnt FROM ${table}`,
-    ))!;
+    const rows = (
+      await Base.adapter.selectAll(`SELECT COUNT(DISTINCT ${col}) as cnt FROM ${table}`)
+    ).toArray();
     return (rows[0] as { cnt: number }).cnt;
   };
 
@@ -2342,9 +2350,11 @@ async function printSummary() {
     count("raw_job_logs"),
   ]);
 
-  const stateRows = (await Base.adapter.execute(
-    `SELECT state, COUNT(*) as cnt FROM pull_requests GROUP BY state ORDER BY state`,
-  )) as { cnt: number; state: string }[];
+  const stateRows = (
+    await Base.adapter.selectAll(
+      `SELECT state, COUNT(*) as cnt FROM pull_requests GROUP BY state ORDER BY state`,
+    )
+  ).toArray() as { cnt: number; state: string }[];
   const stateParts = stateRows.map((r) => `${r.cnt} ${r.state}`).join(", ");
 
   console.log("\n=== Database Summary ===");

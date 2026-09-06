@@ -116,13 +116,6 @@ export class DateTimeType extends ValueType<DateTimeCastResult> {
   get isUtc(): boolean {
     return isUtc();
   }
-
-  override isChanged(oldValue: unknown, newValue: unknown, _raw?: unknown): boolean {
-    if (oldValue instanceof RubyTime && newValue instanceof RubyTime) {
-      return oldValue.toR().cmp(newValue.toR()) !== 0;
-    }
-    return oldValue !== newValue;
-  }
 }
 
 const acceptsMultiparameterTime = new AcceptsMultiparameterTime({ defaults: { "4": 0, "5": 0 } });

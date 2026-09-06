@@ -667,11 +667,7 @@ export interface AbstractAdapter {
   /** @internal */
   preprocessQuery(sql: string): string;
 
-  execute(
-    sql: string,
-    name?: string | null,
-    kwargs?: { allowRetry?: boolean },
-  ): Promise<Record<string, unknown>[] | undefined>;
+  execute(sql: string, name?: string | null, kwargs?: { allowRetry?: boolean }): Promise<unknown>;
   executeMutation(sql: string, binds?: unknown[], name?: string): Promise<number>;
   withinNewTransaction<T>(
     options: { isolation?: string | null; joinable?: boolean },

@@ -152,4 +152,26 @@ describe("BigDecimal#round", () => {
       ]);
     }
   });
+  it("mult keeps the sign of a zero product, as VpMult does", () => {
+    const cases: [string, string, string][] = [
+      ["-2", "0", "-0.0"],
+      ["2", "-0.0", "-0.0"],
+      ["-2", "-0.0", "0.0"],
+      ["0", "-3", "-0.0"],
+      ["-0.0", "-0.0", "0.0"],
+      ["-0.0", "0.0", "-0.0"],
+      ["0.0", "0.0", "0.0"],
+      ["-2", "0.0", "-0.0"],
+      ["2", "0", "0.0"],
+      ["-2", "-3", "6.0"],
+      ["-2", "3", "-6.0"],
+    ];
+    for (const [a, b, expected] of cases) {
+      expect([a, b, new BigDecimal(a).mult(new BigDecimal(b)).toString("F")]).toEqual([
+        a,
+        b,
+        expected,
+      ]);
+    }
+  });
 });

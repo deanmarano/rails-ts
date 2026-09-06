@@ -4,6 +4,7 @@ import type { Base } from "./base.js";
 import { threadedConnectionFor } from "./connection-handling.js";
 import type { Relation } from "./relation.js";
 import type { Result } from "./result.js";
+import { toI } from "./relation/query-methods.js";
 import type { AssociationSpec, JoinSpec } from "./relation/query-methods.js";
 import type { SumBlock } from "./relation/calculations.js";
 
@@ -56,11 +57,8 @@ export async function countBySql(
   sql: string | [string, ...unknown[]],
 ): Promise<number> {
   const sanitized = typeof sql === "string" ? sql : (this.sanitizeSql(sql) ?? "");
-  return this.withConnection(async (adapter) => {
-    const row = (await adapter.execute(sanitized))?.[0];
-    if (!row) return 0;
-    const firstValue = Object.values(row)[0];
-    return Number(firstValue) || 0;
+  return this.withConnection(async (c) => {
+    return toI(await c.selectValue(sanitized, `${this.name} Count`));
   });
 }
 

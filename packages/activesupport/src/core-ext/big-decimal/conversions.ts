@@ -146,9 +146,11 @@ export class BigDecimal {
         ? new BigDecimal("-Infinity")
         : BigDecimal.INFINITY;
     }
+    const negative = (this.sign === "-") !== (other.sign === "-");
     return BigDecimal.fromUnscaled(
       this.unscaled() * other.unscaled(),
       this.scale() + other.scale(),
+      negative,
     );
   }
 

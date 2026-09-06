@@ -44,7 +44,8 @@ function hasEpochNanoseconds(value: unknown): value is { epochNanoseconds: bigin
  * @noRailsEquivalent PERMANENT — Ruby core `basic_obj_respond_to`
  * (`vendor/ruby/vm_method.c:2864`).
  */
-export function basicObjRespondTo(obj: unknown, mid: string): boolean {
+export function basicObjRespondTo(obj: unknown, mid: string, pub: boolean = true): boolean {
+  void pub;
   return mid in Object(obj);
 }
 
@@ -67,7 +68,7 @@ export function rbObjRespondTo(obj: unknown, mid: string, priv: boolean = false)
       : (respondTo as (mid: string) => unknown).call(obj, mid);
     return result != null && result !== false;
   }
-  return basicObjRespondTo(obj, mid);
+  return basicObjRespondTo(obj, mid, !priv);
 }
 
 /**

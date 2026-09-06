@@ -506,9 +506,9 @@ describe("HasAndBelongsToManyAssociationsTest", () => {
     expect((await david.projects).length).toBeGreaterThan(0);
     await david.destroy();
     expect((await david.projects).length).toBe(0);
-    const joins = (await Base.connection.execute(
-      "SELECT * FROM developers_projects WHERE developer_id = 1",
-    ))!;
+    const joins = (
+      await Base.connection.selectAll("SELECT * FROM developers_projects WHERE developer_id = 1")
+    ).toArray();
     expect(joins.length).toBe(0);
   });
 
@@ -523,9 +523,11 @@ describe("HasAndBelongsToManyAssociationsTest", () => {
     await david.projects.destroy(project);
     expect(Number(await Project.count())).toBe(projectCountBefore);
 
-    const joins = (await Base.connection.execute(
-      `SELECT * FROM developers_projects WHERE developer_id = ${david.id} AND project_id = ${project.id}`,
-    ))!;
+    const joins = (
+      await Base.connection.selectAll(
+        `SELECT * FROM developers_projects WHERE developer_id = ${david.id} AND project_id = ${project.id}`,
+      )
+    ).toArray();
     expect(joins.length).toBe(0);
     await david.reload();
     expect(await david.projects.size()).toBe(1);
@@ -541,9 +543,11 @@ describe("HasAndBelongsToManyAssociationsTest", () => {
     await david.projects.destroy(...allProjects);
     expect(Number(await Project.count())).toBe(projectCountBefore);
 
-    const joins = (await Base.connection.execute(
-      `SELECT * FROM developers_projects WHERE developer_id = ${david.id}`,
-    ))!;
+    const joins = (
+      await Base.connection.selectAll(
+        `SELECT * FROM developers_projects WHERE developer_id = ${david.id}`,
+      )
+    ).toArray();
     expect(joins.length).toBe(0);
     await david.reload();
     expect(await david.projects.size()).toBe(0);
@@ -559,9 +563,11 @@ describe("HasAndBelongsToManyAssociationsTest", () => {
     await david.projects.destroyAll();
     expect(Number(await Project.count())).toBe(projectCountBefore);
 
-    const joins = (await Base.connection.execute(
-      `SELECT * FROM developers_projects WHERE developer_id = ${david.id}`,
-    ))!;
+    const joins = (
+      await Base.connection.selectAll(
+        `SELECT * FROM developers_projects WHERE developer_id = ${david.id}`,
+      )
+    ).toArray();
     expect(joins.length).toBe(0);
     expect((await david.projects).length).toBe(0);
     expect(await (await david.projects.reload()).size()).toBe(0);
@@ -579,15 +585,19 @@ describe("HasAndBelongsToManyAssociationsTest", () => {
     expect((await Treasure.all()).length).toBe(treasureBefore);
 
     expect(
-      (await Base.connection.execute(
-        `SELECT * FROM parrots_pirates WHERE parrot_id = ${george.id}`,
-      ))!.length,
+      (
+        await Base.connection.selectAll(
+          `SELECT * FROM parrots_pirates WHERE parrot_id = ${george.id}`,
+        )
+      ).toArray().length,
     ).toBe(0);
     expect(await (await george.pirates.reload()).size()).toBe(0);
     expect(
-      (await Base.connection.execute(
-        `SELECT * FROM parrots_treasures WHERE parrot_id = ${george.id}`,
-      ))!.length,
+      (
+        await Base.connection.selectAll(
+          `SELECT * FROM parrots_treasures WHERE parrot_id = ${george.id}`,
+        )
+      ).toArray().length,
     ).toBe(0);
     expect(await (await george.treasures.reload()).size()).toBe(0);
   });
@@ -782,9 +792,11 @@ describe("HasAndBelongsToManyAssociationsTest", () => {
     expect(await developer.save()).toBe(true);
     await developer.projects.push(project);
     await (developer as any).updateColumns({ name: "Bruza" });
-    const rows = (await Base.connection.execute(
-      `SELECT count(*) as c FROM developers_projects WHERE project_id = ${project.id} AND developer_id = ${developer.id}`,
-    ))!;
+    const rows = (
+      await Base.connection.selectAll(
+        `SELECT count(*) as c FROM developers_projects WHERE project_id = ${project.id} AND developer_id = ${developer.id}`,
+      )
+    ).toArray();
     expect(Number(rows[0].c)).toBe(1);
   });
 

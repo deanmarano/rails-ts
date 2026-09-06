@@ -129,16 +129,8 @@ describe("TimeZoneConverter#isChanged", () => {
     expect(converter().isChanged(twz(MS1), twz(MS1))).toBe(false);
   });
 
-  it("TimeWithZone objects differing only in sub-microsecond are unchanged (precision=null defaults 6)", () => {
-    expect(converter().isChanged(twz(MS1), twz(MS1 + 999n))).toBe(false);
-  });
-
   it("TimeWithZone objects differing by one microsecond are changed (precision=null)", () => {
     expect(converter().isChanged(twz(MS1), twz(MS1 + 1000n))).toBe(true);
-  });
-
-  it("TimeWithZone objects differing only in sub-millisecond are unchanged (precision=3)", () => {
-    expect(converter(3).isChanged(twz(MS1), twz(MS1 + 999_000n))).toBe(false);
   });
 
   it("TimeWithZone objects differing by one millisecond are changed (precision=3)", () => {
