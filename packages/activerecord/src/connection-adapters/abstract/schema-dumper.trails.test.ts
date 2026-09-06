@@ -3,6 +3,20 @@ import { ValueType } from "@blazetrails/activemodel";
 import { SchemaDumper } from "./schema-dumper.js";
 import type { SchemaSource } from "../../schema-dumper.js";
 import { IntegerType, DecimalType, BooleanType, StringType } from "@blazetrails/activemodel";
+import { Column } from "../column.js";
+import { SqlTypeMetadata } from "../sql-type-metadata.js";
+
+type Meta = ConstructorParameters<typeof SqlTypeMetadata>[0];
+
+function col(
+  name: string,
+  meta: Meta,
+  options: { null?: boolean; defaultFunction?: string | null } = {},
+): Column {
+  return new Column(name, null, new SqlTypeMetadata(meta), options.null ?? true, {
+    defaultFunction: options.defaultFunction ?? null,
+  });
+}
 
 const emptySource: SchemaSource = {
   tables: async () => [],
@@ -94,14 +108,16 @@ describe("SchemaDumper columnSpec emits TS-DSL-emittable text", () => {
   });
 
   it("columnSpec output round-trips through formatColspec as valid TS-DSL", () => {
-    const [type, spec] = dumper.columnSpec({
-      type: "datetime",
-      precision: null,
-      null: false,
-      hasDefault: true,
-      default: null,
-      defaultFunction: "now()",
-    });
+    const [type, spec] = dumper.columnSpec(
+      col(
+        "created_at",
+        { type: "datetime", sqlType: "datetime" },
+        {
+          null: false,
+          defaultFunction: "now()",
+        },
+      ),
+    );
     expect(type).toBe("datetime");
     const text = dumper.formatColspec(spec);
     expect(text).toContain("precision: null");
@@ -116,11 +132,12 @@ describe("SchemaDumper raises on a column whose type is not a valid native type"
   const source = {
     tables: async () => ["widgets"],
     columns: (_t: string) => [
-      { name: "id", type: "integer", sqlType: "integer", primaryKey: true },
-      { name: "kind", type: null, sqlType: "composite_type" },
+      col("id", { type: "integer", sqlType: "integer" }),
+      col("kind", { sqlType: "composite_type" }),
     ],
     indexes: (_t: string) => [],
     isValidType: (type: string | null | undefined) => type === "integer",
+    primaryKey: async () => "id",
   };
 
   it("emits the Could-not-dump comment instead of a fabricated t.column line", async () => {
@@ -135,11 +152,12 @@ describe("SchemaDumper raises on a column whose type is not a valid native type"
     const validSource = {
       tables: async () => ["widgets"],
       columns: (_t: string) => [
-        { name: "id", type: "integer", sqlType: "integer", primaryKey: true },
-        { name: "name", type: "string", sqlType: "varchar(255)", limit: 255 },
+        col("id", { type: "integer", sqlType: "integer" }),
+        col("name", { type: "string", sqlType: "varchar(255)", limit: 255 }),
       ],
       indexes: (_t: string) => [],
       isValidType: (type: string | null | undefined) => type === "integer" || type === "string",
+      primaryKey: async () => "id",
     };
     const output = (await SchemaDumper.dump(validSource as any)).join("\n");
     expect(output).not.toContain("# Could not dump table");

@@ -3,6 +3,8 @@ import { ValueType } from "@blazetrails/activemodel";
 import { SchemaDumper } from "./schema-dumper.js";
 import type { SchemaSource } from "../../schema-dumper.js";
 import { Result } from "../../result.js";
+import { Column } from "./column.js";
+import { TypeMetadata } from "./type-metadata.js";
 
 const stubSource: SchemaSource = {
   tables: async () => [],
@@ -25,7 +27,22 @@ const col = (
     autoIncrement?: boolean;
     extra?: string;
   } = {},
-) => ({ name: "col", type: "string", sqlType: "varchar(255)", ...o });
+) => {
+  const extra =
+    [o.extra, o.virtual && "VIRTUAL GENERATED", o.autoIncrement && "auto_increment"]
+      .filter(Boolean)
+      .join(" ") || null;
+  const meta = {
+    sqlType:
+      (o.sqlType ?? (o.bigint ? "bigint" : "varchar(255)")) + (o.unsigned ? " unsigned" : ""),
+    type: o.type ?? (o.bigint ? "bigint" : "string"),
+    limit: o.limit ?? null,
+    precision: o.precision ?? null,
+  };
+  return new Column(o.name ?? "col", null, new TypeMetadata(meta, { extra }), true, {
+    collation: o.collation ?? null,
+  });
+};
 
 describe("MySQL::SchemaDumper", () => {
   it("defaultPrimaryKeyType returns bigint", () =>

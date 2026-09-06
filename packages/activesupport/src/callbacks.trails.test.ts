@@ -7,6 +7,8 @@ import {
   skipCallback,
   runCallbacks,
   ProcCall,
+  MethodCall,
+  ObjectCall,
 } from "./callbacks.js";
 
 describe("CallbackChain compile memoization (trails)", () => {
@@ -181,5 +183,52 @@ describe("normalizeCallbackParams (trails)", () => {
     runCallbacks(target, "save");
 
     expect(log).toEqual(["ran"]);
+  });
+});
+
+describe("MethodCall / ObjectCall forward the block (trails)", () => {
+  const block = () => "yielded";
+
+  it("hands a Symbol-named around callback its continuation", () => {
+    const log: string[] = [];
+    const target = {
+      wrapIt(proceed: () => void) {
+        log.push("around-before");
+        proceed();
+        log.push("around-after");
+      },
+    };
+    defineCallbacks(target, "save");
+    setCallback(target, "save", "around", ":wrapIt");
+
+    runCallbacks(target, "save", () => log.push("block"));
+
+    expect(log).toEqual(["around-before", "block", "around-after"]);
+  });
+
+  it("MethodCall#makeLambda sends the block, like target.send(@method_name, &block)", () => {
+    let seen: unknown = null;
+    const target = {
+      m(b: unknown) {
+        seen = b;
+      },
+    };
+
+    new MethodCall("m").makeLambda()(target, undefined, block);
+
+    expect(seen).toBe(block);
+  });
+
+  it("ObjectCall#makeLambda sends the block, like send(@method_name, target, &block)", () => {
+    let seen: unknown = null;
+    const receiver = {
+      around(_target: object, b: unknown) {
+        seen = b;
+      },
+    };
+
+    new ObjectCall(receiver, "around").makeLambda()({}, undefined, block);
+
+    expect(seen).toBe(block);
   });
 });

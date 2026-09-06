@@ -1,16 +1,7 @@
 import { SchemaDumper as BaseSchemaDumper } from "../../schema-dumper.js";
 import type { AbstractAdapter as DatabaseAdapter } from "../abstract-adapter.js";
-import type { ColumnInfo, SchemaSource } from "../../schema-dumper.js";
-
-/** @noRailsEquivalent CONVERGEABLE converge-abstract-schema-dumper-column-onto-column-class */
-export interface Column extends ColumnInfo {
-  bigint?: boolean;
-  virtual?: boolean;
-  hasDefault?: boolean;
-  defaultFunction?: string | null;
-  comment?: string | null;
-  sqlType?: string | null;
-}
+import type { SchemaSource } from "../../schema-dumper.js";
+import type { Column } from "../column.js";
 
 export class SchemaDumper extends BaseSchemaDumper {
   static readonly DEFAULT_DATETIME_PRECISION = 6;
@@ -76,7 +67,7 @@ export class SchemaDumper extends BaseSchemaDumper {
 
   /** @internal */
   protected schemaTypeWithVirtual(column: Column): string {
-    if (this.supportsVirtualColumns && column.virtual) return "virtual";
+    if (this.supportsVirtualColumns && column.isVirtual()) return "virtual";
     return this.schemaType(column);
   }
 
@@ -88,7 +79,7 @@ export class SchemaDumper extends BaseSchemaDumper {
 
   /** @internal */
   protected isBigint(column: Column): boolean {
-    return !!column.bigint || column.type === "bigint" || /^bigint\b/i.test(column.sqlType ?? "");
+    return column.type === "bigint" || column.isBigint();
   }
 
   /** @internal */
