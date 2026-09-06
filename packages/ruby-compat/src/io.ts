@@ -176,6 +176,11 @@ const FMODE_TEXTMODE = 0x00001000;
  * `rb_io_modestr_fmode` (`vendor/ruby/io.c:6443`) — the `FMODE_*` flags a mode
  * string names, which `rb_io_extract_modeenc` (`io.c:6881`) records on the
  * stream as `fptr->mode`.
+ *
+ * The `:` arm stops at the encoding half without `io_encname_bom_p`'s
+ * `FMODE_SETENC_BY_BOM` (`io.c:6480-6483`): no member of this partial `rb_io_t`
+ * reads that flag, and `File.open` splits the encoding half off before it gets
+ * here, so detecting a BOM would add a code path nothing enters.
  */
 function rbIoModestrFmode(modestr: string): number {
   let fmode = 0;
