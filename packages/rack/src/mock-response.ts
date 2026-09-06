@@ -52,7 +52,7 @@ export class MockResponse extends Response {
   override get body(): string {
     if (this._bufferedBody !== undefined) return this._bufferedBody;
 
-    let buffer = (this._bufferedBody = "");
+    let buffer = "";
 
     for (const chunk of this._body) {
       buffer += String(chunk);
