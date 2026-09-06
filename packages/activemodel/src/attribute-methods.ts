@@ -482,15 +482,15 @@ export const InstanceMethods = {
     return basicObjRespondTo(this, method);
   },
 
-  /** @missingRailsCall super — PERMANENT */
   respondTo(
     this: InstanceMethodsHost,
     method: string,
     includePrivateMethods: boolean = false,
   ): boolean {
-    void includePrivateMethods;
-    if (basicObjRespondTo(this, method)) {
+    if (basicObjRespondTo(this, method, !includePrivateMethods)) {
       return true;
+    } else if (!includePrivateMethods && basicObjRespondTo(this, method, false)) {
+      return false;
     } else {
       return this.matchedAttributeMethod(String(method)) !== null;
     }
