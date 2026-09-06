@@ -628,3 +628,41 @@ describe.skipIf(!hasCredentials)(
     });
   },
 );
+
+describe("SqliteDriver — libsql binds unsupplied placeholders as NULL", () => {
+  let driver: SqliteConnection;
+
+  beforeAll(async () => {
+    driver = await libsqlDriver.open({ database: ":memory:" });
+    const create = await driver.prepare("CREATE TABLE doodads (id INTEGER PRIMARY KEY, name TEXT)");
+    await create.run();
+    const insert = await driver.prepare("INSERT INTO doodads (name) VALUES (?)");
+    await insert.run(["alpha"]);
+  });
+
+  afterAll(async () => {
+    await driver.close();
+  });
+
+  it("runs a statement with placeholders and no values at all, like the Ruby sqlite3 gem", async () => {
+    const stmt = await driver.prepare("SELECT * FROM doodads WHERE id = ?");
+    expect(await stmt.all()).toEqual([]);
+  });
+
+  it("pads only the trailing placeholders left unsupplied", async () => {
+    const stmt = await driver.prepare("SELECT * FROM doodads WHERE name = ? OR id = ?");
+    expect(await stmt.all(["alpha"])).toEqual([{ id: 1, name: "alpha" }]);
+  });
+
+  it("EXPLAIN QUERY PLAN runs against a statement whose binds were never supplied", async () => {
+    const stmt = await driver.prepare("EXPLAIN QUERY PLAN SELECT * FROM doodads WHERE id = ?");
+    expect((await stmt.all()).length).toBeGreaterThan(0);
+  });
+
+  it("does not raise on an ordinary query given a short bind list", async () => {
+    const select = await driver.prepare("SELECT * FROM doodads WHERE name = ? AND id = ?");
+    expect(await select.all(["alpha"])).toEqual([]);
+    const update = await driver.prepare("UPDATE doodads SET name = ? WHERE id = ?");
+    expect((await update.run(["beta"])).changes).toBe(0);
+  });
+});
