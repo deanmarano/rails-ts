@@ -305,6 +305,18 @@ sampled, so it carries no sampling error beyond the binomial one quoted above.
 `--token=throw` draws from all 345 rows in both directions; the 69 are the
 `-throw` subset of those, and no flag narrows to one direction.
 
+The strata are a projection of the multiset difference, so they are neither a
+partition nor a cover. They **overlap** — a row differing by both an `if` and a
+`throw` is in both, which is why the five sizes sum to 2,953 against a
+population of 2,141 — and between them they miss the **45 rows whose difference
+is empty by construction**: the 19 `order` rows and the 26 `raise-class` rows.
+A `raise-class` row is about a throw too (it is a port raising where Rails
+raises, under a different class), and it is deliberately outside the `throw`
+stratum: `raise-class` is its own verdict with its own burndown, and folding it
+in here would make `--token=throw` a second, looser verdict rather than a view
+of the one the report already takes. The gating story reads the missing-`throw`
+figure, so this boundary is the one it inherits.
+
 ### Classification rules
 
 The three verdicts are the first measurement's, with one boundary made explicit

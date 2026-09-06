@@ -4,7 +4,7 @@
  * mirroring the shape of `report-call-args.ts --report`.
  *
  *   pnpm tsx scripts/api-compare/report-arms.ts --report [--top=N]
- *   pnpm tsx scripts/api-compare/report-arms.ts --sample=N [--seed=S] [--token=throw]
+ *   pnpm tsx scripts/api-compare/report-arms.ts --sample=N [--seed=S] [--token=if|loop|try|rescue|throw]
  *
  * Reads output/call-skeletons.json, which compare.ts writes for EVERY compared
  * (Ruby, TS) pair under `--calls`. Report-only and staying that way until
@@ -420,14 +420,22 @@ export function sampleRows(
  * The rows whose multiset difference names `token` on either side — the
  * stratum a `--token=` sample draws from. `remeasure-arm-noise-floor-per-token`
  * measures per token because the whole-population figure is not evidence about
- * any one of them: nothing in the first measurement says the 106 `-throw` rows
- * share the `if` population's artefact rate, and a stratum can clear the
- * tripwire on its own even though the whole cannot (RFC 0095 gated `shape` rows
- * and left `naming` report-only on exactly that reasoning).
+ * any one of them: it measured the whole population at 25% real and the rows
+ * missing a `throw` at 88% real, and a stratum can clear this RFC's tripwire on
+ * its own even though the whole cannot (RFC 0095 gated `shape` rows and left
+ * `naming` report-only on exactly that reasoning).
  *
  * Matched against the class-ERASED token, which is what `missing` / `invented`
  * already carry: a `throw:RecordNotSaved` difference is a `-throw` row here,
  * and the class it names is the `raise-class` verdict's business.
+ *
+ * The strata therefore cover the `count` rows only, and cover them with
+ * overlap: a row differing by both an `if` and a `throw` is in both, and an
+ * `order` or `raise-class` row — whose difference is empty by construction
+ * ({@link armVerdict}) — is in none. So a `throw` stratum is not "every row
+ * about a throw"; the `raise-class` rows are about a throw too and sit outside
+ * it, which is what keeps this a projection of the multiset difference rather
+ * than a second, looser verdict.
  */
 export function rowsWithToken(rows: readonly ArmMismatch[], token: string): ArmMismatch[] {
   return rows.filter((r) => r.missing.includes(token) || r.invented.includes(token));

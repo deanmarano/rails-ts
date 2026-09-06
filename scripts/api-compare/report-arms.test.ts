@@ -314,6 +314,15 @@ describe("rowsWithToken", () => {
   it("draws the stratum, not the whole population", () => {
     expect(rowsWithToken(rows, "if").map((r) => r.tsName)).toEqual(["branches"]);
   });
+
+  it("leaves out an order row and a raise-class row, whose difference is empty", () => {
+    const reordered = compareArms(named("reordered", ["if", "throw"], ["throw", "if"]))!;
+    const raiseClass = compareArms(named("raiseClass", ["throw:RecordNotSaved"], ["throw:Error"]))!;
+
+    expect([reordered.kind, raiseClass.kind]).toEqual(["order", "raise-class"]);
+    expect(rowsWithToken([reordered, raiseClass], "throw")).toEqual([]);
+    expect(rowsWithToken([reordered, raiseClass], "if")).toEqual([]);
+  });
 });
 
 describe("renderSample --token", () => {
