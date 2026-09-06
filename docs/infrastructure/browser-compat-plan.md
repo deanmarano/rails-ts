@@ -40,6 +40,47 @@ imports in `packages/activerecord/src` (excluding `tsc-wrapper/`, a
 build-time tool). This pattern is the template for every future native-dep
 abstraction.
 
+### The `CryptoAdapter` seam in a browser
+
+A browser **is** a supported host for `@blazetrails/ruby-compat`'s crypto seam,
+and it needs no registration step: `resolve()` falls through
+`tryAutoRegisterNode()` to `tryAutoRegisterWebCrypto()`, which registers a Web
+Crypto adapter under the name `web` whenever `globalThis.crypto.getRandomValues`
+exists. Node is tried first, so a Node host (which also exposes
+`globalThis.crypto`) is unaffected.
+
+The Web Crypto adapter serves the members Web Crypto can serve synchronously:
+
+| Member                                                                         | Browser implementation                                                  |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `randomBytes`                                                                  | `crypto.getRandomValues`                                                |
+| `randomUUID`                                                                   | `crypto.randomUUID`                                                     |
+| `timingSafeEqual`                                                              | constant-time compare over the two arrays                               |
+| `pbkdf2` (async)                                                               | `crypto.subtle.importKey` + `deriveBits`                                |
+| `createHash`, `createHmac`, `createCipheriv`, `createDecipheriv`, `pbkdf2Sync` | none — `crypto.subtle` is Promise-returning and has no streaming cipher |
+
+That covers `SecureRandom` (`hex`, `uuid`, `randomBytes`),
+`Instrumenter#uniqueId`, secure comparison, and asynchronous key derivation
+through `pbkdf2Async`. `randomBytes` returns a `Bytes` whose `toString()`
+accepts `hex`, `base64`, `binary`/`latin1` and `utf-8`, so no `Buffer` shim is
+needed — `Bytes` (`ruby-compat/src/fs-adapter.ts`) is `Uint8Array`-based and
+`Buffer` is a Node-adapter implementation detail.
+
+The five members Web Crypto cannot serve are not silently absent. The seam
+completes a partial adapter at resolve time, so calling one raises
+`Crypto adapter "web" does not implement createHash.` naming the missing
+member, rather than a `TypeError` deep inside `digest.ts` /
+`message-encryptor.ts` / `security-utils.ts` / `secure-password.ts`. A host that
+needs those members registers a complete adapter with
+`registerCryptoAdapter(name, adapter)` and selects it with
+`cryptoAdapterConfig.adapter = name`.
+
+Call sites do **not** branch on the host. `Instrumenter#uniqueId` reaches the
+seam unconditionally, exactly as its Ruby counterpart calls `SecureRandom`
+unconditionally; per-call-site `try/catch` fallbacks onto
+`crypto.getRandomValues` are not reinstated — the fallback now lives once, in
+the seam.
+
 ### `TRAILS_ENV` vs `NODE_ENV`
 
 The JS ecosystem treats `NODE_ENV` as a _build-time hint_ (bundlers replace it

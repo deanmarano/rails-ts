@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { getCrypto } from "./crypto-adapter.js";
+import {
+  cryptoAdapterConfig,
+  getCrypto,
+  registerCryptoAdapter,
+  type CryptoAdapter,
+} from "./crypto-adapter.js";
 import { Cipher } from "./openssl.js";
 
 describe("Cipher", () => {
@@ -68,5 +73,79 @@ describe("getCrypto", () => {
 
     expect(error).toBeNull();
     expect(stdout).toBe("20");
+  }, 30_000);
+});
+
+describe("registerCryptoAdapter", () => {
+  it("fails at the seam naming the member a partial adapter does not implement", () => {
+    const partial = {
+      randomBytes: (size: number) => new Uint8Array(size),
+      randomUUID: () => "00000000-0000-4000-8000-000000000000",
+    } as unknown as CryptoAdapter;
+
+    registerCryptoAdapter("partial", partial);
+    const previous = cryptoAdapterConfig.adapter;
+    cryptoAdapterConfig.adapter = "partial";
+    try {
+      expect(getCrypto().randomBytes(4).length).toBe(4);
+      expect(() => getCrypto().createHash("sha256")).toThrow(
+        'Crypto adapter "partial" does not implement createHash.',
+      );
+      expect(() => getCrypto().createHmac("sha256", "key")).toThrow(
+        'Crypto adapter "partial" does not implement createHmac.',
+      );
+      expect(() =>
+        getCrypto().createCipheriv("aes-256-gcm", new Uint8Array(32), new Uint8Array(12)),
+      ).toThrow('Crypto adapter "partial" does not implement createCipheriv.');
+      expect(() =>
+        getCrypto().createDecipheriv("aes-256-gcm", new Uint8Array(32), new Uint8Array(12)),
+      ).toThrow('Crypto adapter "partial" does not implement createDecipheriv.');
+      expect(() => getCrypto().pbkdf2Sync("p", "s", 1, 16, "sha256")).toThrow(
+        'Crypto adapter "partial" does not implement pbkdf2Sync.',
+      );
+      expect(() => getCrypto().timingSafeEqual(new Uint8Array(1), new Uint8Array(1))).toThrow(
+        'Crypto adapter "partial" does not implement timingSafeEqual.',
+      );
+    } finally {
+      cryptoAdapterConfig.adapter = previous;
+    }
+  });
+});
+
+describe("getCrypto in a browser", () => {
+  it("auto-registers a Web Crypto adapter when there is no node process", async () => {
+    const module = JSON.stringify(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist", "crypto-adapter.js"),
+    );
+    const source =
+      `delete globalThis.process;\n` +
+      `const { getCrypto, pbkdf2Async } = await import(${module});\n` +
+      `const crypto = getCrypto();\n` +
+      `console.log(crypto.randomBytes(10).toString("hex").length);\n` +
+      `console.log(crypto.randomUUID().length);\n` +
+      `console.log(crypto.timingSafeEqual(new Uint8Array([1, 2]), new Uint8Array([1, 2])));\n` +
+      `console.log(crypto.timingSafeEqual(new Uint8Array([1, 2]), new Uint8Array([1, 3])));\n` +
+      `try { crypto.timingSafeEqual(new Uint8Array(1), new Uint8Array(2)); } catch (e) { console.log(e.constructor.name + ": " + e.message); }\n` +
+      `console.log((await pbkdf2Async(crypto, "password", "salt", 2, 16, "sha256")).length);\n` +
+      `try { crypto.createHash("sha256"); } catch (e) { console.log(e.message); }`;
+
+    const { stdout, error } = await new Promise<{ stdout: string; error: string | null }>(
+      (resolve) => {
+        execFile("node", ["--input-type=module", "-e", source], (err, out) =>
+          resolve({ stdout: out.trim(), error: err ? err.message : null }),
+        );
+      },
+    );
+
+    expect(error).toBeNull();
+    expect(stdout.split("\n")).toEqual([
+      "20",
+      "36",
+      "true",
+      "false",
+      "RangeError: Input buffers must have the same byte length",
+      "16",
+      'Crypto adapter "web" does not implement createHash.',
+    ]);
   }, 30_000);
 });
