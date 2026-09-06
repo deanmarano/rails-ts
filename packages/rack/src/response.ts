@@ -20,7 +20,7 @@ function downcaseKey(key: string): string {
 export abstract class Helpers {
   declare status: number;
   declare headers: Record<string, any>;
-  declare body: any;
+  declare _body: any;
   declare length: number | null;
   declare _buffered: boolean | null;
   declare _writer: (chunk: string) => string;
@@ -196,22 +196,22 @@ export abstract class Helpers {
   /** @internal */
   bufferedBodyBang(): boolean {
     if (this._buffered === null) {
-      if (Array.isArray(this.body)) {
-        this.body = this.body.filter((p: any) => p !== null && p !== undefined);
-        this.length = this.body.reduce(
+      if (Array.isArray(this._body)) {
+        this._body = this._body.filter((p: any) => p !== null && p !== undefined);
+        this.length = this._body.reduce(
           (s: number, p: string) => s + Buffer.byteLength(String(p)),
           0,
         );
         this._buffered = true;
-      } else if (this.body && typeof this.body.each === "function") {
-        const oldBody = this.body;
-        this.body = [];
+      } else if (this._body && typeof this._body.each === "function") {
+        const oldBody = this._body;
+        this._body = [];
         this._buffered = true;
         this.length = 0;
         oldBody.each((part: string) => this.append(String(part)));
-      } else if (this.body && typeof this.body[Symbol.iterator] === "function") {
-        const oldBody = this.body;
-        this.body = [];
+      } else if (this._body && typeof this._body[Symbol.iterator] === "function") {
+        const oldBody = this._body;
+        this._body = [];
         this._buffered = true;
         this.length = 0;
         for (const part of oldBody) this.append(String(part));
@@ -224,7 +224,7 @@ export abstract class Helpers {
 
   /** @internal */
   append(chunk: string): string {
-    this.body.push(chunk);
+    this._body.push(chunk);
     if (this.length !== null) {
       this.length += Buffer.byteLength(chunk);
     } else if (this._buffered) {
@@ -238,7 +238,7 @@ export abstract class Helpers {
 export class Response {
   status: number;
   headers: Record<string, string | string[]>;
-  body: any;
+  protected _body: any;
   length: number | null;
   private _buffered: boolean | null;
   private _block: ((self: Response) => void) | null;
@@ -254,22 +254,30 @@ export class Response {
     this._block = null;
 
     if (body === null || body === undefined) {
-      this.body = [];
+      this._body = [];
       this._buffered = true;
       this.length = null;
     } else if (typeof body === "string") {
-      this.body = [body];
+      this._body = [body];
       this._buffered = true;
       this.length = Buffer.byteLength(body);
     } else if (Array.isArray(body)) {
-      this.body = body;
+      this._body = body;
       this._buffered = true;
       this.length = body.reduce((s: number, p: string) => s + Buffer.byteLength(String(p)), 0);
     } else {
-      this.body = body;
+      this._body = body;
       this._buffered = null;
       this.length = null;
     }
+  }
+
+  get body(): any {
+    return this._body;
+  }
+
+  set body(value: any) {
+    this._body = value;
   }
 
   static create(status: number, headers: Record<string, string>, body: any): Response {
@@ -320,7 +328,7 @@ export class Response {
     if (this.length !== null && !this.isChunked() && !this.headers[CONTENT_LENGTH]) {
       this.headers[CONTENT_LENGTH] = String(this.length);
     }
-    return [this.status, this.headers, this.body];
+    return [this.status, this.headers, this._body];
   }
 
   toArray(): [number, Record<string, any>, any] {
@@ -328,12 +336,12 @@ export class Response {
   }
 
   each(callback: (chunk: string) => void): void {
-    if (Array.isArray(this.body)) {
-      for (const chunk of this.body) callback(chunk);
-    } else if (this.body && typeof this.body.each === "function") {
-      this.body.each(callback);
-    } else if (this.body && typeof this.body.forEach === "function") {
-      this.body.forEach(callback);
+    if (Array.isArray(this._body)) {
+      for (const chunk of this._body) callback(chunk);
+    } else if (this._body && typeof this._body.each === "function") {
+      this._body.each(callback);
+    } else if (this._body && typeof this._body.forEach === "function") {
+      this._body.forEach(callback);
     }
     this._buffered = true;
     if (this._block) {
@@ -344,8 +352,8 @@ export class Response {
 
   write(chunk: string): void {
     this.bufferedBodyBang();
-    if (this._buffered && Array.isArray(this.body) && !this._bodyCloned) {
-      this.body = [...this.body];
+    if (this._buffered && Array.isArray(this._body) && !this._bodyCloned) {
+      this._body = [...this._body];
       this._bodyCloned = true;
     }
     this._writer(String(chunk));
@@ -353,11 +361,11 @@ export class Response {
   private _bodyCloned = false;
 
   close(): void {
-    if (this.body && typeof this.body.close === "function") this.body.close();
+    if (this._body && typeof this._body.close === "function") this._body.close();
   }
 
   isEmpty(): boolean {
-    return this._block === null && Array.isArray(this.body) && this.body.length === 0;
+    return this._block === null && Array.isArray(this._body) && this._body.length === 0;
   }
 
   hasHeader(key: string | null): boolean {
@@ -415,7 +423,7 @@ export interface Response extends Omit<
   Helpers,
   | "status"
   | "headers"
-  | "body"
+  | "_body"
   | "length"
   | "_buffered"
   | "_writer"
@@ -431,7 +439,7 @@ export interface ResponseRaw extends Omit<
   Helpers,
   | "status"
   | "headers"
-  | "body"
+  | "_body"
   | "length"
   | "_buffered"
   | "_writer"

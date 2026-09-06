@@ -111,7 +111,7 @@ it("serve files", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/test.txt");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toContain("Hello World");
+  expect(res.body).toContain("Hello World");
 });
 
 it("return error when file not found for head request", async () => {
@@ -124,21 +124,21 @@ it("can be used without root", async () => {
   const app = new Files("");
   const res = await new MockRequest((env) => app.call(env)).get(testFile);
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("Hello World");
+  expect(res.body).toBe("Hello World");
 });
 
 it("serves files with + in the file name", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/test+plus.txt");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("plus file");
+  expect(res.body).toBe("plus file");
 });
 
 it("serves the correct file content for a GET request", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/test.txt");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("Hello World");
+  expect(res.body).toBe("Hello World");
 });
 
 it("does not serve directories", async () => {
@@ -161,7 +161,7 @@ it("return 304 if file isn't modified since last serve", async () => {
   });
 
   expect(res.status).toBe(304);
-  expect(res.bodyString).toBe("");
+  expect(res.body).toBe("");
 });
 
 it("return the file if it's modified since last serve", async () => {
@@ -177,7 +177,7 @@ it("serve files with URL encoded filenames", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/test%20space.txt");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("space file");
+  expect(res.body).toBe("space file");
 });
 
 it("serve uri with URL encoded null byte (%00) in filenames", async () => {
@@ -202,7 +202,7 @@ it("allow files with .. in their name", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/test..dots.txt");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("dots");
+  expect(res.body).toBe("dots");
 });
 
 it("not allow unsafe directory traversal with encoded periods", async () => {
@@ -245,7 +245,7 @@ it("return bodies that do not respond to #to_path if a byte range is requested",
     HTTP_RANGE: "bytes=0-4",
   });
   expect(res.status).toBe(206);
-  expect(res.bodyString).toBe("Hello");
+  expect(res.body).toBe("Hello");
 });
 
 it("return correct byte range in body", async () => {
@@ -254,7 +254,7 @@ it("return correct byte range in body", async () => {
     HTTP_RANGE: "bytes=6-10",
   });
   expect(res.status).toBe(206);
-  expect(res.bodyString).toBe("World");
+  expect(res.body).toBe("World");
   expect(res.headers["content-range"]).toBe("bytes 6-10/11");
 });
 
@@ -262,7 +262,7 @@ it("handle case where file is truncated during request", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/test.txt");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("Hello World");
+  expect(res.body).toBe("Hello World");
 });
 
 it("return correct multiple byte ranges in body", async () => {
@@ -272,6 +272,6 @@ it("return correct multiple byte ranges in body", async () => {
   });
   expect(res.status).toBe(206);
   expect(res.headers["content-type"]).toContain("multipart/byteranges");
-  expect(res.bodyString).toContain("Hello");
-  expect(res.bodyString).toContain("World");
+  expect(res.body).toContain("Hello");
+  expect(res.body).toContain("World");
 });

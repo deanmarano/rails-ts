@@ -12,7 +12,7 @@ it("has standard constructor", () => {
   const res = new MockResponse(200, { "content-type": "text/plain" }, ["hello"]);
   expect(res.status).toBe(200);
   expect(res.headers["content-type"]).toBe("text/plain");
-  expect(res.bodyString).toBe("hello");
+  expect(res.body).toBe("hello");
 });
 
 it("provides access to the HTTP status", async () => {
@@ -117,7 +117,7 @@ it("parses multiple set-cookie headers provided as hash with array value", async
 
 it("provides access to the HTTP body", async () => {
   const res = await new MockRequest(app).get("/");
-  expect(res.bodyString).toBe("OK");
+  expect(res.body).toBe("OK");
 });
 
 it("provides access to the Rack errors", async () => {

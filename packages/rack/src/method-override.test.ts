@@ -17,7 +17,7 @@ function makeApp(app = echoApp) {
 
 it("not affect GET requests", async () => {
   const res = await new MockRequest((env) => makeApp().call(env)).get("/");
-  expect(res.bodyString).toBe("GET");
+  expect(res.body).toBe("GET");
 });
 
 it("sets rack.errors for invalid UTF8 _method values", async () => {
@@ -31,28 +31,28 @@ it("modify REQUEST_METHOD for POST requests when _method parameter is set", asyn
   const res = await new MockRequest((env) => makeApp().call(env)).post("/", {
     ":input": "_method=put",
   });
-  expect(res.bodyString).toBe("PUT");
+  expect(res.body).toBe("PUT");
 });
 
 it("modify REQUEST_METHOD for POST requests when X-HTTP-Method-Override is set", async () => {
   const res = await new MockRequest((env) => makeApp().call(env)).post("/", {
     HTTP_X_HTTP_METHOD_OVERRIDE: "PATCH",
   });
-  expect(res.bodyString).toBe("PATCH");
+  expect(res.body).toBe("PATCH");
 });
 
 it("not modify REQUEST_METHOD if the method is unknown", async () => {
   const res = await new MockRequest((env) => makeApp().call(env)).post("/", {
     ":input": "_method=UNKNOWN",
   });
-  expect(res.bodyString).toBe("POST");
+  expect(res.body).toBe("POST");
 });
 
 it("not modify REQUEST_METHOD when _method is nil", async () => {
   const res = await new MockRequest((env) => makeApp().call(env)).post("/", {
     ":input": "",
   });
-  expect(res.bodyString).toBe("POST");
+  expect(res.body).toBe("POST");
 });
 
 it("store the original REQUEST_METHOD prior to overriding", async () => {
@@ -62,7 +62,7 @@ it("store the original REQUEST_METHOD prior to overriding", async () => {
   const res = await new MockRequest((env) => app.call(env)).post("/", {
     ":input": "_method=put",
   });
-  expect(res.bodyString).toBe("POST");
+  expect(res.body).toBe("POST");
 });
 
 const TRUNCATED_MULTIPART =
@@ -110,7 +110,7 @@ it("not modify REQUEST_METHOD for POST requests when the params are unparseable 
   const res = await new MockRequest((env) => app.call(env)).post("/", {
     ":input": "_method=PUT&" + "a".repeat(50) + "=1",
   });
-  expect(res.bodyString).toBe("PUT");
+  expect(res.body).toBe("PUT");
 });
 
 it("not modify REQUEST_METHOD for POST requests when the params are unparseable", async () => {
@@ -121,7 +121,7 @@ it("not modify REQUEST_METHOD for POST requests when the params are unparseable"
     CONTENT_TYPE: "application/x-www-form-urlencoded",
     ":input": "_method=DELETE",
   });
-  expect(res.bodyString).toBe("DELETE");
+  expect(res.body).toBe("DELETE");
 });
 
 it("not set form input when the content type is JSON", async () => {
@@ -132,5 +132,5 @@ it("not set form input when the content type is JSON", async () => {
     CONTENT_TYPE: "application/json",
     ":input": '{"_method":"PUT"}',
   });
-  expect(res.bodyString).toBe("POST");
+  expect(res.body).toBe("POST");
 });

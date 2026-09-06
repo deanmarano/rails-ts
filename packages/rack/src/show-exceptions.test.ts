@@ -14,10 +14,10 @@ it("catches exceptions", async () => {
   );
   const res = await req.get("/", { HTTP_ACCEPT: "text/html" });
   expect(res.status).toBe(500);
-  expect(res.bodyString).toContain("Error");
-  expect(res.bodyString).toContain("ShowExceptions");
-  expect(res.bodyString).toContain("No GET data");
-  expect(res.bodyString).toContain("No POST data");
+  expect(res.body).toContain("Error");
+  expect(res.body).toContain("ShowExceptions");
+  expect(res.body).toContain("No GET data");
+  expect(res.body).toContain("No POST data");
 });
 
 it("handles exceptions with backtrace lines for files that are not readable", async () => {
@@ -31,9 +31,9 @@ it("handles exceptions with backtrace lines for files that are not readable", as
   );
   const res = await req.get("/", { HTTP_ACCEPT: "text/html" });
   expect(res.status).toBe(500);
-  expect(res.bodyString).toContain("Error");
-  expect(res.bodyString).toContain("ShowExceptions");
-  expect(res.bodyString).toContain("nonexistent.rb");
+  expect(res.body).toContain("Error");
+  expect(res.body).toContain("ShowExceptions");
+  expect(res.body).toContain("nonexistent.rb");
 });
 
 it("handles invalid POST data exceptions", async () => {
@@ -52,10 +52,10 @@ it("handles invalid POST data exceptions", async () => {
     HTTP_ACCEPT: "text/html",
   });
   expect(res.status).toBe(500);
-  expect(res.bodyString).toContain("Error");
-  expect(res.bodyString).toContain("ShowExceptions");
-  expect(res.bodyString).toContain("No GET data");
-  expect(res.bodyString).toContain("Invalid POST data");
+  expect(res.body).toContain("Error");
+  expect(res.body).toContain("ShowExceptions");
+  expect(res.body).toContain("No GET data");
+  expect(res.body).toContain("Invalid POST data");
 });
 
 it("works with binary data in the Rack environment", async () => {
@@ -67,8 +67,8 @@ it("works with binary data in the Rack environment", async () => {
   );
   const res = await req.get("/", { HTTP_ACCEPT: "text/html" });
   expect(res.status).toBe(500);
-  expect(res.bodyString).toContain("Error");
-  expect(res.bodyString).toContain("ShowExceptions");
+  expect(res.body).toContain("Error");
+  expect(res.body).toContain("ShowExceptions");
 });
 
 it("responds with HTML only to requests accepting HTML", async () => {
@@ -88,10 +88,10 @@ it("responds with HTML only to requests accepting HTML", async () => {
     const res = await new MockRequest((env) => app.call(env)).get(uri, opts || {});
     expect(res.status).toBe(500);
     expect(res.headers["content-type"]).toBe(expectedMime);
-    expect(res.bodyString).toContain("Error");
-    expect(res.bodyString).toContain("It was never supposed to work");
+    expect(res.body).toContain("Error");
+    expect(res.body).toContain("It was never supposed to work");
 
-    expect(res.bodyString.includes("</html>")).toBe(expectedMime === "text/html");
+    expect(res.body.includes("</html>")).toBe(expectedMime === "text/html");
   }
 });
 
@@ -105,9 +105,9 @@ it("handles exceptions without a backtrace", async () => {
   );
   const res = await req.get("/", { HTTP_ACCEPT: "text/html" });
   expect(res.status).toBe(500);
-  expect(res.bodyString).toContain("Error");
-  expect(res.bodyString).toContain("ShowExceptions");
-  expect(res.bodyString).toContain("unknown location");
+  expect(res.body).toContain("Error");
+  expect(res.body).toContain("ShowExceptions");
+  expect(res.body).toContain("unknown location");
 });
 
 it("allows subclasses to override template", async () => {
@@ -123,7 +123,7 @@ it("allows subclasses to override template", async () => {
     HTTP_ACCEPT: "text/html",
   });
   expect(res.status).toBe(500);
-  expect(res.bodyString).toBe("foo");
+  expect(res.body).toBe("foo");
 });
 
 it("knows to prefer plaintext for non-html", () => {
@@ -143,8 +143,8 @@ it("prefers Exception#detailed_message instead of Exception#message if available
   );
   const res = await req.get("/", { HTTP_ACCEPT: "text/html" });
   expect(res.status).toBe(500);
-  expect(res.bodyString).toContain("detailed_message_test");
-  expect(res.bodyString).toContain("ShowExceptions");
-  expect(res.bodyString).toContain("No GET data");
-  expect(res.bodyString).toContain("No POST data");
+  expect(res.body).toContain("detailed_message_test");
+  expect(res.body).toContain("ShowExceptions");
+  expect(res.body).toContain("No GET data");
+  expect(res.body).toContain("No POST data");
 });

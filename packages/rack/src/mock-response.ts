@@ -34,7 +34,7 @@ export class MockResponse extends Response {
   originalHeaders: Record<string, any>;
   cookies: Record<string, MockCookie>;
   errors: string;
-  private _bodyString: string | undefined;
+  private _bufferedBody: string | undefined;
 
   constructor(status: number, headers: Record<string, any>, body: any, errors?: any) {
     super(body, status, headers);
@@ -48,18 +48,21 @@ export class MockResponse extends Response {
     this.bufferedBodyBang();
   }
 
-  get bodyString(): string {
-    if (this._bodyString !== undefined) return this._bodyString;
-    const chunks: string[] = [];
-    if (Array.isArray(this.body)) {
-      for (const chunk of this.body) chunks.push(String(chunk));
+  override get body(): string {
+    if (this._bufferedBody !== undefined) return this._bufferedBody;
+
+    let buffer = "";
+
+    for (const chunk of this._body) {
+      buffer += String(chunk);
     }
-    this._bodyString = chunks.join("");
-    return this._bodyString;
+    this._bufferedBody = buffer;
+
+    return buffer;
   }
 
-  getBody(): string {
-    return this.bodyString;
+  override set body(value: any) {
+    this._body = value;
   }
 
   cookie(name: string): MockCookie | undefined {
@@ -67,7 +70,7 @@ export class MockResponse extends Response {
   }
 
   match(other: RegExp): RegExpMatchArray | null {
-    return this.bodyString.match(other);
+    return this.body.match(other);
   }
 
   /** @internal */

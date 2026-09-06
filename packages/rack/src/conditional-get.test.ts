@@ -13,7 +13,7 @@ it("set a 304 status and truncate body when if-modified-since hits", async () =>
     HTTP_IF_MODIFIED_SINCE: timestamp,
   });
   expect(res.status).toBe(304);
-  expect(res.bodyString).toBe("");
+  expect(res.body).toBe("");
 });
 
 it("set a 304 status and truncate body when if-modified-since hits and is higher than current time", async () => {
@@ -25,7 +25,7 @@ it("set a 304 status and truncate body when if-modified-since hits and is higher
     HTTP_IF_MODIFIED_SINCE: new Date().toUTCString(),
   });
   expect(res.status).toBe(304);
-  expect(res.bodyString).toBe("");
+  expect(res.body).toBe("");
 });
 
 it("closes bodies", async () => {
@@ -46,7 +46,7 @@ it("closes bodies", async () => {
     HTTP_IF_MODIFIED_SINCE: new Date().toUTCString(),
   });
   expect(res.status).toBe(304);
-  expect(res.bodyString).toBe("");
+  expect(res.body).toBe("");
   expect(closed).toBe(true);
 });
 
@@ -56,7 +56,7 @@ it("set a 304 status and truncate body when if-none-match hits", async () => {
     HTTP_IF_NONE_MATCH: "1234",
   });
   expect(res.status).toBe(304);
-  expect(res.bodyString).toBe("");
+  expect(res.body).toBe("");
 });
 
 it("set a 304 status and truncate body when if-none-match hits but if-modified-since is after last-modified", async () => {
@@ -77,7 +77,7 @@ it("set a 304 status and truncate body when if-none-match hits but if-modified-s
     HTTP_IF_NONE_MATCH: "1234",
   });
   expect(res.status).toBe(304);
-  expect(res.bodyString).toBe("");
+  expect(res.body).toBe("");
 });
 
 it("not set a 304 status if last-modified is too short", async () => {
@@ -88,7 +88,7 @@ it("not set a 304 status if last-modified is too short", async () => {
     HTTP_IF_MODIFIED_SINCE: new Date().toUTCString(),
   });
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("TEST");
+  expect(res.body).toBe("TEST");
 });
 
 it("not set a 304 status if if-modified-since hits but etag does not", async () => {
@@ -106,7 +106,7 @@ it("not set a 304 status if if-modified-since hits but etag does not", async () 
     HTTP_IF_NONE_MATCH: "4321",
   });
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("TEST");
+  expect(res.body).toBe("TEST");
 });
 
 it("set a 304 status and truncate body when both if-none-match and if-modified-since hits", async () => {
@@ -119,7 +119,7 @@ it("set a 304 status and truncate body when both if-none-match and if-modified-s
     HTTP_IF_NONE_MATCH: "1234",
   });
   expect(res.status).toBe(304);
-  expect(res.bodyString).toBe("");
+  expect(res.body).toBe("");
 });
 
 it("not affect non-GET/HEAD requests", async () => {
@@ -130,7 +130,7 @@ it("not affect non-GET/HEAD requests", async () => {
     HTTP_IF_NONE_MATCH: "1234",
   });
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("TEST");
+  expect(res.body).toBe("TEST");
 });
 
 it("not affect non-200 requests", async () => {
@@ -141,7 +141,7 @@ it("not affect non-200 requests", async () => {
     HTTP_IF_NONE_MATCH: "1234",
   });
   expect(res.status).toBe(302);
-  expect(res.bodyString).toBe("TEST");
+  expect(res.body).toBe("TEST");
 });
 
 it("not affect requests with malformed HTTP_IF_NONE_MATCH", async () => {
@@ -160,5 +160,5 @@ it("not affect requests with malformed HTTP_IF_NONE_MATCH", async () => {
     HTTP_IF_MODIFIED_SINCE: "bad-timestamp",
   });
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("TEST");
+  expect(res.body).toBe("TEST");
 });

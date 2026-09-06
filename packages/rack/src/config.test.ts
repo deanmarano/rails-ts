@@ -14,5 +14,5 @@ it("accept a block that modifies the environment", async () => {
     env["greeting"] = "hello";
   });
   const response = await new MockRequest((env) => app.call(env)).get("/");
-  expect(response.bodyString).toBe("hello");
+  expect(response.body).toBe("hello");
 });

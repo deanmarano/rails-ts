@@ -15,10 +15,10 @@ it("provide a default status message", async () => {
   );
   const res = await req.get("/");
   expect(res.status).toBe(404);
-  expect(res.bodyString.length).toBeGreaterThan(0);
+  expect(res.body.length).toBeGreaterThan(0);
   expect(res.headers["content-type"]).toBe("text/html");
-  expect(res.bodyString).toMatch(/404/);
-  expect(res.bodyString).toMatch(/Not Found/);
+  expect(res.body).toMatch(/404/);
+  expect(res.body).toMatch(/Not Found/);
 });
 
 it("let the app provide additional information", async () => {
@@ -31,9 +31,9 @@ it("let the app provide additional information", async () => {
   const res = await req.get("/");
   expect(res.status).toBe(404);
   expect(res.headers["content-type"]).toBe("text/html");
-  expect(res.bodyString).toMatch(/404/);
-  expect(res.bodyString).toMatch(/Not Found/);
-  expect(res.bodyString).toMatch(/too meta/);
+  expect(res.body).toMatch(/404/);
+  expect(res.body).toMatch(/Not Found/);
+  expect(res.body).toMatch(/too meta/);
 });
 
 it("let the app provide additional information with non-String details", async () => {
@@ -46,9 +46,9 @@ it("let the app provide additional information with non-String details", async (
   const res = await req.get("/");
   expect(res.status).toBe(404);
   expect(res.headers["content-type"]).toBe("text/html");
-  expect(res.bodyString).toContain("404");
-  expect(res.bodyString).toContain("Not Found");
-  expect(res.bodyString).toContain("gone too meta.");
+  expect(res.body).toContain("404");
+  expect(res.body).toContain("Not Found");
+  expect(res.body).toContain("gone too meta.");
 });
 
 it("escape error", async () => {
@@ -61,9 +61,9 @@ it("escape error", async () => {
   );
   const res = await req.get("/");
   expect(res.headers["content-type"]).toBe("text/html");
-  expect(res.bodyString).toMatch(/500/);
-  expect(res.bodyString).not.toContain(detail);
-  expect(res.bodyString).toContain(escapeHtml(detail));
+  expect(res.body).toMatch(/500/);
+  expect(res.body).not.toContain(detail);
+  expect(res.body).toContain(escapeHtml(detail));
 });
 
 it("not replace existing messages", async () => {
@@ -74,7 +74,7 @@ it("not replace existing messages", async () => {
   );
   const res = await req.get("/");
   expect(res.status).toBe(404);
-  expect(res.bodyString).toBe("foo!");
+  expect(res.body).toBe("foo!");
 });
 
 it("pass on original headers", async () => {
@@ -96,9 +96,9 @@ it("replace existing messages if there is detail", async () => {
   expect(res.status).toBe(404);
   expect(res.headers["content-type"]).toBe("text/html");
   expect(res.headers["content-length"]).not.toBe("4");
-  expect(res.bodyString).toMatch(/404/);
-  expect(res.bodyString).toMatch(/too meta/);
-  expect(res.bodyString).not.toMatch(/foo/);
+  expect(res.body).toMatch(/404/);
+  expect(res.body).toMatch(/too meta/);
+  expect(res.body).not.toMatch(/foo/);
 });
 
 it("close the original body", async () => {

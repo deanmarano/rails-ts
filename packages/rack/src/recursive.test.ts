@@ -38,7 +38,7 @@ it("allow for subrequests", async () => {
     recursive({ "/app1": app1, "/app2": app2 }).call(env),
   ).get("/app2");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("App2App1");
+  expect(res.body).toBe("App2App1");
 });
 
 it("raise error on requests not below the app", async () => {
@@ -60,11 +60,11 @@ it("support forwarding", async () => {
 
   let res = await new MockRequest((env) => app.call(env)).get("/app3");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("App1");
+  expect(res.body).toBe("App1");
 
   res = await new MockRequest((env) => app.call(env)).get("/app4");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("App1");
+  expect(res.body).toBe("App1");
   expect(res.headers["x-path-info"]).toBe("/quux");
   expect(res.headers["x-query-string"]).toBe("meh");
 });

@@ -30,22 +30,22 @@ it("serves directories with + in the name", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/sub%20dir%2Bplus/");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toContain("file.txt");
+  expect(res.body).toContain("file.txt");
 });
 
 it("serve root directory index", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toContain("test.txt");
-  expect(res.bodyString).toContain("subdir");
+  expect(res.body).toContain("test.txt");
+  expect(res.body).toContain("subdir");
 });
 
 it("serve directory indices", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/subdir/");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toContain("page.html");
+  expect(res.body).toContain("page.html");
 });
 
 it("return 404 for pipes", async () => {
@@ -70,14 +70,14 @@ it("pass to app if file found", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/test.txt");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("hello");
+  expect(res.body).toBe("hello");
 });
 
 it("serve uri with URL encoded filenames", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/spaced%20file.txt");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("spaced");
+  expect(res.body).toBe("spaced");
 });
 
 it("serve uri with URL encoded null byte (%00) in filenames", async () => {
@@ -120,21 +120,21 @@ it("uri escape path parts", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toContain("href=");
+  expect(res.body).toContain("href=");
 });
 
 it("correctly escape script name with spaces", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/", { SCRIPT_NAME: "/my app" });
   expect(res.status).toBe(200);
-  expect(res.bodyString).toContain("my app");
+  expect(res.body).toContain("my app");
 });
 
 it("correctly escape script name with '", async () => {
   const app = makeApp();
   const res = await new MockRequest((env) => app.call(env)).get("/", { SCRIPT_NAME: "/it's" });
   expect(res.status).toBe(200);
-  expect(res.bodyString).toContain("&#39;");
+  expect(res.body).toContain("&#39;");
 });
 
 it("correctly escape script name", async () => {
@@ -143,8 +143,8 @@ it("correctly escape script name", async () => {
     SCRIPT_NAME: "/test<script>",
   });
   expect(res.status).toBe(200);
-  expect(res.bodyString).not.toContain("<script>");
-  expect(res.bodyString).toContain("&lt;script&gt;");
+  expect(res.body).not.toContain("<script>");
+  expect(res.body).toContain("&lt;script&gt;");
 });
 
 it("return error when file not found for head request", async () => {

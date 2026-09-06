@@ -69,16 +69,16 @@ export class ServerTiming {
     for (const event of events) {
       byName.set(event.name, (byName.get(event.name) ?? 0) + event.duration);
     }
-    const headerInfo: string[] = [];
+    const headerInfo: Array<string | string[]> = [];
     for (const [name, duration] of byName) {
       headerInfo.push(`${name};dur=${duration.toFixed(2)}`);
     }
 
     const existing = headers[SERVER_TIMING];
     if (isPresent(existing)) {
-      headerInfo.unshift(String(existing));
+      headerInfo.unshift(existing);
     }
-    headers[SERVER_TIMING] = headerInfo.join(", ");
+    headers[SERVER_TIMING] = headerInfo.flat(Infinity).join(", ");
 
     return response!;
   }

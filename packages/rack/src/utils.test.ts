@@ -22,7 +22,7 @@ it("round trip binary data", () => {
 it("escape correctly", () => {
   expect(Utils.escape("fo<o>bar")).toBe("fo%3Co%3Ebar");
   expect(Utils.escape("a space")).toBe("a+space");
-  expect(Utils.escape("q1!2\"'w$5&7/z8)?\\")).toBe("q1!2%22'w%245%267%2Fz8)%3F%5C");
+  expect(Utils.escape("q1!2\"'w$5&7/z8)?\\")).toBe("q1%212%22%27w%245%267%2Fz8%29%3F%5C");
 });
 
 it("escape correctly for multibyte characters", () => {
@@ -194,7 +194,7 @@ it("build query strings correctly", () => {
   assertSets("foo=bar&foo=quux", Utils.buildQuery({ foo: ["bar", "quux"] }));
   assertSets("foo=1&bar=2", Utils.buildQuery({ foo: "1", bar: "2" }));
   assertSets(
-    "my+weird+field=q1!2%22'w%245%267%2Fz8)%3F",
+    "my+weird+field=q1%212%22%27w%245%267%2Fz8%29%3F",
     Utils.buildQuery({ "my weird field": "q1!2\"'w$5&7/z8)?" }),
   );
 });

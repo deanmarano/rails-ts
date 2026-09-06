@@ -173,7 +173,7 @@ describe("Rack::Test::Session#request", () => {
   it("doesn't follow redirects by default", async () => {
     await request("/redirect");
     mustBe(lastResponse(), "isRedirect");
-    assertEmpty(lastResponse().getBody());
+    assertEmpty(lastResponse().body);
   });
 
   it("allows passing :input in for POSTs", async () => {
@@ -395,7 +395,7 @@ describe("Rack::Test::Session#follow_redirect!", () => {
     await session.followRedirectBang();
 
     wontBe(lastResponse(), "isRedirect");
-    expect(lastResponse().bodyString).toBe("You've been redirected, session {} with options {}");
+    expect(lastResponse().body).toBe("You've been redirected, session {} with options {}");
     expect(lastRequest().env["HTTP_REFERER"]).toBe("http://example.org/redirect");
   });
 
@@ -429,14 +429,14 @@ describe("Rack::Test::Session#follow_redirect!", () => {
     await session.get("/redirect", {}, { "rack.session": { foo: "bar" } });
     await session.followRedirectBang();
 
-    expect(lastResponse().bodyString).toMatch(/session \{"foo" ?=> ?"bar"\}/);
+    expect(lastResponse().body).toMatch(/session \{"foo" ?=> ?"bar"\}/);
   });
 
   it("includes session options when following the redirect", async () => {
     await session.get("/redirect", {}, { "rack.session.options": { foo: "bar" } });
     await session.followRedirectBang();
 
-    expect(lastResponse().bodyString).toMatch(/session \{\} with options \{"foo" ?=> ?"bar"\}/);
+    expect(lastResponse().body).toMatch(/session \{\} with options \{"foo" ?=> ?"bar"\}/);
   });
 
   it("raises an error if the last_response is not set", async () => {
@@ -452,9 +452,9 @@ describe("Rack::Test::Session#follow_redirect!", () => {
   it("keeps the original method and params for HTTP 307", async () => {
     await session.post("/redirect?status=307", { foo: "bar" });
     await session.followRedirectBang();
-    expect(lastResponse().bodyString).toContain("post");
-    expect(lastResponse().bodyString).toContain("foo");
-    expect(lastResponse().bodyString).toContain("bar");
+    expect(lastResponse().body).toContain("post");
+    expect(lastResponse().body).toContain("foo");
+    expect(lastResponse().body).toContain("bar");
   });
 });
 
