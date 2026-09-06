@@ -10,6 +10,7 @@ import {
   spliceHelperSkeletons,
   renderSample,
   sampleRows,
+  rowsWithToken,
   type ArmMismatch,
   type SkeletonRow,
 } from "./report-arms.js";
@@ -296,5 +297,39 @@ describe("renderSample", () => {
     expect(sample).toContain("ruby active_record/connection_adapters/sqlite3_adapter.rb");
     expect(sample).toContain("ruby-skeleton if");
     expect(sample).toContain("ts-skeleton   if throw");
+  });
+});
+
+describe("rowsWithToken", () => {
+  const rows = [
+    compareArms(named("raises", ["throw"], []))!,
+    compareArms(named("branches", ["if"], []))!,
+    compareArms(named("inventsAThrow", [], ["throw"]))!,
+  ];
+
+  it("keeps a row whose missing arms name the token", () => {
+    expect(rowsWithToken(rows, "throw").map((r) => r.tsName)).toEqual(["raises", "inventsAThrow"]);
+  });
+
+  it("draws the stratum, not the whole population", () => {
+    expect(rowsWithToken(rows, "if").map((r) => r.tsName)).toEqual(["branches"]);
+  });
+});
+
+describe("renderSample --token", () => {
+  it("draws only the rows whose difference names the token, and says so", () => {
+    const sample = renderSample(
+      {
+        packages: ["activerecord"],
+        skeletons: [named("raises", ["throw"], []), named("branches", ["if"], [])],
+      },
+      10,
+      113,
+      "throw",
+    );
+
+    expect(sample).toContain("1 of 1 mismatched pair(s) in the `throw` stratum, seed 113");
+    expect(sample).toContain("#raises");
+    expect(sample).not.toContain("#branches");
   });
 });

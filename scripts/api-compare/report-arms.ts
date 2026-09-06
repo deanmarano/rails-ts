@@ -4,6 +4,7 @@
  * mirroring the shape of `report-call-args.ts --report`.
  *
  *   pnpm tsx scripts/api-compare/report-arms.ts --report [--top=N]
+ *   pnpm tsx scripts/api-compare/report-arms.ts --sample=N [--seed=S] [--token=throw]
  *
  * Reads output/call-skeletons.json, which compare.ts writes for EVERY compared
  * (Ruby, TS) pair under `--calls`. Report-only and staying that way until
@@ -415,11 +416,35 @@ export function sampleRows(
   return pool.slice(0, size);
 }
 
-export function renderSample(artifact: SkeletonArtifact, size: number, seed: number): string {
-  const rows = artifact.skeletons.flatMap((s) => compareArms(s) ?? []);
+/**
+ * The rows whose multiset difference names `token` on either side — the
+ * stratum a `--token=` sample draws from. `remeasure-arm-noise-floor-per-token`
+ * measures per token because the whole-population figure is not evidence about
+ * any one of them: nothing in the first measurement says the 106 `-throw` rows
+ * share the `if` population's artefact rate, and a stratum can clear the
+ * tripwire on its own even though the whole cannot (RFC 0095 gated `shape` rows
+ * and left `naming` report-only on exactly that reasoning).
+ *
+ * Matched against the class-ERASED token, which is what `missing` / `invented`
+ * already carry: a `throw:RecordNotSaved` difference is a `-throw` row here,
+ * and the class it names is the `raise-class` verdict's business.
+ */
+export function rowsWithToken(rows: readonly ArmMismatch[], token: string): ArmMismatch[] {
+  return rows.filter((r) => r.missing.includes(token) || r.invented.includes(token));
+}
+
+export function renderSample(
+  artifact: SkeletonArtifact,
+  size: number,
+  seed: number,
+  token?: string,
+): string {
+  const all = artifact.skeletons.flatMap((s) => compareArms(s) ?? []);
+  const rows = token === undefined ? all : rowsWithToken(all, token);
   const drawn = sampleRows(rows, size, seed);
+  const stratum = token === undefined ? "" : ` in the \`${token}\` stratum`;
   return [
-    `call-skeleton arms sample: ${drawn.length} of ${rows.length} mismatched pair(s), seed ${seed}`,
+    `call-skeleton arms sample: ${drawn.length} of ${rows.length} mismatched pair(s)${stratum}, seed ${seed}`,
     ...drawn.map((r, i) =>
       [
         ``,
@@ -452,10 +477,10 @@ async function reportMain(top: number): Promise<number> {
   return 0;
 }
 
-async function sampleMain(size: number, seed: number): Promise<number> {
+async function sampleMain(size: number, seed: number, token?: string): Promise<number> {
   const artifact = await readArtifact();
   if (artifact === undefined) return 2;
-  console.log(renderSample(artifact, size, seed));
+  console.log(renderSample(artifact, size, seed, token));
   return 0;
 }
 
@@ -473,11 +498,20 @@ async function runAsScript(): Promise<void> {
       console.error("call-skeleton arms sample: --sample=N and --seed=S take integers.");
       process.exit(2);
     }
-    process.exit(await sampleMain(size, seed));
+    const tokenArg = argv.find((a) => a.startsWith("--token="));
+    const token = tokenArg === undefined ? undefined : tokenArg.slice("--token=".length);
+    if (token !== undefined && !CONTROL_TOKENS.has(token)) {
+      console.error(
+        `call-skeleton arms sample: --token= takes one of ${[...CONTROL_TOKENS].join("|")}.`,
+      );
+      process.exit(2);
+    }
+    process.exit(await sampleMain(size, seed, token));
   }
   if (!argv.includes("--report")) {
     console.error(
-      "call-skeleton arms: the modes are `--report` and `--sample=N [--seed=S]` " +
+      "call-skeleton arms: the modes are `--report` and " +
+        "`--sample=N [--seed=S] [--token=if|loop|try|rescue|throw]` " +
         "(RFC 0113 Phase 1 is advisory).",
     );
     process.exit(2);
