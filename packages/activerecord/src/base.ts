@@ -1624,7 +1624,6 @@ export class Base extends Model {
     return this.all().createOrFindByBang(conditions, extra);
   }
 
-  /** @noRailsEquivalent PERMANENT */
   static new<T extends typeof Base>(
     this: T,
     attrs: Record<string, unknown>[],
