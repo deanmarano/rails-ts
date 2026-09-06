@@ -4,7 +4,6 @@ import { BetterSQLite3Adapter } from "../connection-adapters/better-sqlite3-adap
 import { setupAdapterSuite } from "./setup-adapter-suite.js";
 
 interface RawAdapter {
-  exec(sql: string): Promise<void>;
   execute(sql: string): Promise<unknown[]>;
 }
 

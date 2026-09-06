@@ -560,14 +560,18 @@ describeIfSqlite("SQLite3AdapterTest", () => {
   });
 
   it("custom primary key in create table", async () => {
-    await adapter.execute(`CREATE TABLE "custom_pk" ("custom_id" INTEGER PRIMARY KEY, "name" TEXT)`);
+    await adapter.execute(
+      `CREATE TABLE "custom_pk" ("custom_id" INTEGER PRIMARY KEY, "name" TEXT)`,
+    );
     const cols = (await adapter.execute(`PRAGMA table_info("custom_pk")`))!;
     const pkCol = cols.find((c: any) => c.pk === 1);
     expect(pkCol!.name).toBe("custom_id");
   });
 
   it("custom primary key in change table", async () => {
-    await adapter.execute(`CREATE TABLE "change_pk" ("custom_id" INTEGER PRIMARY KEY, "name" TEXT)`);
+    await adapter.execute(
+      `CREATE TABLE "change_pk" ("custom_id" INTEGER PRIMARY KEY, "name" TEXT)`,
+    );
     await adapter.execute(`ALTER TABLE "change_pk" ADD COLUMN "age" INTEGER DEFAULT 0`);
     const cols = (await adapter.execute(`PRAGMA table_info("change_pk")`))!;
     expect(cols.find((c: any) => c.name === "age")).toBeDefined();
