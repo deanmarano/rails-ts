@@ -1,3 +1,15 @@
+/**
+ * ActionDispatch::Cookies
+ *
+ * Cookie jar implementation mirroring Rails cookie handling.
+ *
+ * @boundary-file: HTTP `Set-Cookie` `Expires` is defined by the cookie spec
+ *   (RFC 6265 / 6265bis); its on-wire date value aligns with HTTP-date /
+ *   IMF-fixdate from RFC 7231. The jar accepts `Date | Temporal.Instant` from
+ *   Rails-aware callers, the trails counterpart of the
+ *   `ActiveSupport::TimeWithZone` Rails stores.
+ */
+
 import { getCrypto, KeyError, rbEqual } from "@blazetrails/ruby-compat";
 import { isPresent } from "@blazetrails/activesupport";
 import { Temporal } from "@blazetrails/activesupport/temporal";

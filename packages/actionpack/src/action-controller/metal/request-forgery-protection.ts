@@ -56,7 +56,7 @@ export class NullSessionHash extends SessionHash {
 }
 
 export class NullCookieJar extends CookieJar {
-  override write(..._args: Parameters<CookieJar["write"]>): void {}
+  override write(..._args: unknown[]): void {}
 }
 
 type Controller = Record<string, unknown>;

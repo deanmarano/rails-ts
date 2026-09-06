@@ -171,8 +171,7 @@ describe("CookiesTest", () => {
   });
 
   it("setting cookie with secure", () => {
-    const jar = new CookieJar();
-    (jar as unknown as { _request?: unknown })._request = { env: {}, ssl: true };
+    const jar = CookieJar.build({ env: { HTTPS: "on" }, ssl: true } as never, {});
     jar.set("user_name", { value: "david", secure: true });
     const headers = setCookieHeaders(jar);
     expect(headers[0]).toContain("secure");
