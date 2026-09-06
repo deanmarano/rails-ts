@@ -1,4 +1,5 @@
 import { Cipher, OpenSSL, type Bytes } from "@blazetrails/ruby-compat";
+import { Configurable } from "../configurable-slot.js";
 import { Configuration, Decryption, EncryptedContentIntegrity } from "../errors.js";
 import { Message } from "../message.js";
 
@@ -19,12 +20,12 @@ export class Aes256Gcm {
   static keyLength = KEY_LENGTH;
   static ivLength = IV_LENGTH;
 
-  declare readonly secret: string;
+  declare readonly secret: Bytes;
   readonly deterministic: boolean;
 
   constructor(secret: string, options?: { deterministic?: boolean }) {
     Object.defineProperty(this, "secret", {
-      value: secret,
+      value: Buffer.from(secret, "base64"),
       writable: false,
       enumerable: false,
       configurable: false,
@@ -43,12 +44,11 @@ export class Aes256Gcm {
 
   encrypt(clearText: string | Bytes): Message {
     this._validateKeyLength(this.secret);
-    const keyBuf = Buffer.from(this.secret, "base64").subarray(0, KEY_LENGTH);
     if (typeof clearText === "string") clearText = Buffer.from(clearText, "utf-8");
 
     const cipher = new Cipher(Aes256Gcm.CIPHER_TYPE);
     cipher.encrypt();
-    cipher.key = keyBuf;
+    cipher.key = this.secret;
 
     const iv = this.generateIv(cipher, clearText);
     cipher.iv = iv;
@@ -66,7 +66,6 @@ export class Aes256Gcm {
     const iv = encryptedMessage.headers.get("iv");
     const authTag = encryptedMessage.headers.get("at");
     if (!isBytes(iv) || !isBytes(authTag)) throw new EncryptedContentIntegrity();
-    const keyBuf = Buffer.from(this.secret, "base64").subarray(0, KEY_LENGTH);
 
     const authTagBuf = toBytes(authTag);
     if (authTagBuf.length !== AUTH_TAG_LENGTH) throw new EncryptedContentIntegrity();
@@ -75,7 +74,7 @@ export class Aes256Gcm {
       const cipher = new Cipher(Aes256Gcm.CIPHER_TYPE);
 
       cipher.decrypt();
-      cipher.key = keyBuf;
+      cipher.key = this.secret;
       cipher.iv = toBytes(iv);
 
       cipher.authTag = authTagBuf;
@@ -90,11 +89,10 @@ export class Aes256Gcm {
     }
   }
 
-  private _validateKeyLength(key: string): void {
-    const keyBuf = Buffer.from(key, "base64");
-    if (keyBuf.length < KEY_LENGTH) {
+  private _validateKeyLength(key: Bytes): void {
+    if (key.length < KEY_LENGTH) {
       throw new Configuration(
-        `The provided key has length ${keyBuf.length} but must be at least ${KEY_LENGTH} bytes`,
+        `The provided key has length ${key.length} but must be at least ${KEY_LENGTH} bytes`,
       );
     }
   }
@@ -112,7 +110,9 @@ export class Aes256Gcm {
    * @missingRailsCall new — PERMANENT
    */
   private generateDeterministicIv(clearText: Bytes): Bytes {
-    const keyBuf = Buffer.from(this.secret, "base64").subarray(0, KEY_LENGTH);
-    return OpenSSL.HMAC.digest("SHA256", keyBuf, clearText).subarray(0, IV_LENGTH) as Bytes;
+    return OpenSSL.HMAC.digest(OpenSSL.Digest.SHA256.new(), this.secret, clearText).subarray(
+      0,
+      Configurable.cipher.ivLength(),
+    ) as Bytes;
   }
 }

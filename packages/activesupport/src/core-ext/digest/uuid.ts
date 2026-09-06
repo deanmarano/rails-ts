@@ -1,5 +1,5 @@
 import { ArgumentError } from "../../hash-utils.js";
-import { getCrypto, SecureRandom } from "@blazetrails/ruby-compat";
+import { Digest, OpenSSL, SecureRandom, type DigestClass } from "@blazetrails/ruby-compat";
 
 function namespaceBytes(hex: string): Uint8Array {
   return Uint8Array.from(hex.match(/../g)!, (byte) => parseInt(byte, 16));
@@ -20,24 +20,24 @@ export const OID_NAMESPACE = namespaceBytes("6ba7b8129dad11d180b400c04fd430c8");
 export const X500_NAMESPACE = namespaceBytes("6ba7b8149dad11d180b400c04fd430c8");
 
 export function uuidFromHash(
-  hashClass: string,
+  hashClass: DigestClass,
   namespace: string | Uint8Array,
   name: string,
 ): string {
   let version: number;
-  if (hashClass === "md5") {
+  if (hashClass === Digest.MD5 || hashClass === OpenSSL.Digest.MD5) {
     version = 3;
-  } else if (hashClass === "sha1") {
+  } else if (hashClass === Digest.SHA1 || hashClass === OpenSSL.Digest.SHA1) {
     version = 5;
   } else {
     throw new ArgumentError(
-      `Expected OpenSSL::Digest::SHA1 or OpenSSL::Digest::MD5, got ${hashClass}.`,
+      `Expected OpenSSL::Digest::SHA1 or OpenSSL::Digest::MD5, got ${hashClass.name}.`,
     );
   }
 
   const uuidNamespace = packUuidNamespace(namespace);
 
-  const hash = getCrypto().createHash(hashClass);
+  const hash = hashClass.new();
   hash.update(uuidNamespace);
   hash.update(name);
 
@@ -59,11 +59,11 @@ export function uuidFromHash(
 }
 
 export function uuidV3(uuidNamespace: string | Uint8Array, name: string): string {
-  return uuidFromHash("md5", uuidNamespace, name);
+  return uuidFromHash(OpenSSL.Digest.MD5, uuidNamespace, name);
 }
 
 export function uuidV5(uuidNamespace: string | Uint8Array, name: string): string {
-  return uuidFromHash("sha1", uuidNamespace, name);
+  return uuidFromHash(OpenSSL.Digest.SHA1, uuidNamespace, name);
 }
 
 export function uuidV4(): string {

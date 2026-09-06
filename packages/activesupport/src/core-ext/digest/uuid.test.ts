@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { OpenSSL } from "@blazetrails/ruby-compat";
 import { ArgumentError } from "../../hash-utils.js";
 import {
   DNS_NAMESPACE,
@@ -87,6 +88,8 @@ describe("DigestUUIDExt", () => {
   });
 
   it("invalid hash class", () => {
-    expect(() => uuidFromHash("sha256", OID_NAMESPACE, "1.2.3")).toThrow(ArgumentError);
+    expect(() => uuidFromHash(OpenSSL.Digest.SHA256, OID_NAMESPACE, "1.2.3")).toThrow(
+      ArgumentError,
+    );
   });
 });

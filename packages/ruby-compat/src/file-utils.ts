@@ -1,4 +1,5 @@
 import { ArgumentError } from "./argument-error.js";
+import { Dir } from "./dir.js";
 import { File } from "./file.js";
 import { getFs, getPath, type FsStatResult } from "./fs-adapter.js";
 import { NotImplementedError } from "./not-implemented-error.js";
@@ -177,6 +178,21 @@ function entryLstat(path: string, dereference: boolean): FsStatResult {
   const fs = getFs();
   if (dereference || !fs.lstatSync) return fs.statSync(path);
   return fs.lstatSync(path);
+}
+
+/**
+ * `Entry_#descendant_directory?` (`vendor/ruby/lib/fileutils.rb:2452-2458`),
+ * the guard `Entry_#copy`'s directory arm raises on (`fileutils.rb:2245-2247`).
+ */
+function descendantDirectory(descendant: string, ascendant: string): boolean {
+  if (File.FNM_SYSCASE !== 0) {
+    return (
+      File.expandPath(File.dirname(descendant)).toLowerCase() ===
+      File.expandPath(ascendant).toLowerCase()
+    );
+  } else {
+    return File.expandPath(File.dirname(descendant)) === File.expandPath(ascendant);
+  }
 }
 
 /**
@@ -419,7 +435,14 @@ export class FileUtils {
     if (ent.isFile()) {
       FileUtils.copyFile(src, dest, preserve, false);
     } else if (ent.isDirectory()) {
-      FileUtils.mkdirP(dest);
+      if (!File.isExist(dest) && descendantDirectory(dest, src)) {
+        throw new ArgumentError(`cannot copy directory ${src} to itself ${dest}`);
+      }
+      try {
+        Dir.mkdir(dest);
+      } catch (error) {
+        if (!File.isDirectory(dest)) throw error;
+      }
       for (const name of getFs().readdirSync(src)) {
         FileUtils.copyEntry(
           getPath().join(src, name),

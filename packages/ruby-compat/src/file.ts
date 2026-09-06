@@ -134,6 +134,15 @@ export class File extends IO {
   static readonly FNM_CASEFOLD = 0x08;
 
   /**
+   * `vendor/ruby/dir.c:222-226` — `FNM_CASEFOLD` on a case-folding filesystem
+   * and `0` otherwise, which is the arm `Entry_#descendant_directory?` selects
+   * on (`vendor/ruby/lib/fileutils.rb:2453`).
+   *
+   * @noRailsEquivalent PERMANENT — Ruby core `File::FNM_SYSCASE`.
+   */
+  static readonly FNM_SYSCASE = 0;
+
+  /**
    * `vendor/ruby/dir.c:3690` — `{a,b}` alternation, expanded by `ruby_brace_expand` (`dir.c:3471-3478`).
    *
    * @noRailsEquivalent PERMANENT — Ruby core `File::FNM_EXTGLOB`.

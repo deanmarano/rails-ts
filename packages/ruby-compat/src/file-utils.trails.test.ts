@@ -316,6 +316,37 @@ describe("FileUtils", () => {
     expect(nodeFs.readFileSync(other, "utf-8")).toEqual("old");
   });
 
+  it("copy_entry refuses to copy a directory into its own descendant", () => {
+    const src = nodePath.join(root, "dir");
+    const dest = nodePath.join(src, "under");
+    nodeFs.mkdirSync(src);
+    registerExdevFs();
+
+    expect(() => FileUtils.mv(src, dest)).toThrow(ArgumentError);
+    expect(() => FileUtils.mv(src, dest)).toThrow(`cannot copy directory ${src} to itself ${dest}`);
+  });
+
+  it("copy_entry creates one directory level, so a missing parent raises", () => {
+    const src = nodePath.join(root, "dir");
+    const dest = nodePath.join(root, "missing", "copy");
+    nodeFs.mkdirSync(src);
+    registerExdevFs();
+
+    expect(() => FileUtils.mv(src, dest)).toThrow(/ENOENT/);
+  });
+
+  it("copy_entry keeps an already-existing destination directory", () => {
+    const src = nodePath.join(root, "dir");
+    const dest = nodePath.join(root, "copy");
+    nodeFs.mkdirSync(src);
+    nodeFs.writeFileSync(nodePath.join(src, "file"), "contents");
+    nodeFs.mkdirSync(dest);
+
+    FileUtils.copyEntry(src, dest);
+
+    expect(nodeFs.readFileSync(nodePath.join(dest, "file"), "utf-8")).toEqual("contents");
+  });
+
   it.each([
     ["a device file", "isCharacterDevice", "cannot handle device file"],
     ["a device file", "isBlockDevice", "cannot handle device file"],

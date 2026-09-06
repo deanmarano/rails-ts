@@ -1,4 +1,5 @@
 import { getCrypto, type HashAdapter } from "./crypto-adapter.js";
+import type { Bytes } from "./fs-adapter.js";
 
 /**
  * One `Digest::Class` subclass (`vendor/ruby/ext/digest/lib/digest.rb:20`),
@@ -12,9 +13,19 @@ export class DigestClass {
   /** @noRailsEquivalent PERMANENT */
   readonly algorithm: string;
 
+  /**
+   * `Module#name` (`vendor/ruby/object.c:2263`), the constant path this class
+   * is bound to, which `Digest::UUID.uuid_from_hash` interpolates into its
+   * `ArgumentError` (`activesupport/lib/active_support/core_ext/digest/uuid.rb:25`).
+   *
+   * @noRailsEquivalent PERMANENT
+   */
+  readonly name: string;
+
   /** @noRailsEquivalent PERMANENT — vendor/ruby/ext/digest/lib/digest.rb:20 */
-  constructor(algorithm: string) {
+  constructor(algorithm: string, name: string) {
     this.algorithm = algorithm;
+    this.name = name;
   }
 
   /** @noRailsEquivalent PERMANENT — vendor/ruby/ext/digest/lib/digest.rb:26 */
@@ -37,10 +48,14 @@ export class DigestClass {
  * defining.
  */
 export class DigestInstance {
+  /** @noRailsEquivalent PERMANENT */
+  readonly algorithm: string;
+
   private readonly impl: HashAdapter;
 
   /** @noRailsEquivalent PERMANENT — vendor/ruby/ext/digest/digest.c:339 */
   constructor(algorithm: string) {
+    this.algorithm = algorithm;
     this.impl = getCrypto().createHash(algorithm);
   }
 
@@ -54,6 +69,11 @@ export class DigestInstance {
   hexdigest(): string {
     return this.impl.digest("hex");
   }
+
+  /** @noRailsEquivalent PERMANENT — vendor/ruby/ext/digest/digest.c:225 */
+  digest(): Bytes {
+    return this.impl.digest();
+  }
 }
 
 /**
@@ -66,9 +86,9 @@ export class DigestInstance {
  */
 export const Digest = {
   /** @noRailsEquivalent PERMANENT — vendor/ruby/ext/digest/md5/md5init.c:41 */
-  MD5: new DigestClass("md5"),
+  MD5: new DigestClass("md5", "Digest::MD5"),
   /** @noRailsEquivalent PERMANENT — vendor/ruby/ext/digest/sha1/sha1init.c:41 */
-  SHA1: new DigestClass("sha1"),
+  SHA1: new DigestClass("sha1", "Digest::SHA1"),
   /** @noRailsEquivalent PERMANENT — vendor/ruby/ext/digest/sha2/lib/sha2.rb:44 */
-  SHA256: new DigestClass("sha256"),
+  SHA256: new DigestClass("sha256", "Digest::SHA256"),
 };

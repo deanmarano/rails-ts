@@ -154,7 +154,7 @@ export { rbHash } from "./rb-hash.js";
 export { isEmpty } from "./ruby-empty.js";
 export { RuntimeError } from "./runtime-error.js";
 export { SecureRandom } from "./secure-random.js";
-export { Digest } from "./digest.js";
+export { Digest, DigestClass, DigestInstance } from "./digest.js";
 export { Cipher, HMAC, OpenSSL } from "./openssl.js";
 export { StringIO } from "./string-io.js";
 export { b } from "./string/b.js";
