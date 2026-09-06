@@ -245,10 +245,7 @@ function completeAdapter(name: string, adapter: CryptoAdapter): CryptoAdapter {
   const completed = { ...adapter } as unknown as Record<string, unknown>;
   for (const member of missing) {
     completed[member] = (): never => {
-      throw new Error(
-        `Crypto adapter "${name}" does not implement ${member}. ` +
-          `Register a complete adapter to use ${member}.`,
-      );
+      throw new Error(`Crypto adapter "${name}" does not implement ${member}.`);
     };
   }
   return completed as unknown as CryptoAdapter;

@@ -91,9 +91,21 @@ describe("registerCryptoAdapter", () => {
       expect(() => getCrypto().createHash("sha256")).toThrow(
         'Crypto adapter "partial" does not implement createHash.',
       );
+      expect(() => getCrypto().createHmac("sha256", "key")).toThrow(
+        'Crypto adapter "partial" does not implement createHmac.',
+      );
       expect(() =>
         getCrypto().createCipheriv("aes-256-gcm", new Uint8Array(32), new Uint8Array(12)),
       ).toThrow('Crypto adapter "partial" does not implement createCipheriv.');
+      expect(() =>
+        getCrypto().createDecipheriv("aes-256-gcm", new Uint8Array(32), new Uint8Array(12)),
+      ).toThrow('Crypto adapter "partial" does not implement createDecipheriv.');
+      expect(() => getCrypto().pbkdf2Sync("p", "s", 1, 16, "sha256")).toThrow(
+        'Crypto adapter "partial" does not implement pbkdf2Sync.',
+      );
+      expect(() => getCrypto().timingSafeEqual(new Uint8Array(1), new Uint8Array(1))).toThrow(
+        'Crypto adapter "partial" does not implement timingSafeEqual.',
+      );
     } finally {
       cryptoAdapterConfig.adapter = previous;
     }
