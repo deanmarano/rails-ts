@@ -245,26 +245,26 @@ export const SKELETON_IDIOM_LOWERINGS = new Map<string, readonly (readonly strin
   // (actionpack/lib/action_dispatch/journey/formatter.rb:139) and
   // `values.compact` (activerecord/lib/active_record/relation/query_methods.rb:732) —
   // a `filter` callback carrying the null test, or the same test inside a loop.
-  // Clears audit row 35.
+  // Part of audit row 35.
   ["compact", [[], ["if"], ["loop", "if"]]],
   ["compact!", [[], ["if"], ["loop", "if"]]],
   // `route.parts.reverse_each.drop_while { |part| … }`
   // (journey/formatter.rb:123) — a loop whose `if` breaks. `take_while` is its
   // complement and lowers identically; Rails' own uses are all `drop_while`.
-  // Clears audit row 35.
+  // Part of audit row 35.
   ["drop_while", [[], ["loop", "if"]]],
   ["take_while", [[], ["loop", "if"]]],
   // `parameterized_parts.delete_if { |bad_key, _| … }`
   // (journey/formatter.rb:127) and its alias `reject!`
   // (actionpack/lib/action_controller/metal/strong_parameters.rb:966-970) —
   // an in-place removal, so the port loops and splices under a guard.
-  // Clears audit row 35.
+  // Part of audit row 35.
   ["delete_if", [[], ["loop", "if"]]],
   ["reject!", [[], ["loop", "if"]]],
   // `@records.concat @lazy_enrollment_records.values`
   // (activerecord/lib/active_record/connection_adapters/abstract/transaction.rb:221) —
   // Ruby's mutating `concat` is a `push` loop in a port that cannot spread an
-  // unbounded array. Clears audit row 31.
+  // unbounded array. Part of audit row 31.
   ["concat", [[], ["loop"]]],
   // `value.dig("session_id", "public_id")`
   // (actionpack/lib/action_controller/metal/request_forgery_protection.rb:343) —
