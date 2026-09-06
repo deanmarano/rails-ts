@@ -7,9 +7,8 @@ class FakeActiveRecordAdapter {}
 describe("RegistrationTest", () => {
   it("#register registers a new database adapter and #resolve can find it and raises if it cannot", async () => {
     const name = "fake_reg_a";
-    const err = await ConnectionAdapters.resolve(name).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(AdapterNotFound);
-    expect((err as AdapterNotFound).message).toMatch(
+    expect(() => ConnectionAdapters.resolve(name)).toThrow(AdapterNotFound);
+    expect(() => ConnectionAdapters.resolve(name)).toThrow(
       /Database configuration specifies nonexistent 'fake_reg_a' adapter\. Available adapters are:/,
     );
     ConnectionAdapters.register(name, async () => FakeActiveRecordAdapter as any);
@@ -19,9 +18,8 @@ describe("RegistrationTest", () => {
 
   it("#register allows for symbol key", async () => {
     const name = "fake_reg_b";
-    const err = await ConnectionAdapters.resolve(name).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(AdapterNotFound);
-    expect((err as AdapterNotFound).message).toMatch(
+    expect(() => ConnectionAdapters.resolve(name)).toThrow(AdapterNotFound);
+    expect(() => ConnectionAdapters.resolve(name)).toThrow(
       /Database configuration specifies nonexistent 'fake_reg_b' adapter\. Available adapters are:/,
     );
     ConnectionAdapters.register(name, async () => FakeActiveRecordAdapter as any);
@@ -31,9 +29,8 @@ describe("RegistrationTest", () => {
 
   it("#resolve allows for symbol key", async () => {
     const name = "fake_reg_c";
-    const err = await ConnectionAdapters.resolve(name).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(AdapterNotFound);
-    expect((err as AdapterNotFound).message).toMatch(
+    expect(() => ConnectionAdapters.resolve(name)).toThrow(AdapterNotFound);
+    expect(() => ConnectionAdapters.resolve(name)).toThrow(
       /Database configuration specifies nonexistent 'fake_reg_c' adapter\. Available adapters are:/,
     );
     ConnectionAdapters.register(name, async () => FakeActiveRecordAdapter as any);
@@ -43,10 +40,9 @@ describe("RegistrationTest", () => {
 });
 
 describe("RegistrationIsolatedTest", () => {
-  it("#resolve raises if the adapter is using the pre 7.2 adapter registration API", async () => {
-    const err = await ConnectionAdapters.resolve("fake_legacy").catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(AdapterNotFound);
-    expect((err as AdapterNotFound).message).toMatch(
+  it("#resolve raises if the adapter is using the pre 7.2 adapter registration API", () => {
+    expect(() => ConnectionAdapters.resolve("fake_legacy")).toThrow(AdapterNotFound);
+    expect(() => ConnectionAdapters.resolve("fake_legacy")).toThrow(
       /Database configuration specifies nonexistent 'fake_legacy' adapter\. Available adapters are:/,
     );
   });

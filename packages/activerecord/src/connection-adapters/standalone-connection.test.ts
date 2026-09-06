@@ -8,7 +8,7 @@ describe("StandaloneConnectionTest", () => {
 
   beforeEach(async () => {
     const dbConfig = Base.connectionDbConfig();
-    await dbConfig.loadAdapter();
+    await dbConfig.adapterClass();
     connection = dbConfig.newConnection() as AbstractAdapter;
   });
 

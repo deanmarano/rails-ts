@@ -14,21 +14,13 @@ import type { AbstractAdapter as DatabaseAdapter } from "../abstract-adapter.js"
 import { AdapterNotSpecified, ConnectionNotDefined } from "../../errors.js";
 import type { QueryCachePool } from "./query-cache.js";
 import { Notifications } from "@blazetrails/activesupport";
-import {
-  resolve as resolveConnectionAdapter,
-  resolveSync as resolveConnectionAdapterSync,
-  resolveSyncError as resolveConnectionAdapterSyncError,
-  validateAdapterName,
-} from "../../connection-adapters.js";
+import { resolve as resolveConnectionAdapter } from "../../connection-adapters.js";
 import { buildAdapterArg } from "../adapter-args.js";
 import { isPreventingWrites } from "../../core.js";
 
 _setAdapterClassResolver(
   (adapterName) => resolveConnectionAdapter(adapterName),
-  (adapterName) => resolveConnectionAdapterSync(adapterName),
   (adapterName, configuration) => buildAdapterArg(adapterName, configuration),
-  (adapterName) => resolveConnectionAdapterSyncError(adapterName),
-  (adapterName) => validateAdapterName(adapterName),
 );
 
 export interface ConnectionOwner {
@@ -196,7 +188,7 @@ export class ConnectionHandler {
     Notifications.instrument("!connection.active_record", payload);
 
     if (poolConfig.dbConfig.adapter) {
-      const adapterReady = resolveConnectionAdapter(poolConfig.dbConfig.adapter);
+      const adapterReady = Promise.resolve(poolConfig.dbConfig.adapterClass());
       adapterReady.catch(() => {});
       poolConfig.pool.adapterReady = adapterReady;
     }

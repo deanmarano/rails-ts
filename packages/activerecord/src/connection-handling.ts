@@ -381,7 +381,7 @@ export function isPrimaryClass(this: typeof Base): boolean {
 }
 
 export function adapterClass(this: typeof Base): Promise<new (...args: any[]) => DatabaseAdapter> {
-  return connectionPool.call(this).dbConfig.adapterClass() as Promise<
+  return Promise.resolve(connectionPool.call(this).dbConfig.adapterClass()) as Promise<
     new (...args: any[]) => DatabaseAdapter
   >;
 }
@@ -393,9 +393,12 @@ export function adapterClassSync(
   if (directAdapter) {
     return directAdapter.constructor as new (...args: any[]) => DatabaseAdapter;
   }
-  return connectionPool.call(this).dbConfig.adapterClassSync() as
-    | (new (...args: any[]) => DatabaseAdapter)
-    | null;
+  const adapterClass = connectionPool.call(this).dbConfig.adapterClass();
+  if (adapterClass instanceof Promise) {
+    adapterClass.catch(() => {});
+    return null;
+  }
+  return adapterClass as new (...args: any[]) => DatabaseAdapter;
 }
 
 export function removeConnection(this: typeof Base): HashConfig | undefined {
@@ -559,7 +562,7 @@ export function appendToConnectedToStack(entry: {
 }
 
 async function _loadAdapter(name: string): Promise<new (arg: unknown) => DatabaseAdapter> {
-  return resolveConnectionAdapter(name);
+  return resolveConnectionAdapter(name) as Promise<new (arg: unknown) => DatabaseAdapter>;
 }
 
 export const RAILS_ENV = (): string | undefined =>
