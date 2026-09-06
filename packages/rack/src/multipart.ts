@@ -34,7 +34,7 @@ export interface UploadedFileInfo {
 }
 
 export class MissingInputError extends Error {
-  constructor(message = "Missing input stream!") {
+  constructor(message: string) {
     super(message);
     this.name = "MissingInputError";
   }
