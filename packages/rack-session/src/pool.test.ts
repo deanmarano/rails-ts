@@ -48,15 +48,15 @@ describe("Rack::Session::Pool", () => {
     const pool = new Pool(incrementor);
     const res = await new MockRequest((env) => pool.call(env)).get("/");
     expect(res.headers["set-cookie"]).toMatch(sessionMatch);
-    expect(res.bodyString).toBe('{"counter"=>1}');
+    expect(res.body).toBe('{"counter"=>1}');
   });
 
   it("determines session from a cookie", async () => {
     const pool = new Pool(incrementor);
     const req = new MockRequest((env) => pool.call(env));
     const cookie = (await req.get("/")).headers["set-cookie"] as string;
-    expect((await req.get("/", { HTTP_COOKIE: cookie })).bodyString).toBe('{"counter"=>2}');
-    expect((await req.get("/", { HTTP_COOKIE: cookie })).bodyString).toBe('{"counter"=>3}');
+    expect((await req.get("/", { HTTP_COOKIE: cookie })).body).toBe('{"counter"=>2}');
+    expect((await req.get("/", { HTTP_COOKIE: cookie })).body).toBe('{"counter"=>3}');
   });
 
   it("survives nonexistent cookies", async () => {
@@ -64,7 +64,7 @@ describe("Rack::Session::Pool", () => {
     const res = await new MockRequest((env) => pool.call(env)).get("/", {
       HTTP_COOKIE: `${sessionKey}=blarghfasel`,
     });
-    expect(res.bodyString).toBe('{"counter"=>1}');
+    expect(res.body).toBe('{"counter"=>1}');
   });
 
   it("does not send the same session id if it did not change", async () => {
@@ -73,17 +73,17 @@ describe("Rack::Session::Pool", () => {
 
     const res0 = await req.get("/");
     const cookie = (res0.headers["set-cookie"] as string).match(sessionMatch)![0];
-    expect(res0.bodyString).toBe('{"counter"=>1}');
+    expect(res0.body).toBe('{"counter"=>1}');
     expect(Object.keys(pool.pool).length).toBe(1);
 
     const res1 = await req.get("/", { HTTP_COOKIE: cookie });
     expect(res1.headers["set-cookie"]).toBeUndefined();
-    expect(res1.bodyString).toBe('{"counter"=>2}');
+    expect(res1.body).toBe('{"counter"=>2}');
     expect(Object.keys(pool.pool).length).toBe(1);
 
     const res2 = await req.get("/", { HTTP_COOKIE: cookie });
     expect(res2.headers["set-cookie"]).toBeUndefined();
-    expect(res2.bodyString).toBe('{"counter"=>3}');
+    expect(res2.body).toBe('{"counter"=>3}');
     expect(Object.keys(pool.pool).length).toBe(1);
   });
 
@@ -96,17 +96,17 @@ describe("Rack::Session::Pool", () => {
     const res1 = await req.get("/");
     const cookie = res1.headers["set-cookie"] as string;
     const session = cookie.match(sessionMatch)![0];
-    expect(res1.bodyString).toBe('{"counter"=>1}');
+    expect(res1.body).toBe('{"counter"=>1}');
     expect(Object.keys(pool.pool).length).toBe(1);
 
     const res2 = await dreq.get("/", { HTTP_COOKIE: cookie });
     expect(res2.headers["set-cookie"]).toBeUndefined();
-    expect(res2.bodyString).toBe('{"counter"=>2}');
+    expect(res2.body).toBe('{"counter"=>2}');
     expect(Object.keys(pool.pool).length).toBe(0);
 
     const res3 = await req.get("/", { HTTP_COOKIE: cookie });
     expect((res3.headers["set-cookie"] as string).match(sessionMatch)![0]).not.toBe(session);
-    expect(res3.bodyString).toBe('{"counter"=>1}');
+    expect(res3.body).toBe('{"counter"=>1}');
     expect(Object.keys(pool.pool).length).toBe(1);
   });
 
@@ -119,22 +119,22 @@ describe("Rack::Session::Pool", () => {
     const res1 = await req.get("/");
     const cookie = res1.headers["set-cookie"] as string;
     const session = cookie.match(sessionMatch)![0];
-    expect(res1.bodyString).toBe('{"counter"=>1}');
+    expect(res1.body).toBe('{"counter"=>1}');
     expect(Object.keys(pool.pool).length).toBe(1);
 
     const res2 = await rreq.get("/", { HTTP_COOKIE: cookie });
     const newCookie = res2.headers["set-cookie"] as string;
     const newSession = newCookie.match(sessionMatch)![0];
     expect(newSession).not.toBe(session);
-    expect(res2.bodyString).toBe('{"counter"=>2}');
+    expect(res2.body).toBe('{"counter"=>2}');
     expect(Object.keys(pool.pool).length).toBe(1);
 
     const res3 = await req.get("/", { HTTP_COOKIE: newCookie });
-    expect(res3.bodyString).toBe('{"counter"=>3}');
+    expect(res3.body).toBe('{"counter"=>3}');
     expect(Object.keys(pool.pool).length).toBe(1);
 
     const res4 = await req.get("/", { HTTP_COOKIE: cookie });
-    expect(res4.bodyString).toBe('{"counter"=>1}');
+    expect(res4.body).toBe('{"counter"=>1}');
     expect(Object.keys(pool.pool).length).toBe(2);
   });
 
@@ -145,7 +145,7 @@ describe("Rack::Session::Pool", () => {
 
     const res1 = await dreq.get("/");
     expect(res1.headers["set-cookie"]).toBeUndefined();
-    expect(res1.bodyString).toBe('{"counter"=>1}');
+    expect(res1.body).toBe('{"counter"=>1}');
     expect(Object.keys(pool.pool).length).toBe(1);
   });
 
@@ -162,7 +162,7 @@ describe("Rack::Session::Pool", () => {
 
     const res1 = await req.get("/", { HTTP_COOKIE: cookie });
     expect(res1.headers["set-cookie"]).toBeUndefined();
-    expect(res1.bodyString).toBe('{"counter"=>2}');
+    expect(res1.body).toBe('{"counter"=>2}');
     expect(pool.pool[sessionId.privateId]).not.toBeUndefined();
   });
 
@@ -179,7 +179,7 @@ describe("Rack::Session::Pool", () => {
 
     const res1 = await req.get("/", { HTTP_COOKIE: cookie });
     expect(res1.headers["set-cookie"]).not.toBeUndefined();
-    expect(res1.bodyString).toBe('{"counter"=>1}');
+    expect(res1.body).toBe('{"counter"=>1}');
   });
 
   it("drops the session in the legacy id as well", async () => {
@@ -197,7 +197,7 @@ describe("Rack::Session::Pool", () => {
 
     const res2 = await dreq.get("/", { HTTP_COOKIE: cookie });
     expect(res2.headers["set-cookie"]).toBeUndefined();
-    expect(res2.bodyString).toBe('{"counter"=>2}');
+    expect(res2.body).toBe('{"counter"=>2}');
     expect(pool.pool[sessionId.privateId]).toBeUndefined();
     expect(pool.pool[sessionId.publicId]).toBeUndefined();
   });

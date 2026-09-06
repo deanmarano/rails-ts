@@ -101,7 +101,7 @@ it("be able to fallback to no deflation", async () => {
   const res = await getDeflated(app, "superzip");
   expect(res.headers["content-encoding"]).toBeUndefined();
   expect(res.headers["vary"]).toBe("Accept-Encoding");
-  expect(res.bodyString).toBe("Hello world!");
+  expect(res.body).toBe("Hello world!");
 });
 
 it("be able to skip when there is no response entity body", async () => {
@@ -120,14 +120,14 @@ it("handle the lack of an acceptable encoding", async () => {
   expect(res1.status).toBe(406);
   expect(res1.headers["content-type"]).toBe("text/plain");
   expect(res1.headers["content-length"]).toBe(String(notFoundBody1.length));
-  expect(res1.bodyString).toBe(notFoundBody1);
+  expect(res1.body).toBe(notFoundBody1);
 
   const res2 = await new MockRequest((env) => deflaterApp(["Hello world!"]).call(env)).get(
     "/foo/bar",
     { HTTP_ACCEPT_ENCODING: "identity;q=0" },
   );
   expect(res2.status).toBe(406);
-  expect(res2.bodyString).toBe(notFoundBody2);
+  expect(res2.body).toBe(notFoundBody2);
 
   let closed = false;
   const body3 = ["Hello world!"] as any;
@@ -136,7 +136,6 @@ it("handle the lack of an acceptable encoding", async () => {
   };
   const res3 = await getDeflated(deflaterApp(body3), "identity;q=0");
   expect(res3.status).toBe(406);
-  res3.body.close?.();
   expect(closed).toBe(true);
 });
 
@@ -158,7 +157,7 @@ it("do nothing when no-transform cache-control directive present", async () => {
   );
   const res = await getDeflated(app);
   expect(res.headers["content-encoding"]).toBeUndefined();
-  expect(res.bodyString).toBe("Hello");
+  expect(res.body).toBe("Hello");
 });
 
 it("do nothing when content-encoding already present", async () => {

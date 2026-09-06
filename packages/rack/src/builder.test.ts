@@ -12,7 +12,7 @@ it("can provide options", async () => {
   builder.run(async () => [200, { "content-type": "text/plain" }, ["options"]]);
   const app = builder.toApp();
   const res = await new MockRequest(app).get("/");
-  expect(res.bodyString).toBe("options");
+  expect(res.body).toBe("options");
 });
 
 it("supports run with block", async () => {
@@ -20,7 +20,7 @@ it("supports run with block", async () => {
   builder.run(null, async (_env) => [200, {}, ["block"]]);
   const app = builder.toApp();
   const res = await new MockRequest(app).get("/");
-  expect(res.bodyString).toBe("block");
+  expect(res.body).toBe("block");
 });
 
 it("raises if #run provided both app and block", () => {
@@ -43,9 +43,9 @@ it("supports mapping", async () => {
   });
   const app = builder.toApp();
   const res1 = await new MockRequest(app).get("/foo");
-  expect(res1.bodyString).toBe("foo");
+  expect(res1.body).toBe("foo");
   const res2 = await new MockRequest(app).get("/bar");
-  expect(res2.bodyString).toBe("bar");
+  expect(res2.body).toBe("bar");
 });
 
 it("supports use when mapping", async () => {
@@ -66,7 +66,7 @@ it("supports use when mapping", async () => {
   });
   const app = builder.toApp();
   const res = await new MockRequest(app).get("/foo");
-  expect(res.bodyString).toBe("mapped");
+  expect(res.body).toBe("mapped");
   expect(res.headers["x-middleware"]).toBe("yes");
 });
 
@@ -93,8 +93,8 @@ it("dupe #to_app when mapping so Rack::Reloader can reload the application on ea
   const app2 = builder.toApp();
   const res1 = await new MockRequest(app1).get("/foo");
   const res2 = await new MockRequest(app2).get("/foo");
-  expect(res1.bodyString).toBe("foo");
-  expect(res2.bodyString).toBe("foo");
+  expect(res1.body).toBe("foo");
+  expect(res2.body).toBe("foo");
 });
 
 it("chains apps by default", async () => {
@@ -119,7 +119,7 @@ it("chains apps by default", async () => {
   builder.run(async () => [200, {}, ["chained"]]);
   const app = builder.toApp();
   const res = await new MockRequest(app).get("/");
-  expect(res.bodyString).toBe("chained");
+  expect(res.body).toBe("chained");
   expect(res.headers["x-first"]).toBe("1");
   expect(res.headers["x-second"]).toBe("2");
 });
@@ -129,7 +129,7 @@ it("has implicit #to_app", async () => {
   builder.run(async () => [200, {}, ["implicit"]]);
   const app = builder.toApp();
   const res = await new MockRequest(app).get("/");
-  expect(res.bodyString).toBe("implicit");
+  expect(res.body).toBe("implicit");
 });
 
 it("supports blocks on use", async () => {
@@ -167,9 +167,9 @@ it("can mix map and run for endpoints", async () => {
   builder.run(async () => [200, {}, ["root"]]);
   const app = builder.toApp();
   const res1 = await new MockRequest(app).get("/foo");
-  expect(res1.bodyString).toBe("foo");
+  expect(res1.body).toBe("foo");
   const res2 = await new MockRequest(app).get("/other");
-  expect(res2.bodyString).toBe("root");
+  expect(res2.body).toBe("root");
 });
 
 it("accepts middleware-only map blocks", async () => {
@@ -180,7 +180,7 @@ it("accepts middleware-only map blocks", async () => {
   builder.run(async () => [200, {}, ["root"]]);
   const app = builder.toApp();
   const res = await new MockRequest(app).get("/api");
-  expect(res.bodyString).toBe("api");
+  expect(res.body).toBe("api");
 });
 
 it("yields the generated app to a block for warmup", async () => {
@@ -239,7 +239,7 @@ it("supports #freeze_app for freezing app and middleware", async () => {
   builder.freezeApp();
   const app = builder.toApp();
   const res = await new MockRequest(app).get("/");
-  expect(res.bodyString).toBe("frozen");
+  expect(res.body).toBe("frozen");
 });
 
 it("complains about a missing run", () => {
@@ -252,7 +252,7 @@ it("handles builder with no middleware and just run", async () => {
   builder.run(async () => [200, {}, ["simple"]]);
   const app = builder.toApp();
   const res = await new MockRequest(app).get("/");
-  expect(res.bodyString).toBe("simple");
+  expect(res.body).toBe("simple");
 });
 
 describe("parse_file", () => {
@@ -265,7 +265,7 @@ describe("parse_file", () => {
   it("removes __END__ before evaluating app", async () => {
     const app = Builder.parseFile(configFile("end.ru.txt"));
     const res = await new MockRequest(app).get("/");
-    expect(res.bodyString).toBe("OK");
+    expect(res.body).toBe("OK");
   });
 
   it("supports multi-line comments", () => {
@@ -276,25 +276,25 @@ describe("parse_file", () => {
   it("requires an_underscore_app not ending in .ru", async () => {
     const app = Builder.parseFile(configFile("an_underscore_app.txt"));
     const res = await new MockRequest(app).get("/");
-    expect(res.bodyString).toBe("OK");
+    expect(res.body).toBe("OK");
   });
 
   it("sets __LINE__ correctly", async () => {
     const app = Builder.parseFile(configFile("line.ru.txt"));
     const res = await new MockRequest(app).get("/");
-    expect(res.bodyString).toBe("3");
+    expect(res.body).toBe("3");
   });
 
   it("strips leading unicode byte order mark when present", async () => {
     const app = Builder.parseFile(configFile("bom.ru.txt"));
     const res = await new MockRequest(app).get("/");
-    expect(res.bodyString).toBe("OK");
+    expect(res.body).toBe("OK");
   });
 
   it("respects the frozen_string_literal magic comment", async () => {
     const app = Builder.parseFile(configFile("frozen.ru.txt"));
     const res = await new MockRequest(app).get("/");
-    expect(res.bodyString).toBe("frozen");
+    expect(res.body).toBe("frozen");
   });
 });
 
@@ -304,6 +304,6 @@ describe("new_from_string", () => {
       "builder.run(async function(env) { return [200, {'content-type': 'text/plain'}, ['OK']]; });",
     );
     const res = await new MockRequest(app).get("/");
-    expect(res.bodyString).toBe("OK");
+    expect(res.body).toBe("OK");
   });
 });

@@ -149,10 +149,10 @@ describe("Rack::Test::Session", () => {
   });
 
   it("respects cookie domains when no domain is explicitly set", async () => {
-    expect((await request("http://example.org/cookies/count")).bodyString).toBe("1");
-    expect((await request("http://www.example.org/cookies/count")).bodyString).toBe("1");
-    expect((await request("http://example.org/cookies/count")).bodyString).toBe("2");
-    expect((await request("http://www.example.org/cookies/count")).bodyString).toBe("2");
+    expect((await request("http://example.org/cookies/count")).body).toBe("1");
+    expect((await request("http://www.example.org/cookies/count")).body).toBe("1");
+    expect((await request("http://example.org/cookies/count")).body).toBe("2");
+    expect((await request("http://www.example.org/cookies/count")).body).toBe("2");
   });
 
   it("treats domains case insensitively", async () => {

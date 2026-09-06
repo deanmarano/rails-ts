@@ -99,6 +99,18 @@ export type GenericClass = new (
 const Schemes = new Map<string, GenericClass>();
 
 /**
+ * `URI::TBLENCWWWCOMP_` (`vendor/ruby/lib/uri/common.rb:283-289`), the
+ * byte-to-escape table `encode_www_form_component` substitutes through, with
+ * `' '` mapped to `'+'`. `TBLENCURICOMP_` (`common.rb:287`) has no call site
+ * here and is not ported.
+ */
+const TBLENCWWWCOMP_: Record<string, string> = {};
+for (let i = 0; i < 256; i++) {
+  TBLENCWWWCOMP_[String.fromCharCode(i)] = `%${i.toString(16).toUpperCase().padStart(2, "0")}`;
+}
+TBLENCWWWCOMP_[" "] = "+";
+
+/**
  * `URI` (`vendor/ruby/lib/uri/common.rb:15`), the module `parse` and the
  * scheme registry live on. Only the members trails sends are ported —
  * `scheme_list` (`common.rb:99`), `split` (`common.rb:172`) and `join`
@@ -135,6 +147,44 @@ export class URI {
     uriClass ??= Generic as unknown as GenericClass;
 
     return new (uriClass as unknown as new (...a: unknown[]) => Generic)(scheme, ...args);
+  }
+
+  /**
+   * `URI.encode_www_form_component` (`vendor/ruby/lib/uri/common.rb:337-339`).
+   * `enc` keeps its position and its `nil` default but has no effect: there is
+   * one string encoding here, so MRI's `encode!` pair (`common.rb:387-391`) has
+   * nothing to transcode between.
+   *
+   * @noRailsEquivalent PERMANENT — Ruby stdlib, not Rails:
+   * `URI.encode_www_form_component` (`vendor/ruby/lib/uri/common.rb:337`).
+   */
+  static encodeWwwFormComponent(
+    str: { toString(): string } | null | undefined,
+    enc: unknown = null,
+  ): string {
+    return URI._encodeUriComponent(/[^*\-.0-9A-Z_a-z]/g, TBLENCWWWCOMP_, str, enc);
+  }
+
+  /**
+   * `URI._encode_uri_component`
+   * (`vendor/ruby/lib/uri/common.rb:385-397`), private in MRI. `str.to_s` is
+   * `""` for `nil`, and the `force_encoding(ASCII_8BIT)` MRI does before the
+   * `gsub!` is the UTF-8 byte expansion here, so the table is indexed by byte
+   * exactly as MRI indexes it.
+   */
+  private static _encodeUriComponent(
+    regexp: RegExp,
+    table: Record<string, string>,
+    str: { toString(): string } | null | undefined,
+    enc: unknown,
+  ): string {
+    void enc;
+    const s = str == null ? "" : String(str);
+    let bytes = "";
+    for (const byte of new TextEncoder().encode(s)) {
+      bytes += String.fromCharCode(byte);
+    }
+    return bytes.replace(regexp, (c) => table[c]);
   }
 
   /** `URI.parse` (`vendor/ruby/lib/uri/common.rb:186`). */

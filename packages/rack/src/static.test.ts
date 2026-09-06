@@ -35,13 +35,13 @@ it("serves files", async () => {
   const app = new Static(fallbackApp, { urls: ["/static"], root: tmpDir });
   const res = await new MockRequest((env) => app.call(env)).get("/static/test.txt");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("static file");
+  expect(res.body).toBe("static file");
 });
 
 it("does not serve files outside :urls", async () => {
   const app = new Static(fallbackApp, { urls: ["/static"], root: tmpDir });
   const res = await new MockRequest((env) => app.call(env)).get("/other/test.txt");
-  expect(res.bodyString).toBe("fallback");
+  expect(res.body).toBe("fallback");
 });
 
 it("404s if url root is known but it can't find the file", async () => {
@@ -54,32 +54,32 @@ it("serves files when using :cascade option", async () => {
   const app = new Static(fallbackApp, { urls: ["/static"], root: tmpDir, cascade: true });
   const res = await new MockRequest((env) => app.call(env)).get("/static/test.txt");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("static file");
+  expect(res.body).toBe("static file");
 });
 
 it("calls down the chain if if can't find the file when using the :cascade option", async () => {
   const app = new Static(fallbackApp, { urls: ["/static"], root: tmpDir, cascade: true });
   const res = await new MockRequest((env) => app.call(env)).get("/static/missing.txt");
-  expect(res.bodyString).toBe("fallback");
+  expect(res.body).toBe("fallback");
 });
 
 it("calls down the chain if url root is not known", async () => {
   const app = new Static(fallbackApp, { urls: ["/static"], root: tmpDir });
   const res = await new MockRequest((env) => app.call(env)).get("/dynamic/page");
-  expect(res.bodyString).toBe("fallback");
+  expect(res.body).toBe("fallback");
 });
 
 it("calls index file when requesting root in the given folder", async () => {
   const app = new Static(fallbackApp, { urls: ["/static"], root: tmpDir, index: "index.html" });
   const res = await new MockRequest((env) => app.call(env)).get("/static/");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toContain("index");
+  expect(res.body).toContain("index");
 });
 
 it("does not call index file when requesting folder with unknown prefix", async () => {
   const app = new Static(fallbackApp, { urls: ["/static"], root: tmpDir, index: "index.html" });
   const res = await new MockRequest((env) => app.call(env)).get("/other/");
-  expect(res.bodyString).toBe("fallback");
+  expect(res.body).toBe("fallback");
 });
 
 it("doesn't call index file if :index option was omitted", async () => {
@@ -95,7 +95,7 @@ it("serves hidden files", async () => {
   });
   const res = await new MockRequest((env) => app.call(env)).get("/static/.hidden");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("hidden");
+  expect(res.body).toBe("hidden");
 });
 
 it("calls down the chain if the URI is not specified", async () => {
@@ -104,14 +104,14 @@ it("calls down the chain if the URI is not specified", async () => {
     root: tmpDir,
   });
   const res = await new MockRequest((env) => app.call(env)).get("/something/else");
-  expect(res.bodyString).toBe("fallback");
+  expect(res.body).toBe("fallback");
 });
 
 it("allows the root URI to be configured via hash options", async () => {
   const app = new Static(fallbackApp, { urls: { "/foo": "static/test.txt" }, root: tmpDir });
   const res = await new MockRequest((env) => app.call(env)).get("/foo");
   expect(res.status).toBe(200);
-  expect(res.bodyString).toBe("static file");
+  expect(res.body).toBe("static file");
 });
 
 it("serves gzipped files if client accepts gzip encoding and gzip files are present", async () => {
@@ -146,7 +146,7 @@ it("returns 304 if gzipped file isn't modified since last serve", async () => {
     HTTP_IF_MODIFIED_SINCE: File.mtime(path).toUTCString(),
   });
   expect(res.status).toBe(304);
-  expect(res.bodyString).toBe("");
+  expect(res.body).toBe("");
   expect(res.headers["content-encoding"]).toBeUndefined();
   expect(res.headers["content-type"]).toBeUndefined();
 });
@@ -160,7 +160,7 @@ it("return 304 if gzipped file isn't modified since last serve", async () => {
   });
 
   expect(res.status).toBe(304);
-  expect(res.bodyString).toBe("");
+  expect(res.body).toBe("");
 });
 
 it("supports serving fixed cache-control (legacy option)", async () => {

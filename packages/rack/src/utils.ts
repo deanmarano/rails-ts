@@ -8,7 +8,7 @@ import {
   ParamsTooDeepError,
   Params,
 } from "./query-parser.js";
-import { ArgumentError, Process, RFC2396_PARSER } from "@blazetrails/ruby-compat";
+import { ArgumentError, Process, RFC2396_PARSER, URI } from "@blazetrails/ruby-compat";
 
 export { ArgumentError };
 
@@ -83,8 +83,7 @@ export function clockTime(): number {
 }
 
 export function escape(s: string | { toString(): string } | null | undefined): string {
-  if (s == null) return "";
-  return encodeURIComponent(String(s)).replace(/%20/g, "+");
+  return URI.encodeWwwFormComponent(s);
 }
 
 const URI_PARSER = RFC2396_PARSER;

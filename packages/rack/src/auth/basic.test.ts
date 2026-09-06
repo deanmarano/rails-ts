@@ -21,7 +21,7 @@ describe("Rack::Auth::Basic", () => {
     const res = await new MockRequest((env) => protectedApp().call(env)).get("/");
     expect(res.status).toBe(401);
     expect(res.headers["www-authenticate"]).toMatch(new RegExp(`Basic realm="${realm}"`));
-    expect(res.bodyString).toBe("");
+    expect(res.body).toBe("");
   });
 
   it("rechallenge if incorrect credentials are specified", async () => {
@@ -37,7 +37,7 @@ describe("Rack::Auth::Basic", () => {
       HTTP_AUTHORIZATION: basicAuth("Boss", "password"),
     });
     expect(res.status).toBe(200);
-    expect(res.bodyString).toBe("Hi Boss");
+    expect(res.body).toBe("Hi Boss");
   });
 
   it("return 400 Bad Request if different auth scheme used", async () => {

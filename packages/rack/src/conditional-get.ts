@@ -56,17 +56,20 @@ export class ConditionalGet {
   }
 
   private modifiedSince(modifiedSince: Date, headers: Record<string, string | string[]>): boolean {
-    const lastModified = this.toRfc2822(headers["last-modified"]);
+    const header = headers["last-modified"];
+    const lastModified = this.toRfc2822(typeof header === "string" ? header : undefined);
     return lastModified != null && modifiedSince >= lastModified;
   }
 
-  private toRfc2822(since: string | string[] | undefined): Date | null {
-    if (typeof since !== "string" || since.length < 16) return null;
-    try {
-      const d = new Date(since);
-      return isNaN(d.getTime()) ? null : d;
-    } catch {
-      return null;
+  private toRfc2822(since: string | undefined): Date | null {
+    if (since != null && since.length >= 16) {
+      try {
+        const d = new Date(since);
+        return isNaN(d.getTime()) ? null : d;
+      } catch {
+        return null;
+      }
     }
+    return null;
   }
 }
