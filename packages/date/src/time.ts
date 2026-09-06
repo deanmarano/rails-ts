@@ -869,7 +869,10 @@ export class Time {
    * `Date.strptime(date, format)` is spelled `dNewByFrags(Date._strptime(date,
    * format))` — RFC 0088's opt-in seam onto the gem-shaped `Date` — because
    * `Date.strptime` answers a `Temporal.PlainDate`, from which neither
-   * `Date#to_time` nor `Date#yday` is reachable.
+   * `Date#to_time` nor `Date#yday` is reachable. `Date#to_time` answers a
+   * `Temporal.ZonedDateTime` — RFC 0088's mapping for a `::Time` value — while
+   * this method answers a `Time`, so the `to_time` arm re-seats that value on
+   * its own instant rather than reading a wall clock back off it.
    */
   static strptime(
     date: string,
