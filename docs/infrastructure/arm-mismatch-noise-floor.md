@@ -321,13 +321,21 @@ LoadError` (`secure_password.rb:120-124`), `constantize` / `NameError`
 ### The seed run
 
 Taken on this branch after the multi-value-`when` fix and the halt-helper fold,
-over 6,072 compared pairs: **2,133 mismatched pairs** in total (from 2,139
-before those two changes), of which **67** drop a `throw`. The mark that
+and re-taken after a rebase onto trails#7557 (the one-Ruby-member-per-TS-member
+pairing fix, this document's Gap 2 and Gap 3): **2,127 mismatched pairs** over
+6,063 compared, of which **65** drop a `throw`.
+
+For the record, the two steps separately — the population moves under both, which
+is why a mark is seeded from a measurement and never carried across a rebase
+unchecked. Before this branch: 2,139 pairs / 69 missing-`throw` over 6,072
+compared. After its two extractor changes: 2,133 / 67. After the rebase onto
+#7557: 2,127 / 65, the four narrowed dimensions written DOWN with
+`parity:api:arms:throws:tighten` rather than reseeded. The mark that
 `scripts/api-compare/lint-arm-throws.ts` gates —
 `scripts/api-compare/arm-throw-mark.json` — was seeded from exactly that run:
 
 ```
-abstractcontroller 1; actioncontroller 3; actiondispatch 9; actionview 4;
+abstractcontroller 1; actioncontroller 2; actiondispatch 8; actionview 4;
 activemodel 1; activerecord 35; activerecord-test-support 1; activesupport 7;
 arel 1; rack 3; trailties 2
 ```
