@@ -164,12 +164,14 @@ export { Zlib } from "./zlib.js";
 export {
   BadURIError,
   DEFAULT_PARSER,
+  Error,
   Generic,
   HTTP,
   HTTPS,
   InvalidComponentError,
   InvalidURIError,
   RFC2396_PARSER,
+  RFC2396Parser,
   RFC3986_PARSER,
   URI,
 } from "./uri.js";

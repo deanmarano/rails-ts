@@ -56,6 +56,14 @@ export class TestRequest extends Request {
     this.setHeader("REQUEST_URI", uri);
   }
 
+  get path(): string {
+    return super.path;
+  }
+
+  set path(path: string) {
+    this.setHeader("PATH_INFO", path);
+  }
+
   get remoteAddr(): string {
     return (this.env["REMOTE_ADDR"] as string) || "";
   }

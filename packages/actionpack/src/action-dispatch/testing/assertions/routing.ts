@@ -1,4 +1,4 @@
-import { deleteIf, hasKey } from "@blazetrails/ruby-compat";
+import { deleteIf, hasKey, InvalidURIError, URI } from "@blazetrails/ruby-compat";
 import { RouteSet } from "../../routing/route-set.js";
 import { RoutingError } from "../../../action-controller/metal/exceptions.js";
 import { TestRequest } from "../test-request.js";
@@ -106,14 +106,9 @@ export function assertGenerates(
 ): void {
   let path: string;
   if (URL_FORM_RE.test(expectedPath)) {
-    path = failOn(TypeError, message, () => {
-      let parsed: URL;
-      try {
-        parsed = new URL(expectedPath);
-      } catch {
-        parsed = new URL(expectedPath, "http://localhost");
-      }
-      return parsed.pathname === "" ? "/" : parsed.pathname;
+    path = failOn(InvalidURIError, message, () => {
+      const uri = URI.parse(expectedPath);
+      return String(uri.path ?? "") === "" ? "/" : uri.path!;
     });
   } else {
     path = expectedPath.startsWith("/") ? expectedPath : `/${expectedPath}`;
@@ -169,32 +164,18 @@ export function recognizedRequestFor(
 
   const request = new TestRequest();
   if (URL_FORM_RE.test(pathStr)) {
-    let parsed: URL;
-    let isAbsolute = true;
-    try {
-      parsed = new URL(pathStr);
-    } catch {
-      isAbsolute = false;
-      parsed = failOn(TypeError, msg, () => new URL(pathStr, "http://localhost"));
-    }
-    if (isAbsolute) {
-      const scheme = parsed.protocol.replace(/:$/, "");
-      request.env["rack.url_scheme"] = scheme;
-      if (parsed.host) request.env["HTTP_HOST"] = parsed.host;
-      if (parsed.hostname) request.env["SERVER_NAME"] = parsed.hostname;
-      if (parsed.port) {
-        request.env["SERVER_PORT"] = parsed.port;
-      } else if (scheme === "https") {
-        request.env["SERVER_PORT"] = "443";
-      } else if (scheme === "http") {
-        request.env["SERVER_PORT"] = "80";
-      }
-    }
-    pathStr = parsed.pathname || "/";
-  } else if (!pathStr.startsWith("/")) {
-    pathStr = `/${pathStr}`;
+    failOn(InvalidURIError, msg, () => {
+      const uri = URI.parse(pathStr);
+      request.env["rack.url_scheme"] = uri.scheme ?? "http";
+      if (uri.host != null) request.host = uri.host;
+      if (uri.port != null) request.port = uri.port;
+      request.path = String(uri.path ?? "") === "" ? "/" : uri.path!;
+    });
+  } else {
+    if (!pathStr.startsWith("/")) pathStr = `/${pathStr}`;
+    request.path = pathStr;
   }
-  request.env["PATH_INFO"] = pathStr;
+  pathStr = request.path;
   request.env["REQUEST_METHOD"] = method.toUpperCase();
 
   const params = failOn(RoutingError, msg, () =>

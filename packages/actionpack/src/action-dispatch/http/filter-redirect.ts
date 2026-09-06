@@ -1,4 +1,5 @@
 import type { ParameterFilter } from "@blazetrails/activesupport";
+import { Error as URIError, URI } from "@blazetrails/ruby-compat";
 
 /** @internal */
 export const FILTERED = "[FILTERED]";
@@ -43,31 +44,25 @@ export function locationFilterMatch(this: FilterRedirectHost): boolean {
 /** @internal */
 export function parameterFilteredLocation(this: FilterRedirectHost): string {
   try {
-    const PLACEHOLDER_BASE = "http://__filter_redirect_placeholder__/";
-    const isAbsolute = /^[a-z][a-z0-9+.-]*:/i.test(this.location);
-    const url = isAbsolute ? new URL(this.location) : new URL(this.location, PLACEHOLDER_BASE);
-    if (url.search.length > 1 && this.request) {
-      const filter = this.request.parameterFilter();
-      const query = url.search.slice(1);
-      const parts = query.split(/([&;])/);
+    const uri = URI.parse(this.location);
+    if (!(uri.query == null || uri.query === "")) {
+      const parts = uri.query.split(/([&;])/);
       const filteredParts = parts.map((part) => {
         if (part.includes("=")) {
           const eq = part.indexOf("=");
-          const key = part.slice(0, eq);
-          const value = part.slice(eq + 1);
-          const filtered = filter.filter({ [key]: value });
+          const [key, value] = [part.slice(0, eq), part.slice(eq + 1)];
+          const filtered = this.request!.parameterFilter().filter({ [key]: value });
           const firstKey = Object.keys(filtered)[0];
-          return `${firstKey}=${filtered[firstKey] as string}`;
+          return [firstKey, filtered[firstKey] as string].join("=");
+        } else {
+          return part;
         }
-        return part;
       });
-      url.search = `?${filteredParts.join("")}`;
+      uri.query = filteredParts.join("");
     }
-    if (!isAbsolute) {
-      return `${url.pathname}${url.search}${url.hash}`;
-    }
-    return url.toString();
-  } catch {
-    return FILTERED;
+    return uri.toString();
+  } catch (e) {
+    if (e instanceof URIError) return FILTERED;
+    throw e;
   }
 }

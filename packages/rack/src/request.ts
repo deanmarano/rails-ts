@@ -79,7 +79,11 @@ const AUTHORITY = new RegExp(
 const FORM_DATA_MEDIA_TYPES = ["application/x-www-form-urlencoded", "multipart/form-data"];
 const PARSEABLE_DATA_MEDIA_TYPES = ["multipart/related", "multipart/mixed"];
 
-const DEFAULT_PORTS: Record<string, number | undefined> = { http: 80, https: 443, coffee: 80 };
+export const DEFAULT_PORTS: Record<string, number | undefined> = {
+  http: 80,
+  https: 443,
+  coffee: 80,
+};
 
 const ALLOWED_SCHEMES = ["https", "http", "wss", "ws"] as const;
 const FORWARDED_SCHEME_HEADERS: Record<string, string> = {
