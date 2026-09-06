@@ -349,6 +349,23 @@ function toDate(at: Date | Temporal.Instant | Time): Date {
   return new Date(at.epochMilliseconds);
 }
 
+function ignoringOffset(time: Date | Temporal.Instant | Time): Date {
+  if (!(time instanceof Time)) return toDate(time);
+  const date = new Date(
+    Date.UTC(
+      time.year,
+      time.mon - 1,
+      time.day,
+      time.hour,
+      time.min,
+      time.sec,
+      Math.floor(time.nsec / 1_000_000),
+    ),
+  );
+  if (time.year < 100) date.setUTCFullYear(time.year);
+  return date;
+}
+
 function getZoneInfo(
   ianaName: string,
   date: Date,
@@ -552,8 +569,9 @@ export class Timezone {
   }
 
   localToUtc(time: Time, dst: boolean | null = true): Time {
-    const localMs = toDate(time).getTime();
-    const period = this.periodForLocal(time, dst);
+    const local = Time.at(new Rational(ignoringOffset(time).getTime(), 1000)).getutc();
+    const localMs = toDate(local).getTime();
+    const period = this.periodForLocal(local, dst);
     return Time.at(new Rational(localMs - period.observedUtcOffset * 1000, 1000)).getutc();
   }
 }

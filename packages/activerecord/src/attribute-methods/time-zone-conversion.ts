@@ -6,7 +6,6 @@ import {
 } from "@blazetrails/activesupport/core-ext/date-and-time/zones";
 import { Temporal, Time as RubyTime } from "@blazetrails/date";
 import { classAttribute, included } from "@blazetrails/activesupport";
-import { isUtc } from "../type/internal/timezone.js";
 type ValueTypeInstance = InstanceType<typeof ValueType>;
 
 interface TimeValueSubtype extends ValueType {
@@ -56,14 +55,10 @@ export class TimeZoneConverter extends ValueType<unknown> {
     return this._subtype.type();
   }
 
-  private get _subtypeIsUtc(): boolean | undefined {
-    return resolveIsUtc(this._subtype);
-  }
-
   override cast(value: unknown): unknown {
     if (value == null) return null;
     if (isPlainObject(value)) {
-      return setTimeZoneWithoutConversion(this._subtype.cast(value), this._subtypeIsUtc);
+      return setTimeZoneWithoutConversion(this._subtype.cast(value));
     }
     if (value instanceof TimeWithZone || value instanceof RubyTime) {
       const casted = this._subtype.cast(
@@ -78,8 +73,7 @@ export class TimeZoneConverter extends ValueType<unknown> {
       return this.convertTimeToTimeZone(this._subtype.cast(value));
     }
     if (value instanceof Temporal.PlainDateTime) {
-      const instant = value.toZonedDateTime(zoneForIsUtc(this._subtypeIsUtc)).toInstant();
-      return setTimeZoneWithoutConversion(instant, this._subtypeIsUtc);
+      return setTimeZoneWithoutConversion(value.toZonedDateTime("UTC").toInstant());
     }
     if (typeof value === "string") {
       const casted = this._subtype.cast(
@@ -182,51 +176,10 @@ function toInstantOrNull(value: unknown): Temporal.Instant | null {
 }
 
 /** @internal */
-function zoneForIsUtc(subtypeIsUtc?: boolean): string {
-  return (subtypeIsUtc ?? isUtc()) ? "UTC" : Temporal.Now.timeZoneId();
-}
-
-/** @internal */
-function resolveIsUtc(type: unknown): boolean | undefined {
-  let current = type as { isUtc?: unknown; subtype?: unknown } | null | undefined;
-  const seen = new Set<unknown>();
-  while (current != null && typeof current === "object" && !seen.has(current)) {
-    if (typeof current.isUtc === "boolean") return current.isUtc;
-    seen.add(current);
-    current = current.subtype as { isUtc?: unknown; subtype?: unknown } | undefined;
-  }
-  return undefined;
-}
-
-/** @internal */
-function setTimeZoneWithoutConversion(value: unknown, subtypeIsUtc?: boolean): unknown {
-  if (value == null) return null;
-  const zone = timeZone();
-  if (!zone) return value;
-  if (value instanceof RubyTime) value = value.toTime().toInstant();
-  if (value instanceof Temporal.Instant) {
-    const zoned = value.toZonedDateTimeISO(zoneForIsUtc(subtypeIsUtc));
-    const pdt = zoned.toPlainDateTime();
-    const base = zone.local(
-      pdt.year,
-      pdt.month,
-      pdt.day,
-      pdt.hour,
-      pdt.minute,
-      pdt.second,
-      pdt.millisecond,
-    );
-    const subMs = zoned.microsecond * 1000 + zoned.nanosecond;
-    if (subMs === 0) return base;
-    return new TimeWithZone(
-      Temporal.Instant.fromEpochNanoseconds(base.utc().toTime().epochNanoseconds + BigInt(subMs)),
-      zone,
-    );
-  }
-  if (value instanceof TimeWithZone) {
-    return value.inTimeZone(zone);
-  }
-  return value;
+function setTimeZoneWithoutConversion(value: unknown): unknown {
+  if (value == null || value === false) return null;
+  const utc = timeZone()!.localToUtc(value as RubyTime);
+  return utc == null ? null : inTimeZone(utc as DateOrTime);
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
