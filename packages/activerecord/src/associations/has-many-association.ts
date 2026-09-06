@@ -7,7 +7,6 @@ import {
   _ownerChainReflection,
   associationInstanceGet,
   _resolveInverseName,
-  _routeThroughViaAssociationScope,
   _scopeForAssociation,
   _wireInverseAssociation,
   applyAssociationScope,
@@ -410,19 +409,6 @@ async function findTarget(
   }
 
   if (queryExecutor) return queryExecutor();
-
-  if (options.through) {
-    const ctorEarly = record.constructor as typeof Base;
-    const reflThrough = ctorEarly._reflectOnAssociation?.(assocName);
-    if (!_routeThroughViaAssociationScope(record, reflThrough, options)) {
-      const { _buildAssociationInstance } = await import("./instance-methods.js");
-      const through = _buildAssociationInstance.call(
-        record,
-        (reflThrough ?? assocDef) as AssociationDefinition,
-      ) as unknown as { loadHasManyThrough(): Promise<Base[]> };
-      return through.loadHasManyThrough();
-    }
-  }
 
   const ctor = record.constructor as typeof Base;
 

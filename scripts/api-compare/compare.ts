@@ -166,6 +166,7 @@ import {
   NEGATED_ALIASES,
   partitionNegatedCalls,
   requiresNegatedAlias,
+  skeletonIdiomLowering,
 } from "./enumerable-idioms.js";
 
 // `super` is captured by both extractors (extract-ruby-api.rb records
@@ -287,72 +288,33 @@ export const NO_JS_CALL_FORM = new Set([
 
 /**
  * The JS iteration callee an Enumerable iterator's faithful port would name if
- * it named one at all. It is the anchor {@link LOOP_SKELETON_NAMES} is derived
- * through, and it is a JS construct name rather than a Ruby one, so the derived
- * population still comes entirely from the two existing tables.
+ * it named one at all — the one JS-side name the fold folds, against the Ruby
+ * names {@link SKELETON_IDIOM_LOWERINGS} carries.
  */
 const JS_ITERATION_CALLEE = "forEach";
 
 /**
- * Ruby's block iterators whose faithful port is a native loop rather than a
- * call — Hash's and Enumerable's `each_*` family plus `reverse_each`, each of
- * which a port spells `for (const … of …)` (reversed, entry-destructured, or
- * index-counted as the name demands) with no callee at all.
- *
- * A name whose port KEEPS a call is deliberately absent: `map`, `select`,
- * `filter_map`, `sum` and friends all have a JS method a faithful port names,
- * so folding them would let a real dropped iteration read as a loop.
- * `each_with_object` is here because JS has no `reduce`-with-seed spelling of
- * it that a Rails-shaped body uses; `inject` is not, because `reduce` is.
- */
-const RUBY_BLOCK_ITERATORS = [
-  "each_key",
-  "each_value",
-  "each_pair",
-  "each_entry",
-  "each_index",
-  "each_with_index",
-  "each_with_object",
-  "reverse_each",
-];
-
-/**
- * The skeleton-stream names that stand for the SAME construct as a native
- * loop, on either side: Ruby's block iterators and the JS iteration callee.
- *
- * Derived, not hand-maintained (RFC 0084) — a Ruby name qualifies when it is
- * both an Enumerable idiom whose JS analogue is the iteration callback
- * ({@link JS_ENUMERABLE_ALIASES}) and one whose faithful port emits no call at
- * all ({@link NO_JS_CALL_FORM}), which is exactly the pairing that makes
- * `xs.each { ... }` a `ref:each` on the Ruby side and a bare `loop` on the TS
- * side of the same ported body.
- *
- * That derivation resolves to `each` ALONE, because it is the only block
- * iterator {@link JS_ENUMERABLE_ALIASES} carries — so `each_pair`,
- * `each_with_object` and their siblings, whose faithful port is the SAME
- * native `for...of`, reported an invented `loop` against a Ruby side showing
- * only a `ref:` reach (RFC 0113). {@link RUBY_BLOCK_ITERATORS} names the rest
- * of the family explicitly; it cannot be derived, since those names have no
- * JS call analogue to be aliased ONTO.
- */
-const LOOP_SKELETON_NAMES = new Set([
-  JS_ITERATION_CALLEE,
-  ...[...JS_ENUMERABLE_ALIASES]
-    .filter(([ruby, aliases]) => NO_JS_CALL_FORM.has(ruby) && aliases.includes(JS_ITERATION_CALLEE))
-    .map(([ruby]) => ruby),
-  ...RUBY_BLOCK_ITERATORS,
-]);
-
-/**
- * Fold a skeleton stream's block-iteration tokens onto `loop`, so Ruby's
- * `xs.each { |x| save(x) }` (`ref:each ref:save`) and its faithful `for (const
- * x of xs) this.save(x)` port (`loop ref:save`) read as the same sequence.
+ * Fold a skeleton stream's Ruby stdlib reaches onto the control constructs their
+ * faithful port is forced to spell, so Ruby's `xs.each { |x| save(x) }`
+ * (`ref:each ref:save`) and its `for (const x of xs) this.save(x)` port
+ * (`loop ref:save`) read as the same sequence. The lowerings live in
+ * {@link SKELETON_IDIOM_LOWERINGS} (enumerable-idioms.ts), beside the alias
+ * table they parallel; `counterpart` is the other side's stream, which decides
+ * between a row's alternative lowerings.
  *
  * Applied where the two streams are COMPARED, never in the extractors: they
  * emit raw names by design (extract-ts-api.ts:extractSkeleton), and the Ruby↔TS
- * conventions live here. The one function runs over both sides, since {@link LOOP_SKELETON_NAMES} carries the
- * Ruby name and the JS analogue alike.
+ * conventions live here.
+ *
+ * The idiom table is read on the RUBY side only, because several of its names
+ * are JS methods too and a TS `xs.concat(ys)` must not read as a loop; the JS
+ * iteration callee folds on either side, having no Ruby homonym. The fold only
+ * ever ADDS expected control tokens to the Ruby stream, so it cannot hide a
+ * missing arm on the TS side — a port that dropped an `if` still comes up one
+ * short — only stop a faithful lowering from reporting an invented one.
  */
+export type SkeletonSide = "ruby" | "ts";
+
 /**
  * Ruby's `catch(:tag) { ... }` / `throw :tag` are ordinary `Kernel` calls, so
  * the extractor emits them as `ref:catch` / `ref:throw`; their only faithful TS
@@ -366,13 +328,30 @@ const CONSTRUCT_SKELETON_NAMES = new Map([
   ["throw", "throw"],
 ]);
 
-export function foldSkeletonTokens(skeleton: string[]): string[] {
-  return skeleton.map((token) => {
-    if (!token.startsWith("ref:")) return token;
+export function foldSkeletonTokens(
+  skeleton: readonly string[],
+  side: SkeletonSide = "ruby",
+  counterpart?: readonly string[],
+): string[] {
+  const folded: string[] = [];
+  for (const token of skeleton) {
+    if (!token.startsWith("ref:")) {
+      folded.push(token);
+      continue;
+    }
     const name = token.slice("ref:".length);
-    if (LOOP_SKELETON_NAMES.has(name)) return "loop";
-    return CONSTRUCT_SKELETON_NAMES.get(name) ?? token;
-  });
+    if (name === JS_ITERATION_CALLEE) {
+      folded.push("loop");
+      continue;
+    }
+    const lowering = side === "ruby" ? skeletonIdiomLowering(name, counterpart) : undefined;
+    if (lowering !== undefined) {
+      folded.push(...lowering);
+      continue;
+    }
+    folded.push(CONSTRUCT_SKELETON_NAMES.get(name) ?? token);
+  }
+  return folded;
 }
 
 // The significant set (RFC 0047): admits EVERY ported Ruby call name as
@@ -1227,6 +1206,7 @@ export function sameFileHelperSkeletons(
   ownName: string,
   skeleton: readonly string[],
   resolve: (name: string) => string[] | undefined,
+  side: SkeletonSide = "ruby",
 ): Record<string, string[]> | undefined {
   const helpers = new Map<string, string[]>();
   for (const token of skeleton) {
@@ -1234,7 +1214,7 @@ export function sameFileHelperSkeletons(
     const name = token.slice("ref:".length);
     if (name === ownName || helpers.has(name)) continue;
     const resolved = resolve(name);
-    if (resolved !== undefined) helpers.set(name, foldSkeletonTokens(resolved));
+    if (resolved !== undefined) helpers.set(name, foldSkeletonTokens(resolved, side));
   }
   return helpers.size === 0 ? undefined : Object.fromEntries(helpers);
 }
@@ -4094,12 +4074,15 @@ export function main() {
             rubyName,
             tsFile,
             tsName,
-            ruby: foldSkeletonTokens(rubySkeleton),
-            ts: foldSkeletonTokens(tsSkeletons[0]),
-            rubyHelpers: sameFileHelperSkeletons(rubyName, rubySkeleton, (n) =>
-              rubySkeletonByName.get(n),
+            ruby: foldSkeletonTokens(rubySkeleton, "ruby", tsSkeletons[0]),
+            ts: foldSkeletonTokens(tsSkeletons[0], "ts"),
+            rubyHelpers: sameFileHelperSkeletons(
+              rubyName,
+              rubySkeleton,
+              (n) => rubySkeletonByName.get(n),
+              "ruby",
             ),
-            tsHelpers: sameFileHelperSkeletons(tsName, tsSkeletons[0], tsSkeletonOf),
+            tsHelpers: sameFileHelperSkeletons(tsName, tsSkeletons[0], tsSkeletonOf, "ts"),
           });
         }
         const seqSets = tsCallSeqByFileName.get(tsFile)?.get(tsName);

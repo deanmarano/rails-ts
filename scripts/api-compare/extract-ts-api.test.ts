@@ -671,16 +671,28 @@ describe("body call capture", () => {
     ]);
   });
 
-  it("tokens a logical operator as if, between its operands", () => {
+  it("tokens a short-circuit operator as its own or/and token, between its operands", () => {
     const cls = extractFromSource(
       `class Foo {
         create() {
           return this.cached() ?? this.build();
         }
+        fallback() {
+          return this.cached() || this.build();
+        }
+        guard() {
+          return this.cached() && this.build();
+        }
+        memo() {
+          this._memo ??= this.build();
+        }
       }`,
     );
-    const create = cls.instanceMethods.find((m) => m.name === "create")!;
-    expect(create.skeleton).toEqual(["ref:cached", "if", "ref:build"]);
+    const skeleton = (name: string) => cls.instanceMethods.find((m) => m.name === name)!.skeleton;
+    expect(skeleton("create")).toEqual(["ref:cached", "or", "ref:build"]);
+    expect(skeleton("fallback")).toEqual(["ref:cached", "or", "ref:build"]);
+    expect(skeleton("guard")).toEqual(["ref:cached", "and", "ref:build"]);
+    expect(skeleton("memo")).toEqual(["ref:_memo", "or", "ref:build"]);
   });
 
   it("marks a call made in a negated position with the ! prefix", () => {

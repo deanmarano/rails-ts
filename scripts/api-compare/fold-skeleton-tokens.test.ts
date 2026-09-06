@@ -79,10 +79,39 @@ describe("sameFileHelperSkeletons", () => {
   });
 
   it("leaves an iterator whose faithful port keeps a call alone", () => {
-    expect(foldSkeletonTokens(["ref:map", "ref:filter_map", "ref:inject"])).toEqual([
+    expect(foldSkeletonTokens(["ref:map", "ref:select", "ref:inject"])).toEqual([
       "ref:map",
-      "ref:filter_map",
+      "ref:select",
       "ref:inject",
     ]);
+  });
+
+  it("folds a stdlib idiom onto the loop AND guard its faithful port is forced to spell", () => {
+    expect(foldSkeletonTokens(["ref:filter_map", "ref:push"])).toEqual(["loop", "if", "ref:push"]);
+  });
+
+  it("takes the alternative lowering the counterpart stream supports", () => {
+    expect(foldSkeletonTokens(["ref:compact"], "ruby", ["ref:filter", "if"])).toEqual(["if"]);
+    expect(foldSkeletonTokens(["ref:compact"], "ruby", ["loop", "if"])).toEqual(["loop", "if"]);
+  });
+
+  it("folds `dig` onto nothing where the port is an optional chain", () => {
+    expect(foldSkeletonTokens(["ref:dig"], "ruby", ["ref:get"])).toEqual([]);
+  });
+
+  it("reads the idiom table on the Ruby side only, so a TS `concat` is not a loop", () => {
+    expect(foldSkeletonTokens(["ref:concat"], "ts")).toEqual(["ref:concat"]);
+    expect(foldSkeletonTokens(["ref:concat"], "ruby")).toEqual(["loop"]);
+  });
+
+  it("cannot hide an if the TS side dropped: the folded Ruby stream still runs one over", () => {
+    const ruby = foldSkeletonTokens(["ref:filter_map", "if", "ref:save"], "ruby", [
+      "loop",
+      "if",
+      "ref:save",
+    ]);
+    const ts = foldSkeletonTokens(["loop", "if", "ref:save"], "ts");
+    expect(ruby.filter((t) => t === "if")).toHaveLength(2);
+    expect(ts.filter((t) => t === "if")).toHaveLength(1);
   });
 });

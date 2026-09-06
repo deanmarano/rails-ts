@@ -443,44 +443,6 @@ export function isAssociationCached(record: Base, name: string): boolean {
   return record._collectionProxies.has(name);
 }
 
-export function _canRouteThroughViaAssociationScope(
-  reflection: ReflectionLike | null | undefined,
-  options: AssociationOptions,
-): boolean {
-  if (!reflection) return false;
-  if (options.disableJoins) return false;
-  if (typeof reflection.isThroughReflection !== "function" || !reflection.isThroughReflection()) {
-    return false;
-  }
-  const src = reflection.sourceReflection;
-  if (!src) return false;
-  if (typeof reflection.isNested === "function" && reflection.isNested()) return true;
-  if (
-    typeof src.isPolymorphic === "function" &&
-    src.isPolymorphic() &&
-    (typeof src.belongsTo !== "function" || !src.belongsTo())
-  ) {
-    return false;
-  }
-  if (typeof src.isPolymorphic === "function" && src.isPolymorphic() && !options.sourceType) {
-    return false;
-  }
-  return true;
-}
-
-/** @internal */
-export function _routeThroughViaAssociationScope(
-  record: Base,
-  reflection: ReflectionLike | null | undefined,
-  options: AssociationOptions,
-): boolean {
-  if (!_canRouteThroughViaAssociationScope(reflection, options)) return false;
-  if (record.isNewRecord() && typeof reflection?.isNested === "function" && reflection.isNested()) {
-    return false;
-  }
-  return true;
-}
-
 /** @internal */
 export function _ownerChainReflection(reflection: any): any {
   const chain = reflection?.chain;

@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   cluster,
   compareArms,
+  compareShortCircuits,
   controlArms,
+  shortCircuitOps,
   renderReport,
   spliceHelperSkeletons,
   renderSample,
@@ -182,6 +184,37 @@ describe("compareArms", () => {
   });
 });
 
+describe("shortCircuitOps", () => {
+  it("keeps the two short-circuit tokens and drops the arms and reaches", () => {
+    expect(shortCircuitOps(["if", "or", "ref:save", "and", "loop", "or"])).toEqual([
+      "or",
+      "and",
+      "or",
+    ]);
+  });
+
+  it("is projected separately from the arms, so a `??` fallback is not an arm", () => {
+    expect(controlArms(["ref:cached", "or", "ref:build"])).toEqual([]);
+    expect(compareArms(row(["ref:cached"], ["ref:cached", "or", "ref:build"]))).toBeUndefined();
+  });
+});
+
+describe("compareShortCircuits", () => {
+  it("reports a dropped `||` guard the arm verdicts no longer see", () => {
+    const mismatch = compareShortCircuits(row(["or", "ref:save"], ["ref:save"]))!;
+    expect(mismatch.missing).toEqual(["or"]);
+    expect(mismatch.invented).toEqual([]);
+  });
+
+  it("reports an invented `&&`", () => {
+    expect(compareShortCircuits(row(["ref:save"], ["and", "ref:save"]))!.invented).toEqual(["and"]);
+  });
+
+  it("says nothing when the two projections agree as multisets", () => {
+    expect(compareShortCircuits(row(["or", "and"], ["and", "or"]))).toBeUndefined();
+  });
+});
+
 describe("renderReport", () => {
   it("counts every compared pair and groups the mismatches by package, file and verdict", () => {
     const report = renderReport(
@@ -201,6 +234,21 @@ describe("renderReport", () => {
     expect(report).toContain("count");
     expect(report).toContain("order");
     expect(report).toContain("activerecord/connection-adapters/sqlite3-adapter.ts");
+  });
+
+  it("reports the short-circuit projection in its own section", () => {
+    const report = renderReport(
+      {
+        packages: ["activerecord"],
+        skeletons: [row(["or", "ref:save"], ["ref:save"])],
+      },
+      20,
+    );
+
+    expect(report).toContain("0 mismatched pair(s)");
+    expect(report).toContain("short-circuit projection: 1 mismatched pair(s)");
+    expect(report).toContain("Short-circuit mismatches");
+    expect(report).toContain("-or");
   });
 });
 

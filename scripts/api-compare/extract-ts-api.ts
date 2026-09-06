@@ -4210,24 +4210,34 @@ function extractCallSeq(node: ts.Node | undefined): string[] | undefined {
 }
 
 /**
- * Logical operators that token as `if`: each is a conditional reach, and Ruby's
- * `a || b` and the port's `const x = a; if (!x) b` are the same one.
+ * The skeleton token a short-circuit operator emits — `or` for `||` / `||=` /
+ * `??` / `??=`, `and` for `&&` / `&&=` — or undefined for every other operator.
  *
- * A hoisted function rather than a module-level `Set`, because the worker-thread
+ * NOT `if`: a short-circuit is not an arm in the sense RFC 0113's clusters use
+ * (a `missing-arm` row is a dropped `elsif`, never a dropped `||`), and `??` has
+ * no Ruby operator at all — its counterparts are a kwarg default, a
+ * `fetch(k, default)` or a `&.` chain, all of which emit nothing — so every
+ * `?? default` in a port reported an invented `if`. `??` maps onto `or` rather
+ * than a token of its own because `x || default` is the Ruby spelling of the
+ * same fallback. `report-arms.ts` projects these two tokens separately from
+ * {@link CONTROL_TOKENS}, so a genuinely dropped `||` guard is still reported.
+ *
+ * A hoisted function rather than a module-level `Map`, because the worker-thread
  * dispatch block at the top of this file runs before a `const` down here is
  * initialized and would read it in TDZ.
  */
-function isSkeletonLogicalOp(kind: ts.SyntaxKind): boolean {
+function skeletonLogicalOpToken(kind: ts.SyntaxKind): string | undefined {
   switch (kind) {
     case ts.SyntaxKind.BarBarToken:
-    case ts.SyntaxKind.AmpersandAmpersandToken:
     case ts.SyntaxKind.QuestionQuestionToken:
     case ts.SyntaxKind.BarBarEqualsToken:
-    case ts.SyntaxKind.AmpersandAmpersandEqualsToken:
     case ts.SyntaxKind.QuestionQuestionEqualsToken:
-      return true;
+      return "or";
+    case ts.SyntaxKind.AmpersandAmpersandToken:
+    case ts.SyntaxKind.AmpersandAmpersandEqualsToken:
+      return "and";
     default:
-      return false;
+      return undefined;
   }
 }
 
@@ -4269,9 +4279,10 @@ function extractSkeleton(node: ts.Node | undefined): string[] | undefined {
         break;
       case ts.SyntaxKind.BinaryExpression: {
         const bin = n as ts.BinaryExpression;
-        if (isSkeletonLogicalOp(bin.operatorToken.kind)) {
+        const shortCircuit = skeletonLogicalOpToken(bin.operatorToken.kind);
+        if (shortCircuit !== undefined) {
           visit(bin.left);
-          tokens.push("if");
+          tokens.push(shortCircuit);
           visit(bin.right);
           return;
         }
