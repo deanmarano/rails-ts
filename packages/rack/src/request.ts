@@ -445,7 +445,10 @@ export abstract class Helpers {
         this.setHeader(RACK_REQUEST_FORM_HASH, {});
         return this.getHeader(RACK_REQUEST_FORM_HASH);
       } else if (this.formData || this.isParseableData()) {
-        const pairs = Multipart.parseMultipart(this.env, Multipart.ParamList);
+        const pairs = Multipart.parseMultipart(
+          this.env,
+          Multipart.ParamList as unknown as QueryParser,
+        ) as unknown as Array<[string, any]> | null;
         if (pairs) {
           this.setHeader(RACK_REQUEST_FORM_PAIRS, pairs);
           this.setHeader(RACK_REQUEST_FORM_HASH, this.expandParamPairs(pairs));
