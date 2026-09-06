@@ -1226,8 +1226,9 @@ export interface CallSkeleton {
  * declaration of that name in the same file (a method delegating to a
  * same-named top-level function, `has-many-through-association.ts`'s
  * `markOccurrence`), which is a helper reach rather than recursion. One hop
- * only: the entries are recorded as their authors wrote them, so a helper's own reaches stay reaches and the splice
- * cannot walk a mutual-recursion cycle.
+ * only: the entries are recorded as their authors wrote them, so a helper's
+ * own reaches stay reaches and the splice cannot walk a mutual-recursion
+ * cycle.
  *
  * Accumulated in a Map, because a reach is a method name and `ref:constructor`
  * / `ref:toString` would read as already-present against a plain object's
