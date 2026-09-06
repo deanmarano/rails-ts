@@ -72,8 +72,9 @@ describe("CookieJarTest", () => {
 
   it("write doesnt set a nil header", () => {
     const jar = new CookieJar();
-    jar.set("test", { value: null as any });
-    expect(jar.has("test")).toBe(false);
+    const response = new Response();
+    jar.write(response);
+    expect(response.headers["set-cookie"]).toBeUndefined();
   });
 });
 

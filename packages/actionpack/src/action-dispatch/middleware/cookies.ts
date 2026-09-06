@@ -11,9 +11,6 @@ function isFromNow(expires: unknown): expires is { fromNow(): CookieExpires } {
   return expires != null && typeof (expires as { fromNow?: unknown }).fromNow === "function";
 }
 
-/* Ruby's `Hash#==` (`vendor/ruby/hash.c:3670` `rb_hash_equal`), which
-   `deleted?` (`cookies.rb:400`) sends between the stored delete options and
-   the caller's: same key set, each value `==` the other's. */
 function hashEqual(a: Record<string, unknown> | undefined, b: Record<string, unknown>): boolean {
   if (a === undefined) return false;
   const aKeys = Object.keys(a);
@@ -134,14 +131,12 @@ export class CookieJar implements Iterable<[string, string]> {
   }
 
   set(name: string, options: string | SetCookieOptions): string | undefined {
-    if (this._committed) return undefined;
     let value: string | undefined;
     if (typeof options === "string") {
       value = options;
       options = { value };
     } else {
       value = options.value;
-      if (value === undefined || value === null) return undefined;
     }
 
     this.handleOptions(options);

@@ -21,8 +21,7 @@ import {
 import { type Generic, isSymbol, RFC2396Parser, StringIO } from "@blazetrails/ruby-compat";
 import { Lint } from "./lint.js";
 import { MockResponse } from "./mock-response.js";
-import { buildMultipart } from "./multipart.js";
-import { MULTIPART_BOUNDARY } from "./multipart.js";
+import { buildMultipart, MULTIPART_BOUNDARY } from "./multipart.js";
 import { buildNestedQuery, parseNestedQuery } from "./utils.js";
 import type { RackResponse } from "./index.js";
 

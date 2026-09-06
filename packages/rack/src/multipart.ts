@@ -8,8 +8,8 @@ import {
   RACK_TEMPFILES,
 } from "./constants.js";
 import { include } from "@blazetrails/ruby-compat";
-import type { QueryParser } from "./query-parser.js";
 import { BadRequest } from "./bad-request.js";
+import type { QueryParser } from "./query-parser.js";
 
 export { UploadedFile } from "./multipart/uploaded-file.js";
 import {
