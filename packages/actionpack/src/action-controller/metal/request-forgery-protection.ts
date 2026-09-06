@@ -1,4 +1,5 @@
-import { getCrypto, chomp, OpenSSL, SecureRandom, type Bytes } from "@blazetrails/ruby-compat";
+import { getCrypto, chomp, OpenSSL, SecureRandom, URI, type Bytes } from "@blazetrails/ruby-compat";
+import { isBlank } from "@blazetrails/activesupport";
 import {
   CookieJar,
   cookieJar,
@@ -518,9 +519,11 @@ export function storageStrategy(name: "session" | "cookie" | CsrfTokenStorage): 
  * @missingRailsArgs chomp — PERMANENT
  */
 export function normalizeRelativeActionPath(this: CsrfController, relActionPath: string): string {
-  let path = (this.request.path ?? "/") + "/" + relActionPath;
-  path = path.replace(/\/\.\//g, "/");
-  return chomp(path, "/");
+  const uri = URI.parse(this.request.path ?? "/");
+  uri.path = uri.path + `/${relActionPath}`;
+  uri.path = uri.path.replace(/\/\.\//g, "/");
+
+  return chomp(uri.path, "/");
 }
 
 /**
@@ -528,19 +531,13 @@ export function normalizeRelativeActionPath(this: CsrfController, relActionPath:
  * @missingRailsArgs chomp — PERMANENT
  */
 export function normalizeActionPath(this: CsrfController, actionPath: string): string {
-  if (actionPath === "" || !actionPath.startsWith("/")) {
-    const SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
-    if (!SCHEME_RE.test(actionPath)) {
-      return normalizeRelativeActionPath.call(this, actionPath);
-    }
+  const uri = URI.parse(actionPath);
+
+  if (uri.isRelative() && (isBlank(actionPath) || !actionPath.startsWith("/"))) {
+    return normalizeRelativeActionPath.call(this, uri.path!);
+  } else {
+    return chomp(uri.path!, "/");
   }
-  let parsedPath: string;
-  try {
-    parsedPath = new URL(actionPath, "http://_placeholder_").pathname;
-  } catch {
-    parsedPath = actionPath;
-  }
-  return chomp(parsedPath, "/");
 }
 
 setRubyClassPath(

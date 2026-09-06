@@ -6,6 +6,7 @@
  */
 export { URI, BadURIError, Error, InvalidComponentError, InvalidURIError } from "./uri/common.js";
 export { DEFAULT_PARSER, RFC2396_PARSER, RFC3986_PARSER } from "./uri/common.js";
+export { RFC2396Parser } from "./uri/rfc2396-parser.js";
 export { Generic } from "./uri/generic.js";
 export { HTTP } from "./uri/http.js";
 export { HTTPS } from "./uri/https.js";

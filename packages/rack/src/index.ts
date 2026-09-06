@@ -52,7 +52,7 @@ export {
 } from "./utils.js";
 export { Headers } from "./headers.js";
 export { BodyProxy } from "./body-proxy.js";
-export { Request, Helpers as RequestHelpers } from "./request.js";
+export { DEFAULT_PORTS, Request, Helpers as RequestHelpers } from "./request.js";
 export { Response, ResponseRaw } from "./response.js";
 export {
   CONTENT_TYPE,

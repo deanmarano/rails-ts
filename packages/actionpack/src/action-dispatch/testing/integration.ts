@@ -2,6 +2,7 @@ import { Request } from "../http/request.js";
 import { Headers } from "../http/headers.js";
 import { MimeType } from "../http/mime-type.js";
 import { isPresent } from "@blazetrails/activesupport";
+import { HTTPS, URI, type Generic } from "@blazetrails/ruby-compat";
 import { TestResponse } from "./test-response.js";
 import { FlashHash } from "../middleware/flash.js";
 import { RouteSet } from "../routing/route-set.js";
@@ -23,7 +24,7 @@ import * as polymorphicRoutes from "../routing/polymorphic-routes.js";
 import type { UrlForRoutes } from "../routing/url-for.js";
 import { RequestEncoder } from "./request-encoder.js";
 import { Session as RackTestSession, type CookieJar } from "@blazetrails/rack-test";
-import type { RackApp } from "@blazetrails/rack";
+import { DEFAULT_PORTS, type RackApp } from "@blazetrails/rack";
 import type { UploadedFile } from "@blazetrails/rack-test";
 
 export interface IntegrationRequestOptions {
@@ -40,8 +41,6 @@ const STATUS_RANGES: Record<string, [number, number]> = {
   missing: [400, 499],
   error: [500, 599],
 };
-
-const ABSOLUTE_URL_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
 
 const DEFAULT_HOST = "www.example.com";
 
@@ -157,11 +156,11 @@ export class IntegrationTest {
   }
 
   /** @internal */
-  buildExpandedPath(path: string, onLocation?: (url: URL) => void): string {
-    if (!ABSOLUTE_URL_RE.test(path)) return path;
-    const location = new URL(path);
-    onLocation?.(location);
-    return location.search ? `${location.pathname}${location.search}` : location.pathname;
+  buildExpandedPath(path: string, block?: (location: Generic) => void): string {
+    const location = URI.parse(path);
+    if (block) block(location);
+    path = location.path!;
+    return location.query != null ? `${path}?${location.query}` : path;
   }
 
   async process(
@@ -180,8 +179,14 @@ export class IntegrationTest {
 
     if (path.includes("://")) {
       path = this.buildExpandedPath(path, (location) => {
-        this.httpsBang(location.protocol === "https:");
-        if (location.host) this.host = location.host;
+        if (location.scheme != null) this.httpsBang(location instanceof HTTPS);
+
+        let urlHost = location.host;
+        if (urlHost != null) {
+          const dflt = DEFAULT_PORTS[location.scheme!];
+          if (dflt !== location.port) urlHost += `:${location.port}`;
+          this.host = urlHost;
+        }
       });
     }
 

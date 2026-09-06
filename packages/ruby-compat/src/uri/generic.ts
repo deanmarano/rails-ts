@@ -18,8 +18,7 @@ import type { RFC3986Parser } from "./rfc3986-parser.js";
  * (`generic.rb:524,534`), `escape_userpass` (`generic.rb:551`), `user` /
  * `password` (`generic.rb:568,573`), `decoded_user` / `decoded_password`
  * (`generic.rb:584,589`), `hostname` / `hostname=` (`generic.rb:668,685`),
- * `hierarchical?` (`generic.rb:976`), `relative?` (`generic.rb:999`),
- * `merge!` (`generic.rb:1096`), `route_from_path` / `route_from0` /
+ * `hierarchical?` (`generic.rb:976`), `merge!` (`generic.rb:1096`), `route_from_path` / `route_from0` /
  * `route_from` / `route_to` (`generic.rb:1167,1206,1274,1314`), `normalize` /
  * `normalize!` (`generic.rb:1331,1340`), `==` / `hash` / `eql?` /
  * `component_ary` (`generic.rb:1396,1404,1408,1428`), `select`
@@ -369,6 +368,16 @@ export class Generic {
     } else {
       return false;
     }
+  }
+
+  /**
+   * `relative?` (`vendor/ruby/lib/uri/generic.rb:999`).
+   *
+   * @noRailsEquivalent PERMANENT — Ruby stdlib, not Rails:
+   * `URI::Generic#relative?` (`vendor/ruby/lib/uri/generic.rb:999`).
+   */
+  isRelative(): boolean {
+    return !this.isAbsolute();
   }
 
   /** `split_path` (`vendor/ruby/lib/uri/generic.rb:1006`) — Ruby's

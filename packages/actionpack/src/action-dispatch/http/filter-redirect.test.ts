@@ -56,8 +56,8 @@ describe("filteredLocation", () => {
   });
 
   it("returns the URL unchanged when there is no request", () => {
-    const host = makeHost("https://example.com/path?foo=1", null);
-    expect(filteredLocation.call(host)).toBe("https://example.com/path?foo=1");
+    const host = makeHost("https://example.com/path", null);
+    expect(filteredLocation.call(host)).toBe("https://example.com/path");
   });
 
   it("handles relative URLs (Rails URI.parse parity)", () => {

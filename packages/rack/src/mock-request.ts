@@ -18,7 +18,7 @@ import {
   HEAD,
   OPTIONS,
 } from "./constants.js";
-import { isSymbol, StringIO } from "@blazetrails/ruby-compat";
+import { type Generic, isSymbol, RFC2396Parser, StringIO } from "@blazetrails/ruby-compat";
 import { Lint } from "./lint.js";
 import { MockResponse } from "./mock-response.js";
 import { buildMultipart } from "./multipart.js";
@@ -50,25 +50,9 @@ export type RackApp = (
   env: Record<string, any>,
 ) => [number, RackResponse[1], any] | Promise<[number, RackResponse[1], any]>;
 
-/** @noRailsEquivalent PERMANENT */
-const DEFAULT_PORT: Record<string, number | null> = {
-  http: 80,
-  https: 443,
-  ldap: 389,
-  ldaps: 636,
-  file: null,
-  ftp: 21,
-  mailto: null,
-  ws: 80,
-  wss: 443,
-};
-
-function uriPort(uri: URL): number | null {
-  if (uri.port !== "") return Number(uri.port);
-  return DEFAULT_PORT[uri.protocol.slice(0, -1)] ?? null;
-}
-
 export class MockRequest {
+  private static parser: RFC2396Parser | undefined;
+
   private app: RackApp;
 
   constructor(app: RackApp) {
@@ -120,28 +104,24 @@ export class MockRequest {
     }
   }
 
-  static parseUriRfc2396(uri: string): URL {
-    try {
-      return new URL(uri);
-    } catch {
-      return new URL(uri, "http://example.org");
-    }
+  static parseUriRfc2396(uri: string): Generic {
+    MockRequest.parser ??= new RFC2396Parser();
+    return MockRequest.parser.parse(uri);
   }
 
   static envFor(uri = "", opts: Record<string, any> = {}): Record<string, any> {
     const parsedUri = MockRequest.parseUriRfc2396(uri);
-    if (parsedUri.pathname[0] !== "/") parsedUri.pathname = `/${parsedUri.pathname}`;
+    if (parsedUri.path![0] !== "/") parsedUri.path = `/${parsedUri.path}`;
 
     const env: Record<string, any> = {};
-    const port = uriPort(parsedUri);
 
     env[REQUEST_METHOD] = opts[":method"] ? String(opts[":method"]).toUpperCase() : GET;
-    env[SERVER_NAME] = parsedUri.hostname || "example.org";
-    env[SERVER_PORT] = port !== null ? String(port) : "80";
+    env[SERVER_NAME] = parsedUri.host || "example.org";
+    env[SERVER_PORT] = parsedUri.port != null ? String(parsedUri.port) : "80";
     env[SERVER_PROTOCOL] = opts[":http_version"] || "HTTP/1.1";
-    env[QUERY_STRING] = parsedUri.search.slice(1);
-    env[PATH_INFO] = parsedUri.pathname;
-    env[RACK_URL_SCHEME] = parsedUri.protocol.slice(0, -1) || "http";
+    env[QUERY_STRING] = String(parsedUri.query ?? "");
+    env[PATH_INFO] = parsedUri.path;
+    env[RACK_URL_SCHEME] = parsedUri.scheme || "http";
     env[HTTPS] = env[RACK_URL_SCHEME] === "https" ? "on" : "off";
 
     env[SCRIPT_NAME] = opts[":script_name"] || "";
