@@ -175,7 +175,6 @@ export function recognizedRequestFor(
     if (!pathStr.startsWith("/")) pathStr = `/${pathStr}`;
     request.path = pathStr;
   }
-  pathStr = request.path;
   request.env["REQUEST_METHOD"] = method.toUpperCase();
 
   const params = failOn(RoutingError, msg, () =>

@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { RouteSet } from "../../routing/route-set.js";
+import { controllerConstants } from "../../http/request.js";
+import type { DispatchableControllerClass } from "../../routing/dispatcher.js";
 import { RoutingError } from "../../../action-controller/metal/exceptions.js";
 import {
   assertGenerates,
@@ -21,6 +23,14 @@ function buildHost(): RoutingAssertionsHost {
   });
   return { routes };
 }
+
+class StubController {}
+
+beforeAll(() => {
+  for (const name of ["items", "tmp", "x"]) {
+    controllerConstants.set(name, StubController as unknown as DispatchableControllerClass);
+  }
+});
 
 const ok = (fn: () => void) => expect(fn).not.toThrow();
 const bad = (fn: () => void) => expect(fn).toThrow();

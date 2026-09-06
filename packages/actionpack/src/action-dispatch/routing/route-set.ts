@@ -1,5 +1,5 @@
-import type { RackEnv, RackResponse } from "@blazetrails/rack";
-import { rbInspect } from "@blazetrails/ruby-compat";
+import { MockRequest, type RackEnv, type RackResponse } from "@blazetrails/rack";
+import { InvalidURIError, rbInspect } from "@blazetrails/ruby-compat";
 import { Constraints, Mapper } from "./mapper.js";
 import type { MatchedRoute } from "./route.js";
 import { Route } from "./route.js";
@@ -40,8 +40,8 @@ import type { Response as AdResponse } from "../http/response.js";
 import { RoutingError, UrlGenerationError } from "../../action-controller/metal/exceptions.js";
 import { RoutesProxy, type ScriptNamer } from "./routes-proxy.js";
 import { Request as AdRequest } from "../http/request.js";
-import { NameError } from "@blazetrails/activesupport";
-import { normalizePath } from "../journey/router/utils.js";
+import { camelize, NameError } from "@blazetrails/activesupport";
+import { normalizePath, unescapeUri } from "../journey/router/utils.js";
 import { URL, type UrlOptions } from "../http/url.js";
 import { Routes as JourneyRoutes } from "../journey/routes.js";
 import type { Formatter as JourneyFormatter } from "../journey/formatter.js";
@@ -788,23 +788,48 @@ export class RouteSet {
   }
 
   recognizePathWithRequest(
-    req: { requestMethod?: string; method?: string },
+    req: AdRequest,
     path: string,
-    extras: Record<string, unknown> = {},
-    options: { raiseOnMissing?: boolean } = {},
+    extras: Record<string, unknown>,
+    { raiseOnMissing = true }: { raiseOnMissing?: boolean } = {},
   ): Record<string, unknown> | undefined {
-    const method = String(req.requestMethod ?? req.method ?? "GET").toUpperCase();
-    const matched = this.recognize(method, path);
-    if (matched) {
-      return {
-        ...matched.route.defaults,
-        controller: matched.route.controller,
-        action: matched.route.action,
-        ...matched.params,
-        ...extras,
-      };
-    }
-    if (options.raiseOnMissing !== false) {
+    let pathParameters: Record<string, unknown> | undefined;
+    this.router.recognize(req as unknown as RouterRequest, (route, params) => {
+      Object.assign(params, extras);
+      for (const [key, value] of Object.entries(params)) {
+        if (typeof value === "string") {
+          params[key] = unescapeUri(value);
+        }
+      }
+      req.pathParameters = params;
+      const app = route.app as Endpoint;
+      if (app.matches(req) && app.dispatcher()) {
+        try {
+          req.controllerClass();
+        } catch (e) {
+          if (!(e instanceof NameError)) throw e;
+          throw new RoutingError(
+            `A route matches ${rbInspect(path)}, but references missing controller: ${camelize(
+              String(params["controller"]),
+            )}Controller`,
+          );
+        }
+
+        pathParameters = req.pathParameters;
+        return true;
+      } else if (app.matches(req) && app.engine()) {
+        const engineParameters = (
+          app.rackApp() as { routes: RouteSet }
+        ).routes.recognizePathWithRequest(req, path, extras, { raiseOnMissing: false });
+        if (engineParameters) {
+          pathParameters = engineParameters;
+          return true;
+        }
+      }
+    });
+    if (pathParameters !== undefined) return pathParameters;
+
+    if (raiseOnMissing) {
       throw new RoutingError(`No route matches ${rbInspect(path)}`);
     }
     return undefined;
@@ -848,17 +873,19 @@ export class RouteSet {
     environment: { method?: string | null; extras?: Record<string, unknown> } = {},
   ): Record<string, unknown> {
     const method = String(environment.method ?? "GET").toUpperCase();
-    const matched = this.recognize(method, path);
-    if (!matched) {
-      throw new RoutingError(`No route matches ${rbInspect(path)}`);
+    if (!(path != null && path.includes("://"))) path = normalizePath(path);
+    const extras = environment.extras ?? {};
+
+    let env: RackEnv;
+    try {
+      env = MockRequest.envFor(path, { ":method": method }) as RackEnv;
+    } catch (e) {
+      if (!(e instanceof InvalidURIError)) throw e;
+      throw new RoutingError(e.message);
     }
-    return {
-      ...matched.route.defaults,
-      controller: matched.route.controller,
-      action: matched.route.action,
-      ...matched.params,
-      ...(environment.extras ?? {}),
-    };
+
+    const req = this.makeRequest(env);
+    return this.recognizePathWithRequest(req, path, extras)!;
   }
 
   generateExtras(

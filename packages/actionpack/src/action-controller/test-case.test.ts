@@ -4,6 +4,7 @@ import { TestCase, TestRequest, LiveTestResponse, TestSession } from "./test-cas
 import { StringIO } from "@blazetrails/ruby-compat";
 import { UploadedFile } from "@blazetrails/rack-test";
 import { Base } from "./base.js";
+import { MimeType } from "../action-dispatch/http/mime-type.js";
 
 describe("TestSession Rails-mirroring API", () => {
   it("isExists / isEnabled are always true (Rails: exists?/enabled?)", () => {
@@ -181,9 +182,14 @@ describe("ActionController::TestRequest helpers", () => {
     const req = TestRequest.create();
     req.setHeader("REQUEST_METHOD", "POST");
     req.setHeader("CONTENT_TYPE", "application/vnd.custom+json");
-    req.assignParameters(null, "api", "create", { x: "1" }, "/api", ["x"]);
-    const parsed = req.requestParameters;
-    expect(parsed).toMatchObject({ x: "1" });
+    MimeType.register("application/vnd.custom+json", ":custom");
+    try {
+      req.assignParameters(null, "api", "create", { x: "1" }, "/api", ["x"]);
+      const parsed = req.requestParameters;
+      expect(parsed).toMatchObject({ x: "1" });
+    } finally {
+      MimeType.unregister(":custom");
+    }
   });
 
   it("paramsParsers returns the custom parsers map", () => {
