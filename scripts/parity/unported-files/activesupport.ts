@@ -421,4 +421,14 @@ export const ACTIVESUPPORT_UNPORTED_FILES: UnportedFile[] = [
       "no module ancestry and no `include?` on a class, so `in?` has nothing to delegate " +
       "to. The file's `no method catching` sibling is portable and stays counted.",
   },
+  {
+    testFile: "core_ext/array/conversions_test.rb",
+    tests: ["to xml with non hash different type elements"],
+    reason:
+      'Asserts `[1, 2.0, "3"].to_xml` tags the second element ' +
+      '`<object type="float">2.0</object>` (conversions_test.rb:172-179). Ruby\'s `2.0` is a ' +
+      "Float and `1` an Integer; JS has one number type where `2.0 === 2`, so the literal " +
+      "cannot carry the Float-ness the assertion is about. The file's other eleven " +
+      "`to_xml` cases are portable and stay counted.",
+  },
 ];
