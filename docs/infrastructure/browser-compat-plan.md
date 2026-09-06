@@ -40,6 +40,40 @@ imports in `packages/activerecord/src` (excluding `tsc-wrapper/`, a
 build-time tool). This pattern is the template for every future native-dep
 abstraction.
 
+### The `CryptoAdapter` seam in a browser
+
+A browser **is** a supported host for `@blazetrails/ruby-compat`'s crypto
+seam, but only for hosts that register an adapter before the first synchronous
+`getCrypto()` call. There is no browser auto-registration arm and there will
+not be one: `tryAutoRegisterNode()` is Node-only by construction, and Web
+Crypto cannot satisfy `CryptoAdapter`. `crypto.getRandomValues` /
+`crypto.randomUUID` serve `randomBytes` / `randomUUID`, but `crypto.subtle`
+has no synchronous digest (`HashAdapter#digest()` returns a value, not a
+Promise) and no streaming `update()` / `final()` cipher, so `createHash`,
+`createHmac`, `createCipheriv` and `createDecipheriv` have no Web Crypto
+implementation. Auto-registering a randomness-only adapter would turn a clear
+"not configured" error into a `createHash is not a function` deep inside
+`digest.ts` / `message-encryptor.ts` / `security-utils.ts` /
+`secure-password.ts`.
+
+A randomness-only adapter is nonetheless **declarable**: register it with
+`registerCryptoAdapter(name, adapter)` and select it with
+`cryptoAdapterConfig.adapter = name`. The seam completes a partial adapter at
+resolve time, so an unimplemented member raises a seam-level
+`Crypto adapter "<name>" does not implement <member>.` naming what is missing,
+rather than a `TypeError` at the call site. A host that only constructs an
+`Instrumenter` (`SecureRandom.hex(10)`) or reads `SecureRandom` needs nothing
+more than the randomness pair.
+
+Call sites do **not** branch on the host. `Instrumenter#uniqueId` reaches the
+seam unconditionally, exactly as its Ruby counterpart calls `SecureRandom`
+unconditionally; per-call-site `try/catch` fallbacks onto
+`crypto.getRandomValues` are not reinstated.
+
+`Bytes` (`ruby-compat/src/fs-adapter.ts`) is already `Uint8Array`-based, so
+`Buffer` is a Node-adapter implementation detail and not part of the seam's
+type surface.
+
 ### `TRAILS_ENV` vs `NODE_ENV`
 
 The JS ecosystem treats `NODE_ENV` as a _build-time hint_ (bundlers replace it

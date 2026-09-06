@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { getCrypto } from "./crypto-adapter.js";
+import {
+  cryptoAdapterConfig,
+  getCrypto,
+  registerCryptoAdapter,
+  type CryptoAdapter,
+} from "./crypto-adapter.js";
 import { Cipher } from "./openssl.js";
 
 describe("Cipher", () => {
@@ -69,4 +74,28 @@ describe("getCrypto", () => {
     expect(error).toBeNull();
     expect(stdout).toBe("20");
   }, 30_000);
+});
+
+describe("registerCryptoAdapter", () => {
+  it("fails at the seam naming the member a partial adapter does not implement", () => {
+    const partial = {
+      randomBytes: (size: number) => new Uint8Array(size),
+      randomUUID: () => "00000000-0000-4000-8000-000000000000",
+    } as unknown as CryptoAdapter;
+
+    registerCryptoAdapter("partial", partial);
+    const previous = cryptoAdapterConfig.adapter;
+    cryptoAdapterConfig.adapter = "partial";
+    try {
+      expect(getCrypto().randomBytes(4).length).toBe(4);
+      expect(() => getCrypto().createHash("sha256")).toThrow(
+        'Crypto adapter "partial" does not implement createHash.',
+      );
+      expect(() =>
+        getCrypto().createCipheriv("aes-256-gcm", new Uint8Array(32), new Uint8Array(12)),
+      ).toThrow('Crypto adapter "partial" does not implement createCipheriv.');
+    } finally {
+      cryptoAdapterConfig.adapter = previous;
+    }
+  });
 });

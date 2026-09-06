@@ -225,6 +225,36 @@ function tryAutoRegisterNode(): boolean {
   }
 }
 
+const REQUIRED_MEMBERS = [
+  "randomBytes",
+  "randomUUID",
+  "createHash",
+  "createHmac",
+  "createCipheriv",
+  "createDecipheriv",
+  "pbkdf2Sync",
+  "timingSafeEqual",
+] as const;
+
+function completeAdapter(name: string, adapter: CryptoAdapter): CryptoAdapter {
+  const missing = REQUIRED_MEMBERS.filter(
+    (member) => typeof (adapter as unknown as Record<string, unknown>)[member] !== "function",
+  );
+  if (missing.length === 0) return adapter;
+
+  const completed = { ...adapter } as unknown as Record<string, unknown>;
+  for (const member of missing) {
+    completed[member] = (): never => {
+      throw new Error(
+        `Crypto adapter "${name}" does not implement ${member}. It is a partial adapter: ` +
+          `Web Crypto can serve randomBytes and randomUUID, but has no synchronous digest or ` +
+          `streaming cipher, so a host needing ${member} must register a complete adapter.`,
+      );
+    };
+  }
+  return completed as unknown as CryptoAdapter;
+}
+
 function resolve(): CryptoAdapter {
   if (resolved) return resolved;
 
@@ -232,17 +262,19 @@ function resolve(): CryptoAdapter {
   if (name) {
     const reg = registry.get(name);
     if (!reg) throw new Error(`Crypto adapter "${name}" is not registered.`);
-    resolved = reg;
-    return reg;
+    resolved = completeAdapter(name, reg);
+    return resolved;
   }
 
   if (tryAutoRegisterNode()) {
-    resolved = registry.get("node")!;
+    resolved = completeAdapter("node", registry.get("node")!);
     return resolved;
   }
 
   throw new Error(
-    "No crypto adapter configured. Under ESM, import '@blazetrails/activesupport/node' from your entry point; otherwise set ActiveSupport.cryptoAdapter or register a custom adapter.",
+    "No crypto adapter configured. Under ESM, import '@blazetrails/activesupport/node' from your entry point; " +
+      "in a browser, register an adapter with registerCryptoAdapter() and set cryptoAdapterConfig.adapter before " +
+      "the first getCrypto() call; otherwise set ActiveSupport.cryptoAdapter or register a custom adapter.",
   );
 }
 
