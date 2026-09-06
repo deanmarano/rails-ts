@@ -22,7 +22,10 @@ export function normalizeSqlitePaths(
     const absolute = resolve(root, database);
     if (config instanceof UrlConfig) {
       if (!config.url.endsWith(database)) return config;
-      const expandedUrl = config.url.slice(0, -database.length) + absolute;
+      const prefix = config.url.slice(0, -database.length);
+      const expandedUrl = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(prefix)
+        ? prefix + absolute
+        : `${config.adapter}:${prefix}${absolute}`;
       return new UrlConfig(config.envName, config.name, expandedUrl, config.configurationHash);
     }
     return new HashConfig(config.envName, config.name, {
