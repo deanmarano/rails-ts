@@ -80,7 +80,7 @@ describe("withTransactionalFixtures", () => {
 
 describe("withTransactionalFixtures (raw adapter)", () => {
   let adapter: SQLite3Adapter;
-  const exec = (sql: string) => adapter.exec(sql);
+  const exec = (sql: string) => adapter.execute(sql);
   const query = (sql: string) => adapter.execute(sql);
 
   beforeAll(async () => {

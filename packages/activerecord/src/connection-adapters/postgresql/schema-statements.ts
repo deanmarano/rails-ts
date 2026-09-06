@@ -616,7 +616,7 @@ export class SchemaStatements extends AbstractSchemaStatements {
             `No binary type has byte size ${limit}. The limit on binary can be at most 1GB - 1byte.`,
           );
         }
-        sql = "bytea";
+        sql = super.typeToSql(type as ColumnType, {});
         break;
       case "text":
         if (limit != null && (limit < 0 || limit > 0x3fffffff)) {
@@ -624,7 +624,7 @@ export class SchemaStatements extends AbstractSchemaStatements {
             `No text type has byte size ${limit}. The limit on text can be at most 1GB - 1byte.`,
           );
         }
-        sql = "text";
+        sql = super.typeToSql(type as ColumnType, {});
         break;
       case "integer":
         if (limit === 1 || limit === 2) sql = "smallint";

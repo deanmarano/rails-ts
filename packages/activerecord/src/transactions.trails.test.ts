@@ -40,7 +40,7 @@ const openAdapters: SQLite3Adapter[] = [];
 async function makeSQLiteTopic() {
   const adp = new BetterSQLite3Adapter(":memory:");
   openAdapters.push(adp);
-  await adp.exec(
+  await adp.execute(
     "CREATE TABLE topics (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, approved INTEGER DEFAULT 0)",
   );
   class Topic extends Base {
@@ -57,7 +57,7 @@ async function makeSQLiteTopic() {
 afterEach(async () => {
   for (const a of openAdapters.splice(0)) {
     try {
-      await a.exec("DROP TABLE IF EXISTS topics");
+      await a.execute("DROP TABLE IF EXISTS topics");
     } catch {}
     await a.close();
   }

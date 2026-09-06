@@ -30,6 +30,12 @@ matches the first candidate present in the target file), not a call expression.
 | `-@` (unary minus)                                                                                                       | `negate`                                      | `-@` → `negate`                                                                                                                      |
 | everything else                                                                                                          | `snake_case` → `camelCase`                    | `has_many` → `hasMany` or `_hasMany`                                                                                                 |
 
+Constructor details: `new` maps to `constructor` only when its Ruby file does
+NOT also define `initialize`. A same-file `new` beside `initialize`
+(`ActionController::Renderer.new`, `renderer.rb:72`, next to `#initialize`
+at `:111`) is an ordinary singleton method that WRAPS the constructor, so it
+is a second Ruby member, not a second spelling of the same one.
+
 Predicate-form details: a predicate whose Ruby file ALSO defines the bare name
 (`Logger#debug` next to `Logger#debug?`) offers the QUOTED LITERAL spelling
 first — `get "debug?"` — because its camel candidate names the sibling, not the

@@ -3739,6 +3739,24 @@ export function main() {
     const bodyHashRecords: BodyHashRecord[] = [];
     const fileResults: FileResult[] = [];
 
+    /**
+     * The Ruby member that has already claimed a given TS member, keyed
+     * `${tsFile}#${tsName}#${reader|writer}`.
+     *
+     * A TS member is ONE port, so it answers for ONE Ruby member. Two Ruby
+     * names resolving to the same TS name — `content_for?` onto its bare
+     * sibling's port (`capture_helper.rb:172,215`), `delete` defined in both
+     * `base.rb` and `persistence.rb` — otherwise both get scored against that
+     * single body. First claimer wins; the file loop is sorted and `seen`
+     * preserves Ruby source order, so the winner is stable across runs. The
+     * loser keeps its name-match credit (the name IS ported, once) but is held
+     * out of the CALL gates through `checkArity`'s `skipCalls`.
+     *
+     * The reader/writer flag keeps `name` and `name=` apart: both spell the
+     * same TS name, and a get/set pair really is two ports under one name.
+     */
+    const tsMemberClaims = new Map<string, string>();
+
     for (const [rubyFile, items] of [...byFile.entries()].sort(([a], [b]) => a.localeCompare(b))) {
       const expectedTs = rubyFileToTs(rubyFile, pkg);
       const tsMethods = tsMethodsByFile.get(expectedTs) || new Set<string>();
@@ -4441,7 +4459,10 @@ export function main() {
         _dedupeKey,
         { rubyName, rubyModule, umbrellaConfig, notes, mixinFile, definedInFile },
       ] of seen) {
-        const tsCandidates = rubyMethodToTsForFqn(rubyModule, rubyName, siblingRubyNames)!;
+        // Null once the sibling set is known (`new` beside `initialize`), so it
+        // is dropped the way `seen`'s own no-candidate gate drops one.
+        const tsCandidates = rubyMethodToTsForFqn(rubyModule, rubyName, siblingRubyNames);
+        if (tsCandidates === null) continue;
 
         // Check direct match first — find which candidate matched
         const directMatch = tsCandidates.find((c) => tsMethods.has(c));
@@ -4469,6 +4490,11 @@ export function main() {
         let declOnlyTsName = declOnly ? directMatch : undefined;
         if (directMatch && !declOnly) {
           fileMatched++;
+          const claimKey = `${expectedTs}#${directMatch}#${rubyName.endsWith("=") ? "w" : "r"}`;
+          const self = `${rubyFile}#${rubyName}`;
+          const claimant = tsMemberClaims.get(claimKey);
+          if (claimant === undefined) tsMemberClaims.set(claimKey, self);
+          const claimedByAnother = claimant !== undefined && claimant !== self;
           // A method Ruby flattened onto this host through `include` is ported
           // ONCE, in the file mirroring the mixin's own — `PostgreSQL::Quoting`
           // (`postgresql/quoting.rb:143`) into postgresql/quoting.ts — and the
@@ -4488,7 +4514,9 @@ export function main() {
             directMatch,
             expectedTs,
             rubyModule,
-            seam || writerPairedWithReader(rubyName, directMatch, siblingRubyNames),
+            seam ||
+              claimedByAnother ||
+              writerPairedWithReader(rubyName, directMatch, siblingRubyNames),
           );
           continue;
         }

@@ -70,7 +70,9 @@ describeIfSqlite("SQLite3TransactionTest", () => {
 
   it.skip("opens a `read_uncommitted` transaction", async () => {
     const conn1 = await withConn({ sharedCache: true });
-    await conn1.exec(`CREATE TABLE IF NOT EXISTS "zines" ("id" INTEGER PRIMARY KEY, "title" TEXT)`);
+    await conn1.execute(
+      `CREATE TABLE IF NOT EXISTS "zines" ("id" INTEGER PRIMARY KEY, "title" TEXT)`,
+    );
     await conn1.beginDbTransaction();
     await conn1.executeMutation(`INSERT INTO "zines" ("title") VALUES ('foo')`);
 
@@ -82,7 +84,7 @@ describeIfSqlite("SQLite3TransactionTest", () => {
 
     await conn1.rollbackDbTransaction();
     // eslint-disable-next-line blazetrails/require-table-teardown
-    await conn1.exec(`DROP TABLE IF EXISTS "zines"`);
+    await conn1.execute(`DROP TABLE IF EXISTS "zines"`);
   });
 
   it("reset the read_uncommitted PRAGMA when a transaction is rolled back", async () => {

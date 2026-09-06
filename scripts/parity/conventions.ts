@@ -1536,6 +1536,10 @@ function rubyMethodToTsWithoutUnderscore(
   siblingRubyNames?: ReadonlySet<string>,
 ): string[] | null {
   if (OPERATORS.has(name)) return null;
+  // A same-file `new` beside `initialize` (`ActionController::Renderer.new`,
+  // `renderer.rb:72`, next to `#initialize` at `:111`) WRAPS the constructor;
+  // it is a second Ruby member, not a second spelling of the same one.
+  if (name === "new" && siblingRubyNames?.has("initialize") === true) return null;
   if (name === "initialize" || name === "new") return ["constructor"];
   if (name === "to_s" || name === "to_str") return ["toString"];
   if (name === "to_json") return ["toJSON"];
@@ -1736,6 +1740,12 @@ matches the first candidate present in the target file), not a call expression.
 | \`to_sql\` | \`toSql\` | \`to_sql\` → ${example("to_sql")} |
 | \`-@\` (unary minus) | \`negate\` | \`-@\` → ${example("-@")} |
 | everything else | \`snake_case\` → \`camelCase\` | \`has_many\` → ${example("has_many")} |
+
+Constructor details: \`new\` maps to \`constructor\` only when its Ruby file does
+NOT also define \`initialize\`. A same-file \`new\` beside \`initialize\`
+(\`ActionController::Renderer.new\`, \`renderer.rb:72\`, next to \`#initialize\`
+at \`:111\`) is an ordinary singleton method that WRAPS the constructor, so it
+is a second Ruby member, not a second spelling of the same one.
 
 Predicate-form details: a predicate whose Ruby file ALSO defines the bare name
 (\`Logger#debug\` next to \`Logger#debug?\`) offers the QUOTED LITERAL spelling

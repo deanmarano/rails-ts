@@ -87,7 +87,7 @@ export function provide(
   return null;
 }
 
-export function contentForQuestion(this: CaptureHelperHost, name: string): boolean {
+export function contentForQ(this: CaptureHelperHost, name: string): boolean {
   return isPresent(this.viewFlow.get(name).toString());
 }
 

@@ -14,7 +14,7 @@ describeIfSqlite("SQLite3VirtualColumnTest trails extras", () => {
   beforeEach(async () => {
     adapter = (await Base.leaseConnection()) as unknown as SQLite3Adapter;
     await adapter.dropTable("virtual_columns", { ifExists: true });
-    await adapter.exec(
+    await adapter.execute(
       `CREATE TABLE "virtual_columns" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar, "upper_name" varchar GENERATED ALWAYS AS (UPPER(name)) STORED, "lower_name" varchar GENERATED ALWAYS AS (LOWER(name)) VIRTUAL, "column1" integer)`,
     );
     await adapter.executeMutation(

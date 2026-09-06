@@ -71,7 +71,7 @@ describe("connection checkout for directly-assigned adapters", () => {
 
   beforeEach(async () => {
     adapter = new BetterSQLite3Adapter(":memory:");
-    await adapter.exec(
+    await adapter.execute(
       "CREATE TABLE topics (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, approved INTEGER DEFAULT 0)",
     );
     const adp = adapter;
@@ -89,12 +89,12 @@ describe("connection checkout for directly-assigned adapters", () => {
   });
 
   afterEach(async () => {
-    await adapter.exec("DROP TABLE IF EXISTS topics");
+    await adapter.execute("DROP TABLE IF EXISTS topics");
     await adapter.close();
   });
 
   it("find resolves through the assigned adapter without a pool", async () => {
-    await adapter.exec("INSERT INTO topics (id, title) VALUES (42, 'Alice')");
+    await adapter.execute("INSERT INTO topics (id, title) VALUES (42, 'Alice')");
     expect((await DirectTopic.find(42)).readAttribute("title")).toBe("Alice");
     expect((await DirectTopic.findBy({ title: "Alice" }))!.id).toBe(42);
   });

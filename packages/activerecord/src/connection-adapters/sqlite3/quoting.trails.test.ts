@@ -350,8 +350,8 @@ describe("SQLite3::Quoting", () => {
 
     beforeEach(async () => {
       adapter = Base.connection as SQLite3Adapter;
-      await adapter.exec(`DROP TABLE IF EXISTS "quoting_events"`);
-      await adapter.exec(`CREATE TABLE "quoting_events" (
+      await adapter.execute(`DROP TABLE IF EXISTS "quoting_events"`);
+      await adapter.execute(`CREATE TABLE "quoting_events" (
         "id" INTEGER PRIMARY KEY AUTOINCREMENT,
         "ts"  DATETIME,
         "dt"  DATETIME,
@@ -361,7 +361,7 @@ describe("SQLite3::Quoting", () => {
     });
 
     afterEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS "quoting_events"`);
+      await adapter.execute(`DROP TABLE IF EXISTS "quoting_events"`);
     });
 
     it("Temporal.Instant with microsecond precision survives INSERT → SELECT as Instant", async () => {

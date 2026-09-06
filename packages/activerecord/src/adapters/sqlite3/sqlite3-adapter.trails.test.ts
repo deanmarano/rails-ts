@@ -22,13 +22,13 @@ describe("SqliteAdapter", () => {
   });
 
   afterEach(async () => {
-    await adapter.exec(`DROP TABLE IF EXISTS "affinities"`);
+    await adapter.execute(`DROP TABLE IF EXISTS "affinities"`);
     await pool.disconnect();
   });
 
   describe("alterTable", () => {
     it("round-trips a typeless (BLOB affinity) column", async () => {
-      await adapter.exec(
+      await adapter.execute(
         `CREATE TABLE "affinities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "untyped", "doomed" varchar)`,
       );
       await adapter.executeMutation(`INSERT INTO "affinities" ("untyped") VALUES (42)`);

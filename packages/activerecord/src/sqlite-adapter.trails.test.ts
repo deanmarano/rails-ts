@@ -213,10 +213,10 @@ describe("SQLite adapter driver binding", () => {
 
   it("completes a deferred open when the first call is a schema introspection", async () => {
     const adapter = new SQLite3Adapter(":memory:", { driver: asyncOnlyDriver });
-    await adapter.exec("CREATE TABLE schema_first (id INTEGER PRIMARY KEY, name TEXT NOT NULL)");
+    await adapter.execute("CREATE TABLE schema_first (id INTEGER PRIMARY KEY, name TEXT NOT NULL)");
     const cols = await adapter.columns("schema_first");
     expect(cols.map((c) => c.name)).toEqual(["id", "name"]);
-    await adapter.exec("DROP TABLE IF EXISTS schema_first");
+    await adapter.execute("DROP TABLE IF EXISTS schema_first");
     adapter.disconnectBang();
   });
 

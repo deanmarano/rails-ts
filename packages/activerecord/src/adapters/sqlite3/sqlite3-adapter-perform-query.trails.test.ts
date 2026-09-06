@@ -11,13 +11,12 @@ let adapter: SQLite3Adapter;
 
 beforeEach(async () => {
   adapter = new BetterSQLite3Adapter(":memory:");
-  await adapter.exec(`CREATE TABLE "pq" ("id" INTEGER PRIMARY KEY, "nick" TEXT)`);
+  await adapter.execute(`CREATE TABLE "pq" ("id" INTEGER PRIMARY KEY, "nick" TEXT)`);
 });
 
 afterEach(async () => {
-  await adapter
-    .exec(`DROP TABLE IF EXISTS "pq"; DROP TABLE IF EXISTS "pq_ddl"`)
-    .catch(() => undefined);
+  await adapter.execute(`DROP TABLE IF EXISTS "pq"`).catch(() => undefined);
+  await adapter.execute(`DROP TABLE IF EXISTS "pq_ddl"`).catch(() => undefined);
   await adapter.close();
 });
 
@@ -158,7 +157,7 @@ describeIfSqlite("SQLite3AdapterPerformQueryTest (trails)", () => {
   it("does not close the handle out from under a statement holding the lock", async () => {
     const closing = new BetterSQLite3Adapter(":memory:");
     // eslint-disable-next-line blazetrails/require-table-teardown
-    await closing.exec(`CREATE TABLE "dc" ("id" INTEGER PRIMARY KEY)`);
+    await closing.execute(`CREATE TABLE "dc" ("id" INTEGER PRIMARY KEY)`);
     const release = await acquireStatementLock(closing);
     const held = closing._statementLock;
 
@@ -179,7 +178,7 @@ describeIfSqlite("SQLite3AdapterPerformQueryTest (trails)", () => {
   it("reports itself inactive once the disconnect a caller awaited has returned", async () => {
     const closing = new BetterSQLite3Adapter(":memory:");
     // eslint-disable-next-line blazetrails/require-table-teardown
-    await closing.exec(`CREATE TABLE "dc2" ("id" INTEGER PRIMARY KEY)`);
+    await closing.execute(`CREATE TABLE "dc2" ("id" INTEGER PRIMARY KEY)`);
     const release = await acquireStatementLock(closing);
     const held = closing._statementLock;
 

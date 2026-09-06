@@ -92,14 +92,16 @@ async function rawTransactionOpen(conn: DatabaseAdapter): Promise<boolean> {
       return false;
     }
   }
-  const sqlite = conn as unknown as { exec(sql: string): Promise<void> };
+  const sqlite = conn as unknown as {
+    sqliteConnection(): Promise<{ exec(sql: string): Promise<void> }>;
+  };
   try {
-    await sqlite.exec("BEGIN");
+    await (await sqlite.sqliteConnection()).exec("BEGIN");
   } catch {
     return true;
   }
   try {
-    await sqlite.exec("ROLLBACK");
+    await (await sqlite.sqliteConnection()).exec("ROLLBACK");
   } catch {}
   return false;
 }

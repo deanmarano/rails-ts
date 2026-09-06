@@ -238,10 +238,6 @@ export function constantize(camelCasedWord: string): unknown {
   return _constants.get(path);
 }
 
-/**
- * @missingRailsCall const_regexp — PERMANENT
- * @missingRailsCall match? — PERMANENT
- */
 export function safeConstantize(camelCasedWord: string): unknown {
   try {
     return constantize(camelCasedWord);
