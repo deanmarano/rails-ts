@@ -299,8 +299,9 @@ const JS_ITERATION_CALLEE = "forEach";
  * (`ref:each ref:save`) and its `for (const x of xs) this.save(x)` port
  * (`loop ref:save`) read as the same sequence. The lowerings live in
  * {@link SKELETON_IDIOM_LOWERINGS} (enumerable-idioms.ts), beside the alias
- * table they parallel; `counterpart` is the other side's stream, which decides
- * between a row's alternative lowerings.
+ * table they parallel; `counterpart` is the other side's ALREADY-FOLDED stream,
+ * which decides between a row's alternative lowerings — folded, so a `forEach`
+ * port of the idiom's loop reads as the `loop` the row names.
  *
  * Applied where the two streams are COMPARED, never in the extractors: they
  * emit raw names by design (extract-ts-api.ts:extractSkeleton), and the Ruby↔TS
@@ -4069,13 +4070,14 @@ export function main() {
             const sets = tsSkeletonByFileName.get(tsFile)?.get(name);
             return sets?.length === 1 ? sets[0] : undefined;
           };
+          const tsFolded = foldSkeletonTokens(tsSkeletons[0], "ts");
           callSkeletons.push({
             rubyFile,
             rubyName,
             tsFile,
             tsName,
-            ruby: foldSkeletonTokens(rubySkeleton, "ruby", tsSkeletons[0]),
-            ts: foldSkeletonTokens(tsSkeletons[0], "ts"),
+            ruby: foldSkeletonTokens(rubySkeleton, "ruby", tsFolded),
+            ts: tsFolded,
             rubyHelpers: sameFileHelperSkeletons(
               rubyName,
               rubySkeleton,

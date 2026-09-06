@@ -20,11 +20,6 @@ export { _setCollectionProxyCtor } from "./associations/collection-proxy-slot.js
 
 import { ArgumentError } from "@blazetrails/activemodel";
 import { StatementCache } from "./statement-cache.js";
-import {
-  HasManyThroughAssociationNotFoundError,
-  type HasManyThroughOwnerClass,
-  type HasManyThroughReflection,
-} from "./associations/errors.js";
 import { AssociationNotFoundError } from "./associations/errors.js";
 import { AssociationScope, invokeScopeLambda } from "./associations/association-scope.js";
 import type { Association as AssociationInstance } from "./associations/association.js";
@@ -286,17 +281,6 @@ export function _cacheSingularTarget(record: Base, assocName: string, target: Ba
     return;
   }
   record._associationInstances.get(assocName)?.inversedFrom(target);
-}
-
-/** @internal */
-export function _hmtNotFound(
-  ctor: typeof Base,
-  assocName: string,
-): HasManyThroughAssociationNotFoundError {
-  return new HasManyThroughAssociationNotFoundError(
-    ctor as unknown as HasManyThroughOwnerClass,
-    ctor._reflectOnAssociation(assocName) as unknown as HasManyThroughReflection,
-  );
 }
 
 export class Associations {

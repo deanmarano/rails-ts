@@ -275,7 +275,7 @@ export const SKELETON_IDIOM_LOWERINGS = new Map<string, readonly (readonly strin
 
 /**
  * The alternative lowering of `rubyName` that `counterpart` — the OTHER side's
- * skeleton — shows, or undefined when the name has no row. An alternative is
+ * folded skeleton — shows, or undefined when the name has no row. An alternative is
  * eligible only when the counterpart carries EVERY one of its tokens, and the
  * longest eligible one wins; with none eligible the shortest alternative does.
  * Partial support is not support: crediting `loop if` against a port that shows
