@@ -6,6 +6,7 @@ import {
   DateTime,
   SEAT,
   cCivilToJd,
+  dNewByFrags,
   dfLocalToUtc,
   decodeYear,
   fToR,
@@ -865,9 +866,10 @@ export class Time {
   /**
    * `vendor/ruby/lib/time.rb:456-506` — parses `date` according to `format`.
    * Ruby's `block_given?` is the trailing `block` parameter. Ruby's
-   * `Date.strptime(date, format).to_time` has no counterpart here because
-   * trails' `Date.strptime` answers a `Temporal.PlainDate`, so `Date#to_time`'s
-   * body (`date.rb`, a local-zone `PlainDateTime`) is spelled inline.
+   * `Date.strptime(date, format)` is spelled `dNewByFrags(Date._strptime(date,
+   * format))` — RFC 0088's opt-in seam onto the gem-shaped `Date` — because
+   * `Date.strptime` answers a `Temporal.PlainDate`, from which neither
+   * `Date#to_time` nor `Date#yday` is reachable.
    */
   static strptime(
     date: string,
@@ -903,15 +905,14 @@ export class Time {
         (d.cwyear != null && year == null) ||
         ((d.cwday != null || d.cweek != null) && !(d.mon != null && d.mday != null))
       ) {
-        const plainDate = Date.strptime(date, format);
-        return Time.local(plainDate.year, plainDate.month, plainDate.day);
+        return Time.#atInstant(dNewByFrags(Date._strptime(date, format)).toTime().toInstant());
       }
       if (
         (d.wnum0 != null || d.wnum1 != null) &&
         yday == null &&
         !(d.mon != null && d.mday != null)
       ) {
-        yday = Date.strptime(date, format).dayOfYear;
+        yday = dNewByFrags(Date._strptime(date, format)).yday;
       }
       t = Time.#makeTime(
         date,

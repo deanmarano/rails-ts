@@ -75,6 +75,16 @@ class NodeSqliteStatement implements SqliteStatement, SyncSqliteStatement {
   setReadBigInts(on: boolean): void {
     this.stmt.setReadBigInts(on);
   }
+
+  private _closed = false;
+
+  get closed(): boolean {
+    return this._closed;
+  }
+
+  close(): void {
+    this._closed = true;
+  }
 }
 
 /** @internal */

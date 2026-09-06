@@ -100,7 +100,14 @@ class ExpoSqliteStatement implements SqliteStatement {
 
   setReadBigInts(_on: boolean): void {}
 
-  async finalize(): Promise<void> {
+  private _closed = false;
+
+  get closed(): boolean {
+    return this._closed;
+  }
+
+  async close(): Promise<void> {
+    this._closed = true;
     await this.stmt.finalizeAsync();
   }
 }

@@ -256,7 +256,7 @@ export async function performQuery(
     insertRowid = await rawConnection.lastInsertRowId();
   } finally {
     release();
-    if (!prepare && stmt !== null) await stmt.finalize?.();
+    if (!prepare && stmt !== null) await stmt.close();
   }
   this._lastAffectedRows = affectedRows;
   this._lastInsertRowid = insertRowid;

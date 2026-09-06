@@ -23,7 +23,8 @@ export interface SqliteStatement {
   columns(): ColumnInfo[];
   setReadBigInts(on: boolean): void;
   readonly reader: boolean;
-  finalize?(): void | Promise<void>;
+  close(): void | Promise<void>;
+  readonly closed: boolean;
 }
 
 export interface SqliteConnection {
@@ -45,7 +46,8 @@ export interface SyncSqliteStatement {
   columns(): ColumnInfo[];
   setReadBigInts(on: boolean): void;
   readonly reader: boolean;
-  finalize?(): void;
+  close(): void;
+  readonly closed: boolean;
 }
 
 export interface SyncSqliteConnection {

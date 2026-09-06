@@ -580,6 +580,12 @@ describe("Time", () => {
       expect(Time.strptime("2015-32", "%Y-%W").strftime("%Y-%m-%d")).toBe("2015-08-10");
     });
 
+    it("routes a Julian commercial date through Date#to_time's gregorian conversion", () => {
+      vi.spyOn(Temporal.Now, "timeZoneId").mockReturnValue("UTC");
+      resetLocalTimeZoneId();
+      expect(Time.strptime("1500-W09-6", "%G-W%V-%u").strftime("%Y-%m-%d")).toBe("1500-03-10");
+    });
+
     it("raises ArgumentError on an unparsable date", () => {
       expect(() => Time.strptime("bogus", "%Y")).toThrow(
         new ArgumentError("invalid date or strptime format - `bogus' `%Y'"),
