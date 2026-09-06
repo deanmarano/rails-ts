@@ -81,7 +81,7 @@ describe("ActiveRecordSchemaTest", () => {
     await adapter.executeMutation(
       `INSERT INTO "schema_test" ("title", "count") VALUES ('hello', 1)`,
     );
-    const rows = await adapter.execute(`SELECT * FROM "schema_test"`);
+    const rows = (await adapter.execute(`SELECT * FROM "schema_test"`))!;
     expect(rows.length).toBe(1);
     expect(rows[0].title).toBe("hello");
   });
@@ -137,7 +137,7 @@ describe("ActiveRecordSchemaTest", () => {
       });
     });
     await adapter.executeMutation(`INSERT INTO "multi_idx" ("email") VALUES ('test@test.com')`);
-    const rows = await adapter.execute(`SELECT * FROM "multi_idx"`);
+    const rows = (await adapter.execute(`SELECT * FROM "multi_idx"`))!;
     expect(rows.length).toBe(1);
   });
 
@@ -187,7 +187,7 @@ describe("ActiveRecordSchemaTest", () => {
     await adapter.executeMutation(
       `INSERT INTO "ts_change" ("name", "created_at", "updated_at") VALUES ('test', '2023-01-01', '2023-01-01')`,
     );
-    const rows = await adapter.execute(`SELECT * FROM "ts_change"`);
+    const rows = (await adapter.execute(`SELECT * FROM "ts_change"`))!;
     expect(rows.length).toBe(1);
     const createdAt = rows[0].created_at;
     expect(
@@ -220,7 +220,7 @@ describe("ActiveRecordSchemaTest", () => {
       await adapter.executeMutation(
         `INSERT INTO "has_timestamps" ("name", "created_at", "updated_at") VALUES ('x', '2023-01-01', '2023-01-01')`,
       );
-      const rows = await adapter.execute(`SELECT * FROM "has_timestamps"`);
+      const rows = (await adapter.execute(`SELECT * FROM "has_timestamps"`))!;
       expect(rows.length).toBe(1);
       expect(rows[0].created_at).not.toBeNull();
       expect(rows[0].updated_at).not.toBeNull();
@@ -243,7 +243,7 @@ describe("ActiveRecordSchemaTest", () => {
     m.connection = adapter;
     await m.up();
     await adapter.executeMutation(`INSERT INTO "ts_opts" ("name") VALUES ('test')`);
-    const rows = await adapter.execute(`SELECT * FROM "ts_opts"`);
+    const rows = (await adapter.execute(`SELECT * FROM "ts_opts"`))!;
     expect(rows.length).toBe(1);
     expect(rows[0].created_at).toBeNull();
     expect(rows[0].updated_at).toBeNull();
@@ -267,7 +267,7 @@ describe("ActiveRecordSchemaTest", () => {
     await adapter.executeMutation(
       `INSERT INTO "ts_add" ("name", "created_at", "updated_at") VALUES ('test', '2023-01-01', '2023-01-01')`,
     );
-    const rows = await adapter.execute(`SELECT * FROM "ts_add"`);
+    const rows = (await adapter.execute(`SELECT * FROM "ts_add"`))!;
     expect(rows.length).toBe(1);
     const createdAt = rows[0].created_at;
     expect(

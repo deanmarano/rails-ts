@@ -109,6 +109,31 @@ describe("IO", () => {
     file.close();
   });
 
+  it("read decodes the UTF-32 seats, and raises rather than leaking TextDecoder's RangeError", () => {
+    // vendor/ruby/transcode.c:2097 rb_econv_open_exc — a converter this platform lacks.
+    const dir = mkdtempSync(join(tmpdir(), "trails-io-"));
+    const utf32le = join(dir, "u32le.bin");
+    writeFileSync(
+      utf32le,
+      Uint8Array.from([0x68, 0, 0, 0, 0xe9, 0, 0, 0, 0x6c, 0, 0, 0, 0x6c, 0, 0, 0, 0x6f, 0, 0, 0]),
+    );
+    File.open(utf32le, "rb:UTF-32LE", (file) => {
+      expect(file.read()).toBe("héllo");
+    });
+
+    const utf32be = join(dir, "u32be.bin");
+    writeFileSync(utf32be, Uint8Array.from([0, 0, 0, 0x68, 0, 0, 0, 0xe9, 0, 0, 0, 0x6c]));
+    File.open(utf32be, "rb:UTF-32BE", (file) => {
+      expect(file.read()).toBe("hél");
+    });
+
+    const euctw = join(dir, "euctw.bin");
+    writeFileSync(euctw, Uint8Array.from([0xa1, 0xa1]));
+    File.open(euctw, "rb:EUC-TW", (file) => {
+      expect(() => file.read()).toThrow("code converter not found (EUC-TW to UTF-8)");
+    });
+  });
+
   it("read falls back to Encoding.default_external where the stream carries none", () => {
     // vendor/ruby/io.c:1010 io_read_encoding.
     const path = join(mkdtempSync(join(tmpdir(), "trails-io-")), "default.txt");

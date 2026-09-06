@@ -1,3 +1,4 @@
+import { rbObjRespondTo } from "@blazetrails/ruby-compat";
 import { NoMethodError } from "./attribute-assignment.js";
 import {
   underscore,
@@ -10,7 +11,6 @@ import {
 
 interface ConversionRecord {
   isPersisted(): boolean;
-  respondTo(method: string): boolean;
 }
 
 export function _toPartialPath(this: ConversionHost): string {
@@ -37,8 +37,7 @@ export class Conversion {
   }
 
   toKey(): unknown[] | null {
-    const self = this as unknown as ConversionRecord;
-    const key = self.respondTo("id") ? publicSend(this, "id") : false;
+    const key = rbObjRespondTo(this, "id") ? publicSend(this, "id") : false;
     return key != null && key !== false ? wrap(key) : null;
   }
 

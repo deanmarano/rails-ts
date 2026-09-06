@@ -672,7 +672,7 @@ export interface AbstractAdapter {
     sql: string,
     name?: string | null,
     kwargs?: { allowRetry?: boolean },
-  ): Promise<Record<string, unknown>[]>;
+  ): Promise<Record<string, unknown>[] | undefined>;
   executeMutation(sql: string, binds?: unknown[], name?: string): Promise<number>;
   withinNewTransaction<T>(
     options: { isolation?: string | null; joinable?: boolean },

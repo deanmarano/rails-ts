@@ -45,7 +45,7 @@ describe("createPooledTestAdapter (Phase B smoke)", () => {
           try {
             const pinned = await pool.checkout();
             await pinned.execute(`INSERT INTO ${tableName} (id) VALUES (1)`);
-            const inside = await pinned.execute(`SELECT count(*) AS c FROM ${tableName}`);
+            const inside = (await pinned.execute(`SELECT count(*) AS c FROM ${tableName}`))!;
             expect(Number((inside[0] as { c: number }).c)).toBe(1);
           } finally {
             const clean = await pool.unpinConnectionBang();
@@ -53,7 +53,7 @@ describe("createPooledTestAdapter (Phase B smoke)", () => {
           }
         });
 
-        const after = await setupAdapter.execute(`SELECT count(*) AS c FROM ${tableName}`);
+        const after = (await setupAdapter.execute(`SELECT count(*) AS c FROM ${tableName}`))!;
         expect(Number((after[0] as { c: number }).c)).toBe(0);
       } finally {
         await setupAdapter.execute(`DROP TABLE IF EXISTS ${tableName}`);

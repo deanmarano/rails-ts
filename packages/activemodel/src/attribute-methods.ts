@@ -1,4 +1,4 @@
-import { hasKey } from "@blazetrails/ruby-compat";
+import { basicObjRespondTo, hasKey } from "@blazetrails/ruby-compat";
 import {
   camelize,
   classAttribute,
@@ -479,17 +479,16 @@ export const InstanceMethods = {
   },
 
   isRespondToWithoutAttributes(this: object, method: string): boolean {
-    return method in (this as Record<string, unknown>);
+    return basicObjRespondTo(this, method);
   },
 
-  /** @missingRailsCall super — PERMANENT */
   respondTo(
     this: InstanceMethodsHost,
     method: string,
     includePrivateMethods: boolean = false,
   ): boolean {
     void includePrivateMethods;
-    if (this.isRespondToWithoutAttributes(method)) {
+    if (basicObjRespondTo(this, method)) {
       return true;
     } else {
       return this.matchedAttributeMethod(String(method)) !== null;

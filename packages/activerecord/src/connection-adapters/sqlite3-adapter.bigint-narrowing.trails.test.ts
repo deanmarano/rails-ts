@@ -27,7 +27,7 @@ describe("SQLite3Adapter bigint narrowing", () => {
   it("narrows spilled bigints identically through execQuery and execute", async () => {
     const sql = "SELECT id, wide, narrow FROM widgets";
     const viaExecQuery = (await adapter.execQuery(sql)).toArray()[0];
-    const viaExecute = (await adapter.execute(sql))[0];
+    const viaExecute = (await adapter.execute(sql))![0];
 
     expect(typeof viaExecQuery.narrow).toBe("number");
     expect(typeof viaExecute.narrow).toBe("number");

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, afterAll, beforeEach, afterEach, vi } from "vitest";
 import * as os from "node:os";
 import * as path from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -37,8 +37,16 @@ const dbPath = (basename: string) => path.join(dbDir, basename);
 describe("ConnectionHandlersShardingDbTest", () => {
   let baselinePools: Set<unknown>;
 
+  afterAll(() => {
+    Base.connectionHandler.removeConnectionPool("ActiveRecord::Base");
+  });
+
   beforeEach(async () => {
     dbDir = await mkdtemp(path.join(os.tmpdir(), "trails-sharding-db-"));
+    Base.connectionHandler.establishConnection(
+      new HashConfig("test", "Base", { adapter: "sqlite3", database: ":memory:" }),
+      { ownerName: "ActiveRecord::Base" },
+    );
     baselinePools = new Set(Base.connectionHandler.connectionPoolList("all"));
   });
 
@@ -324,10 +332,6 @@ describe("ConnectionHandlersShardingDbTest", () => {
   });
 
   it("retrieve connection pool with invalid shard", async () => {
-    Base.connectionHandler.establishConnection(
-      new HashConfig("test", "Base", { adapter: "sqlite3", database: dbPath("arunit.sqlite3") }),
-      { ownerName: "ActiveRecord::Base" },
-    );
     expect(Base.connectionHandler.retrieveConnectionPool("ActiveRecord::Base")).not.toBeUndefined();
     expect(
       Base.connectionHandler.retrieveConnectionPool("ActiveRecord::Base", { shard: "foo" }),

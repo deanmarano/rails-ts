@@ -37,7 +37,7 @@ describeIfSqlite("SQLite3 bigint round-trip", () => {
       BIG,
       1,
     ]);
-    const rows = await adapter.execute(`SELECT "score", "count" FROM "big_items"`);
+    const rows = (await adapter.execute(`SELECT "score", "count" FROM "big_items"`))!;
     expect(typeof rows[0].score).toBe("bigint");
     expect(rows[0].score).toBe(BIG);
   });
@@ -48,7 +48,7 @@ describeIfSqlite("SQLite3 bigint round-trip", () => {
       unsafe,
       0,
     ]);
-    const rows = await adapter.execute(`SELECT "score" FROM "big_items"`);
+    const rows = (await adapter.execute(`SELECT "score" FROM "big_items"`))!;
     expect(bigType.cast(rows[0].score)).toBe(unsafe);
   });
 
@@ -57,7 +57,7 @@ describeIfSqlite("SQLite3 bigint round-trip", () => {
       BIG,
       42,
     ]);
-    const rows = await adapter.execute(`SELECT "score", "count" FROM "big_items"`);
+    const rows = (await adapter.execute(`SELECT "score", "count" FROM "big_items"`))!;
     expect(intType.cast(rows[0].count)).toBe(42);
   });
 
@@ -70,7 +70,7 @@ describeIfSqlite("SQLite3 bigint round-trip", () => {
       BIG,
       1,
     ]);
-    const rows = await adapter.execute(`SELECT "active" FROM "big_items" ORDER BY "id"`);
+    const rows = (await adapter.execute(`SELECT "active" FROM "big_items" ORDER BY "id"`))!;
     expect(boolType.cast(rows[0].active)).toBe(false);
     expect(boolType.cast(rows[1].active)).toBe(true);
   });
@@ -81,7 +81,7 @@ describeIfSqlite("SQLite3 bigint round-trip", () => {
       0,
     ]);
     await adapter.executeMutation(`UPDATE "big_items" SET "score" = ?`, [BIG + 1n]);
-    const rows = await adapter.execute(`SELECT "score" FROM "big_items"`);
+    const rows = (await adapter.execute(`SELECT "score" FROM "big_items"`))!;
     expect(bigType.cast(rows[0].score)).toBe(BIG + 1n);
   });
 });

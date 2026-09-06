@@ -76,7 +76,7 @@ describeIfSqlite("SQLite3TransactionTest", () => {
 
     const conn2 = await withConn({ sharedCache: true });
     await conn2.beginIsolatedDbTransaction(":read_uncommitted");
-    const rows = await conn2.execute(`SELECT * FROM "zines" WHERE title = 'foo'`);
+    const rows = (await conn2.execute(`SELECT * FROM "zines" WHERE title = 'foo'`))!;
     expect(rows.length).toBeGreaterThan(0);
     await conn2.rollbackDbTransaction();
 

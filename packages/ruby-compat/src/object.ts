@@ -34,6 +34,41 @@ function hasEpochNanoseconds(value: unknown): value is { epochNanoseconds: bigin
 }
 
 /**
+ * `basic_obj_respond_to` (`vendor/ruby/vm_method.c:2864`) — the default
+ * `Object#respond_to?`, which answers whether the receiver's class defines the
+ * method. A JS object answers a name whether it carries a method or a
+ * property, so `in` is the whole `method_boundp` here; `respond_to_missing?`
+ * has no JS analogue and `method_boundp` never reports the `2` (undefined
+ * method) case for one.
+ *
+ * @noRailsEquivalent PERMANENT — Ruby core `basic_obj_respond_to`
+ * (`vendor/ruby/vm_method.c:2864`).
+ */
+export function basicObjRespondTo(obj: unknown, mid: string): boolean {
+  if (obj == null) return false;
+  return mid in Object(obj);
+}
+
+/**
+ * `rb_obj_respond_to` (`vendor/ruby/vm_method.c:2934`) — the SEND of
+ * `respond_to?`, which `vm_respond_to` (`vm_method.c:2882`) routes through an
+ * overridden `respond_to?` when the receiver's class defines one (as
+ * `ActiveModel::AttributeMethods` does) and otherwise falls back to
+ * {@link basicObjRespondTo} (`vm_method.c:2945`).
+ *
+ * @noRailsEquivalent PERMANENT — Ruby core `rb_obj_respond_to`
+ * (`vendor/ruby/vm_method.c:2934`).
+ */
+export function rbObjRespondTo(obj: unknown, mid: string, priv: boolean = false): boolean {
+  if (obj == null) return false;
+  const respondTo = (Object(obj) as { respondTo?: unknown }).respondTo;
+  if (typeof respondTo === "function") {
+    return (respondTo as (mid: string, priv: boolean) => boolean).call(obj, mid, priv) === true;
+  }
+  return basicObjRespondTo(obj, mid);
+}
+
+/**
  * `rb_builtin_class_name` (`vendor/ruby/error.c:1216`), which the conversion
  * errors name their operand by: `builtin_class_name` (`error.c:1189`) answers
  * the LOWERCASE `"nil"` / `"true"` / `"false"` for those three immediates —

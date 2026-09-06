@@ -30,7 +30,7 @@ describe("SQLite3Adapter transaction control", () => {
       await adapter.executeMutation("INSERT INTO items (name) VALUES ('apple')");
       await adapter.commitDbTransaction();
 
-      const rows = await adapter.execute("SELECT name FROM items");
+      const rows = (await adapter.execute("SELECT name FROM items"))!;
       expect(rows.map((r: any) => r.name)).toEqual(["apple"]);
     });
   });
@@ -41,7 +41,7 @@ describe("SQLite3Adapter transaction control", () => {
       await adapter.executeMutation("INSERT INTO items (name) VALUES ('deferred')");
       await adapter.commitDbTransaction();
 
-      const rows = await adapter.execute("SELECT name FROM items");
+      const rows = (await adapter.execute("SELECT name FROM items"))!;
       expect(rows.map((r: any) => r.name)).toEqual(["deferred"]);
     });
   });
@@ -52,7 +52,7 @@ describe("SQLite3Adapter transaction control", () => {
       await adapter.executeMutation("INSERT INTO items (name) VALUES ('banana')");
       await adapter.rollbackDbTransaction();
 
-      const rows = await adapter.execute("SELECT name FROM items");
+      const rows = (await adapter.execute("SELECT name FROM items"))!;
       expect(rows).toHaveLength(0);
     });
   });
@@ -66,7 +66,7 @@ describe("SQLite3Adapter transaction control", () => {
       await adapter.releaseSavepoint("sp1");
       await adapter.commitDbTransaction();
 
-      const rows = await adapter.execute("SELECT name FROM items ORDER BY id");
+      const rows = (await adapter.execute("SELECT name FROM items ORDER BY id"))!;
       expect(rows.map((r: any) => r.name)).toEqual(["outer", "inner"]);
     });
 
@@ -78,7 +78,7 @@ describe("SQLite3Adapter transaction control", () => {
       await adapter.rollbackToSavepoint("sp1");
       await adapter.commitDbTransaction();
 
-      const rows = await adapter.execute("SELECT name FROM items ORDER BY id");
+      const rows = (await adapter.execute("SELECT name FROM items ORDER BY id"))!;
       expect(rows.map((r: any) => r.name)).toEqual(["outer"]);
     });
 
@@ -92,7 +92,7 @@ describe("SQLite3Adapter transaction control", () => {
       await adapter.releaseSavepoint("sp1");
       await adapter.commitDbTransaction();
 
-      const rows = await adapter.execute("SELECT name FROM items ORDER BY id");
+      const rows = (await adapter.execute("SELECT name FROM items ORDER BY id"))!;
       expect(rows.map((r: any) => r.name)).toEqual(["a"]);
     });
   });
@@ -116,7 +116,7 @@ describe("SQLite3Adapter transaction control", () => {
       await adapter.rollbackToSavepoint("sp1");
       await adapter.commitDbTransaction();
 
-      const rows = await adapter.execute("SELECT name FROM items ORDER BY id");
+      const rows = (await adapter.execute("SELECT name FROM items ORDER BY id"))!;
       expect(rows.map((r: any) => r.name)).toEqual(["dup", "safe"]);
     });
   });
@@ -146,12 +146,12 @@ describe("SQLite3Adapter transaction control", () => {
         await adapter.beginDbTransaction();
         await adapter.executeMutation("INSERT INTO items (name) VALUES ('secret')");
 
-        const beforeCommit = await reader.execute("SELECT name FROM items");
+        const beforeCommit = (await reader.execute("SELECT name FROM items"))!;
         expect(beforeCommit).toHaveLength(0);
 
         await adapter.commitDbTransaction();
 
-        const afterCommit = await reader.execute("SELECT name FROM items");
+        const afterCommit = (await reader.execute("SELECT name FROM items"))!;
         expect(afterCommit.map((r: any) => r.name)).toEqual(["secret"]);
       } finally {
         await reader.close();
