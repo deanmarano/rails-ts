@@ -1,4 +1,4 @@
-import { kernelFloat, rbEqual } from "@blazetrails/ruby-compat";
+import { ArgumentError, kernelFloat, rbEqual } from "@blazetrails/ruby-compat";
 import { ValueType } from "@blazetrails/activemodel";
 import { isBlank, isPlainObject } from "@blazetrails/activesupport";
 
@@ -42,6 +42,9 @@ export class Point extends ValueType {
       return this.buildPoint(x, y);
     }
     if (globalThis.Array.isArray(value)) {
+      if (value.length !== 2) {
+        throw new ArgumentError(`wrong number of arguments (given ${value.length}, expected 2)`);
+      }
       return this.buildPoint(value[0], value[1]);
     }
     if (isPlainObject(value)) {
@@ -58,6 +61,9 @@ export class Point extends ValueType {
       return `(${this.numberForPoint(value.x)},${this.numberForPoint(value.y)})`;
     }
     if (globalThis.Array.isArray(value)) {
+      if (value.length !== 2) {
+        throw new ArgumentError(`wrong number of arguments (given ${value.length}, expected 2)`);
+      }
       return this.serialize(this.buildPoint(value[0], value[1]));
     }
     if (isPlainObject(value)) {
