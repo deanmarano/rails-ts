@@ -127,6 +127,12 @@ describe("IO", () => {
       expect(file.read()).toBe("hél");
     });
 
+    const bad = join(dir, "u32bad.bin");
+    writeFileSync(bad, Uint8Array.from([0x68, 0, 0, 0, 0, 0, 0x11, 0]));
+    File.open(bad, "rb:UTF-32LE", (file) => {
+      expect(file.read()).toBe("h\ufffd");
+    });
+
     const euctw = join(dir, "euctw.bin");
     writeFileSync(euctw, Uint8Array.from([0xa1, 0xa1]));
     File.open(euctw, "rb:EUC-TW", (file) => {

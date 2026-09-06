@@ -135,13 +135,17 @@ function ioEncStr(bytes: Uint8Array, length: number, enc: Encoding): string {
  * The `UTF-32BE` / `UTF-32LE` decode `TextDecoder` has no label for: four
  * bytes per code point (`vendor/ruby/enc/utf_32le.c:44` `utf32le_mbc_to_code`,
  * `enc/utf_32be.c:43`), which is a small enough transcode to carry rather
- * than raising where MRI reads.
+ * than raising where MRI reads. A code point outside Unicode takes the
+ * replacement character its sibling arm's `TextDecoder` substitutes for
+ * malformed input, rather than `String.fromCodePoint`'s own `RangeError`.
  */
 function utf32Str(bytes: Uint8Array, littleEndian: boolean): string {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let string = "";
   for (let at = 0; at + 4 <= view.byteLength; at += 4) {
-    string += String.fromCodePoint(view.getUint32(at, littleEndian));
+    const code = view.getUint32(at, littleEndian);
+    const valid = code <= 0x10ffff && (code < 0xd800 || code > 0xdfff);
+    string += valid ? String.fromCodePoint(code) : "\ufffd";
   }
   return string;
 }
