@@ -101,3 +101,55 @@ describe("BigDecimal#equals", () => {
     expect(new BigDecimal("1.0").equals("1.0")).toBe(false);
   });
 });
+
+describe("BigDecimal#round", () => {
+  it("truncates to a signed zero when the rounding position is left of the value", () => {
+    const cases: [string, number, string, string][] = [
+      ["0.5", -1, ":up", "0.0"],
+      ["0.5", -1, ":down", "0.0"],
+      ["0.5", -1, ":half_up", "0.0"],
+      ["0.5", -1, ":half_even", "0.0"],
+      ["0.05", -2, ":up", "0.0"],
+      ["0.0001", -3, ":up", "0.0"],
+      ["0.9999", -1, ":up", "0.0"],
+      ["-0.5", -1, ":up", "-0.0"],
+      ["-0.5", -1, ":ceiling", "-0.0"],
+      ["-1.2345", -3, ":half_up", "-0.0"],
+      ["-1.2345", -3, ":ceiling", "-0.0"],
+      ["-99.99", -3, ":half_up", "-0.0"],
+    ];
+    for (const [value, n, mode, expected] of cases) {
+      expect([value, n, mode, new BigDecimal(value).round(n, mode).toString("F")]).toEqual([
+        value,
+        n,
+        mode,
+        expected,
+      ]);
+    }
+  });
+
+  it("carries past the value for ceiling and floor, and for a position inside the digit block", () => {
+    const cases: [string, number, string, string][] = [
+      ["0.5", -1, ":ceiling", "10.0"],
+      ["0.05", -2, ":ceiling", "100.0"],
+      ["0.0001", -3, ":ceiling", "1000.0"],
+      ["-0.5", -1, ":floor", "-10.0"],
+      ["-1.2345", -3, ":floor", "-1000.0"],
+      ["0.05", 0, ":up", "1.0"],
+      ["0.005", 0, ":up", "1.0"],
+      ["5", -2, ":up", "100.0"],
+      ["5", -4, ":up", "10000.0"],
+      ["5", -2, ":half_up", "0.0"],
+      ["1.2345", -2, ":up", "100.0"],
+      ["500", -1, ":half_up", "500.0"],
+    ];
+    for (const [value, n, mode, expected] of cases) {
+      expect([value, n, mode, new BigDecimal(value).round(n, mode).toString("F")]).toEqual([
+        value,
+        n,
+        mode,
+        expected,
+      ]);
+    }
+  });
+});

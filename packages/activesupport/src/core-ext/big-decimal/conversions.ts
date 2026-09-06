@@ -1,5 +1,7 @@
 import { FloatDomainError } from "@blazetrails/ruby-compat";
 
+const BASE_FIG = 9;
+
 const NON_FINITE_REGEX = /^\s*(?:(NaN)|([+-]?)Infinity)\s*$/;
 
 type RationalLike = { numerator: bigint; denominator: bigint };
@@ -179,19 +181,23 @@ export class BigDecimal {
   round(n = 0, mode = ":default"): BigDecimal {
     if (this.nonFinite !== null) return this;
     if (n >= this.scale()) return this;
-    const keepCount = this.exp + n;
-    const kept = keepCount > 0 ? this.digits.slice(0, keepCount) : "";
-    const rest =
-      keepCount > 0
-        ? this.digits.slice(keepCount)
-        : keepCount === 0
-          ? this.digits
-          : `0${this.digits}`;
+    const negative = this.sign === "-";
+    const f = mode.replace(/^:/, "");
+    const exponent = Math.ceil(this.exp / BASE_FIG);
+    const frac = "0".repeat(exponent * BASE_FIG - this.exp) + this.digits;
+    let nf = n + exponent * BASE_FIG;
+    if (nf < 0) {
+      if (f !== "ceiling" && f !== "ceil" && f !== "floor") {
+        return BigDecimal.fromUnscaled(0n, 0, negative);
+      }
+      nf = 0;
+    }
+    const kept = frac.padEnd(nf, "0").slice(0, nf);
+    const rest = frac.slice(nf);
     let value = BigInt(kept === "" ? "0" : kept);
-    if (keepCount > this.digits.length) value *= 10n ** BigInt(keepCount - this.digits.length);
-    if (roundsAway(rest, kept, this.sign === "-", mode)) value += 1n;
+    if (roundsAway(rest, kept, negative, mode)) value += 1n;
     if (n < 0) value *= 10n ** BigInt(-n);
-    return BigDecimal.fromUnscaled(this.sign === "-" ? -value : value, Math.max(n, 0));
+    return BigDecimal.fromUnscaled(negative ? -value : value, Math.max(n, 0), negative);
   }
 
   /** @noRailsEquivalent PERMANENT */
@@ -211,8 +217,7 @@ export class BigDecimal {
     return Math.max(this.digits.length - this.exp, 0);
   }
 
-  private static fromUnscaled(value: bigint, scale: number): BigDecimal {
-    const negative = value < 0n;
+  private static fromUnscaled(value: bigint, scale: number, negative = value < 0n): BigDecimal {
     const digits = (negative ? -value : value).toString().padStart(scale + 1, "0");
     const intPart = digits.slice(0, digits.length - scale);
     const fracPart = scale > 0 ? digits.slice(digits.length - scale) : "0";
@@ -316,7 +321,7 @@ function parseRational(value: RationalLike, ndigits: number): Parsed | null {
   }
   const scaled = ((n * 10n ** BigInt(fracNeeded)) / d).toString();
   const digits = scaled === "0" ? "" : scaled.replace(/0+$/, "");
-  if (digits === "") return { sign: "", digits: "", exp: 0, nonFinite: null };
+  if (digits === "") return { sign, digits: "", exp: 0, nonFinite: null };
   return { sign, digits, exp: scaled.length - fracNeeded, nonFinite: null };
 }
 
@@ -376,7 +381,7 @@ function parse(value: string | number | bigint): Parsed | null {
   const all = intPart + fracPart;
   const stripped = all.replace(/^0+/, "");
   const digits = stripped.replace(/0+$/, "");
-  if (digits === "") return { sign: "", digits: "", exp: 0, nonFinite: null };
+  if (digits === "") return { sign, digits: "", exp: 0, nonFinite: null };
   const exp = intPart.length - (all.length - stripped.length) + (m[3] ? Number(m[3]) : 0);
   return { sign, digits, exp, nonFinite: null };
 }

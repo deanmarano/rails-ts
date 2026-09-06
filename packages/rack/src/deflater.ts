@@ -3,7 +3,12 @@ import { Time } from "@blazetrails/date";
 import { BodyProxy } from "./body-proxy.js";
 import { Request } from "./request.js";
 import * as Utils from "./utils.js";
-import { CONTENT_TYPE, CONTENT_LENGTH, STATUS_WITH_NO_ENTITY_BODY } from "./constants.js";
+import {
+  CACHE_CONTROL,
+  CONTENT_TYPE,
+  CONTENT_LENGTH,
+  STATUS_WITH_NO_ENTITY_BODY,
+} from "./constants.js";
 
 export interface DeflaterOptions {
   include?: string[];
@@ -18,7 +23,7 @@ export interface DeflaterOptions {
 
 export class Deflater {
   private app: any;
-  private include: string[] | null;
+  private compressibleTypes: string[] | null;
   private condition:
     | ((
         env: Record<string, any>,
@@ -31,7 +36,7 @@ export class Deflater {
 
   constructor(app: any, options: DeflaterOptions = {}) {
     this.app = app;
-    this.include = options.include || null;
+    this.compressibleTypes = options.include || null;
     this.condition = options.if || null;
     this.sync = options.sync !== undefined ? options.sync : true;
   }
@@ -86,15 +91,22 @@ export class Deflater {
     headers: Record<string, any>,
     body: any,
   ): boolean {
-    if (hasKey(STATUS_WITH_NO_ENTITY_BODY, status)) return false;
-    const cc = headers["cache-control"] || "";
-    if (/\bno-transform\b/.test(cc)) return false;
-    const ce = headers["content-encoding"];
-    if (ce && !/\bidentity\b/.test(ce)) return false;
-    if (this.include) {
-      if (!hasKey(headers, CONTENT_TYPE)) return false;
-      const mediaType = (headers[CONTENT_TYPE] || "").split(";")[0].trim();
-      if (!this.include.includes(mediaType)) return false;
+    if (
+      hasKey(STATUS_WITH_NO_ENTITY_BODY, status) ||
+      /\bno-transform\b/.test(String(headers[CACHE_CONTROL] ?? "")) ||
+      (headers["content-encoding"] != null && !/\bidentity\b/.test(headers["content-encoding"]))
+    ) {
+      return false;
+    }
+
+    if (
+      this.compressibleTypes &&
+      !(
+        hasKey(headers, CONTENT_TYPE) &&
+        this.compressibleTypes.includes(/[^;]*/.exec(headers[CONTENT_TYPE])![0])
+      )
+    ) {
+      return false;
     }
     if (this.condition && !this.condition.call(undefined, env, status, headers, body)) return false;
     if (headers[CONTENT_LENGTH] === "0") return false;
