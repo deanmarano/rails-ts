@@ -9,8 +9,10 @@ import {
 } from "./constants.js";
 import { include } from "@blazetrails/ruby-compat";
 import { BadRequest } from "./bad-request.js";
+import { MULTIPART_BOUNDARY } from "./multipart-boundary.js";
 import type { QueryParser } from "./query-parser.js";
 
+export { MULTIPART_BOUNDARY } from "./multipart-boundary.js";
 export { UploadedFile } from "./multipart/uploaded-file.js";
 import {
   MultipartPartLimitError,
@@ -26,8 +28,6 @@ export {
   BoundaryTooLongError,
   EmptyContentError,
 } from "./multipart/parser.js";
-
-export const MULTIPART_BOUNDARY = "AaB03x";
 
 export interface UploadedFileInfo {
   filename: string;
