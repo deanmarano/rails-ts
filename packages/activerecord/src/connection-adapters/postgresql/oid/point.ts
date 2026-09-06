@@ -1,6 +1,6 @@
 import { kernelFloat, rbEqual } from "@blazetrails/ruby-compat";
 import { ValueType } from "@blazetrails/activemodel";
-import { isBlank } from "@blazetrails/activesupport";
+import { isBlank, isPlainObject } from "@blazetrails/activesupport";
 
 /** @noRailsEquivalent PERMANENT */
 export class PointValue {
@@ -32,7 +32,6 @@ export class Point extends ValueType {
   }
 
   cast(value: unknown): unknown {
-    if (value instanceof PointValue) return value;
     if (typeof value === "string") {
       if (isBlank(value)) return null;
 
@@ -45,10 +44,10 @@ export class Point extends ValueType {
     if (globalThis.Array.isArray(value)) {
       return this.buildPoint(value[0], value[1]);
     }
-    if (typeof value === "object" && value !== null) {
+    if (isPlainObject(value)) {
       if (isBlank(value)) return null;
 
-      const [x, y] = valuesArrayFromHash(value as Record<string, unknown>);
+      const [x, y] = valuesArrayFromHash(value);
       return this.buildPoint(x, y);
     }
     return value;
@@ -61,8 +60,8 @@ export class Point extends ValueType {
     if (globalThis.Array.isArray(value)) {
       return this.serialize(this.buildPoint(value[0], value[1]));
     }
-    if (typeof value === "object" && value !== null) {
-      const [x, y] = valuesArrayFromHash(value as Record<string, unknown>);
+    if (isPlainObject(value)) {
+      const [x, y] = valuesArrayFromHash(value);
       return this.serialize(this.buildPoint(x, y));
     }
     return super.serialize(value);
