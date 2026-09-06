@@ -72,13 +72,8 @@ export class Trailtie extends BaseTrailtie {
         ActionController.setApplicationHelpers(names, await helperConstants(helpersPaths));
 
         onLoad("action_controller", (base: unknown) => {
-          const klass = base as ActionController.HelpersPathControllerClass;
-          klass.helpersPath = ActionController.helpersPath();
-
-          /** @noRailsEquivalent CONVERGEABLE port-action-controller-helpers-and-the-inherited-hook */
-          if (klass.includeAllHelpers) {
-            AbstractController.helper(klass, ...ActionController.modulesForHelpers(["all"]));
-          }
+          (base as ActionController.HelpersPathControllerClass).helpersPath =
+            ActionController.helpersPath();
         });
       },
     );

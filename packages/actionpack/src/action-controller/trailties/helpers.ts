@@ -6,6 +6,29 @@ export interface HelpersPathControllerClass extends HelpersClassMethods {
   includeAllHelpers?: boolean;
 }
 
+const fired = new WeakSet<object>();
+
+/** @noRailsEquivalent CONVERGEABLE port-action-controller-helpers-and-the-inherited-hook */
+export function fireInherited(
+  klass: HelpersPathControllerClass,
+  base: HelpersPathControllerClass,
+): void {
+  const chain: HelpersPathControllerClass[] = [];
+  for (
+    let k: HelpersPathControllerClass | null = klass;
+    k && k !== base;
+    k = Object.getPrototypeOf(k) as HelpersPathControllerClass | null
+  ) {
+    chain.unshift(k);
+  }
+
+  for (const k of chain) {
+    if (fired.has(k)) continue;
+    fired.add(k);
+    inherited(k, base);
+  }
+}
+
 export function inherited(
   klass: HelpersPathControllerClass,
   base: HelpersPathControllerClass,

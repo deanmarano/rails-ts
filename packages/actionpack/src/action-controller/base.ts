@@ -5,6 +5,7 @@ import { Metal } from "./metal.js";
 import { FlashHash } from "../action-dispatch/middleware/flash.js";
 import { RequestForgeryProtection } from "../action-dispatch/request-forgery-protection.js";
 import { Collector } from "./metal/mime-responds.js";
+import { fireInherited, type HelpersPathControllerClass } from "./trailties/helpers.js";
 import { MissingFile, UnknownFormat } from "./metal/exceptions.js";
 import { defaultRender } from "./metal/implicit-render.js";
 import type {
@@ -191,6 +192,14 @@ export class Base extends Metal {
 
   static helpersPath: string[] = [];
   static includeAllHelpers = true;
+
+  constructor(...args: unknown[]) {
+    super(...(args as []));
+    fireInherited(
+      new.target as unknown as HelpersPathControllerClass,
+      Base as unknown as HelpersPathControllerClass,
+    );
+  }
 
   static inheritViewContextClassQ = inheritViewContextClassQ;
   static buildViewContextClass = buildViewContextClass;

@@ -39,6 +39,7 @@ export async function loadApplicationHelperNames(): Promise<string[]> {
   return _applicationHelpers;
 }
 
+/** @internal */
 function allApplicationHelpers(): string[] {
   return _applicationHelpers;
 }
