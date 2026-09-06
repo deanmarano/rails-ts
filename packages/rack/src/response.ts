@@ -244,7 +244,11 @@ export class Response {
   private _block: ((self: Response) => void) | null;
   private _writer: (chunk: string) => string;
 
-  constructor(body: any = null, status: number = 200, headers: Record<string, string> = {}) {
+  constructor(
+    body: any = null,
+    status: number = 200,
+    headers: Record<string, string | string[]> = {},
+  ) {
     this.status = typeof status === "number" ? status : parseInt(String(status));
     this.headers = {};
     for (const [k, v] of Object.entries(headers)) {
@@ -280,7 +284,7 @@ export class Response {
     this._body = value;
   }
 
-  static create(status: number, headers: Record<string, string>, body: any): Response {
+  static create(status: number, headers: Record<string, string | string[]>, body: any): Response {
     return new Response(body, status, headers);
   }
 

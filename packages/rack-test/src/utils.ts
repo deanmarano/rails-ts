@@ -1,13 +1,8 @@
 import { defineModule, include, isPlainObject } from "@blazetrails/activesupport";
-import { escape, escapePath, unescape, Params } from "@blazetrails/rack";
+import { escape, escapePath, unescape } from "@blazetrails/rack";
 import { ArgumentError, Encoding, StringIO, b } from "@blazetrails/ruby-compat";
 import { UploadedFile } from "./uploaded-file.js";
 import { END_BOUNDARY, START_BOUNDARY, Session } from "./test.js";
-
-/** @noRailsEquivalent PERMANENT */
-function isHash(value: unknown): value is Record<string, unknown> {
-  return isPlainObject(value) || value instanceof Params;
-}
 
 function buildNestedQuery(value: unknown, prefix: string | null = null): string {
   if (Array.isArray(value)) {
@@ -17,7 +12,7 @@ function buildNestedQuery(value: unknown, prefix: string | null = null): string 
       if (!unescape(prefix!).endsWith("[]")) prefix = `${prefix}[]`;
       return value.map((v) => buildNestedQuery(v, String(prefix))).join("&");
     }
-  } else if (isHash(value)) {
+  } else if (isPlainObject(value)) {
     return Object.entries(value)
       .map(([k, v]) => buildNestedQuery(v, prefix != null ? `${prefix}[${escape(k)}]` : escape(k)))
       .join("&");
@@ -33,13 +28,13 @@ function buildMultipart(
   _first: boolean = true,
   multipart: boolean = false,
 ): string | null {
-  if (!isHash(params)) throw new ArgumentError("value must be a Hash");
+  if (!isPlainObject(params)) throw new ArgumentError("value must be a Hash");
 
   if (!multipart) {
     const query = (value: unknown): void => {
       if (Array.isArray(value)) {
         value.forEach(query);
-      } else if (isHash(value)) {
+      } else if (isPlainObject(value)) {
         Object.values(value).forEach(query);
       } else if (value instanceof UploadedFile) {
         multipart = true;
@@ -67,7 +62,7 @@ function normalizeMultipartParams(
 
     if (Array.isArray(value)) {
       value.map((v) => {
-        if (isHash(v)) {
+        if (isPlainObject(v)) {
           const nestedParams: Record<string, unknown> = {};
           for (const [subkey, subvalue] of Object.entries(normalizeMultipartParams(v))) {
             nestedParams[subkey] = subvalue;
@@ -77,7 +72,7 @@ function normalizeMultipartParams(
           flattenedParams[`${k}[]`] = value;
         }
       });
-    } else if (isHash(value)) {
+    } else if (isPlainObject(value)) {
       for (const [subkey, subvalue] of Object.entries(normalizeMultipartParams(value))) {
         flattenedParams[k + subkey] = subvalue;
       }
@@ -96,7 +91,7 @@ function buildParts(buffer: StringIO, parameters: Record<string, unknown>): void
 
 function _buildParts(buffer: StringIO, parameters: Record<string, unknown>): void {
   Object.entries(parameters).map(([name, value]) => {
-    if (/\[\]\n?$/.test(name) && Array.isArray(value) && value.every((v) => isHash(v))) {
+    if (/\[\]\n?$/.test(name) && Array.isArray(value) && value.every((v) => isPlainObject(v))) {
       value.forEach((hash) => {
         const newValue: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(hash)) newValue[name + k] = v;
