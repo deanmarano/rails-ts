@@ -2,6 +2,7 @@ import { Encoding } from "./encoding.js";
 import { getFs, type FsStatResult } from "./fs-adapter.js";
 import { EOFError } from "./eof-error.js";
 import { IOError } from "./io-error.js";
+import { ArgumentError } from "./argument-error.js";
 
 /** The `rb_exec_recursive` guard `io_puts_ary` (`vendor/ruby/io.c:8880`) is called through. */
 const putsAryInFlight = new Set<unknown[]>();
@@ -144,6 +145,143 @@ function doWriteconv(string: string, enc: Encoding | null): Uint8Array {
   return enc === Encoding.ASCII_8BIT ? binaryBytes(string) : new TextEncoder().encode(string);
 }
 
+/** `FMODE_READABLE` (`vendor/ruby/include/ruby/io.h:270`). */
+const FMODE_READABLE = 0x00000001;
+
+/** `FMODE_WRITABLE` (`vendor/ruby/include/ruby/io.h:273`). */
+const FMODE_WRITABLE = 0x00000002;
+
+/** `FMODE_READWRITE` (`vendor/ruby/include/ruby/io.h:276`). */
+const FMODE_READWRITE = FMODE_READABLE | FMODE_WRITABLE;
+
+/** `FMODE_BINMODE` (`vendor/ruby/include/ruby/io.h:287`). */
+const FMODE_BINMODE = 0x00000004;
+
+/** `FMODE_APPEND` (`vendor/ruby/include/ruby/io.h:315`). */
+const FMODE_APPEND = 0x00000040;
+
+/** `FMODE_CREATE` (`vendor/ruby/include/ruby/io.h:323`). */
+const FMODE_CREATE = 0x00000080;
+
+/** `FMODE_EXCL` (`vendor/ruby/include/ruby/io.h:331`). */
+const FMODE_EXCL = 0x00000400;
+
+/** `FMODE_TRUNC` (`vendor/ruby/include/ruby/io.h:337`). */
+const FMODE_TRUNC = 0x00000800;
+
+/** `FMODE_TEXTMODE` (`vendor/ruby/include/ruby/io.h:351`). */
+const FMODE_TEXTMODE = 0x00001000;
+
+/**
+ * `rb_io_modestr_fmode` (`vendor/ruby/io.c:6443`) — the `FMODE_*` flags a mode
+ * string names, which `rb_io_extract_modeenc` (`io.c:6881`) records on the
+ * stream as `fptr->mode`.
+ *
+ * The `:` arm stops at the encoding half without `io_encname_bom_p`'s
+ * `FMODE_SETENC_BY_BOM` (`io.c:6480-6483`): no member of this partial `rb_io_t`
+ * reads that flag, and `File.open` splits the encoding half off before it gets
+ * here, so detecting a BOM would add a code path nothing enters.
+ */
+function rbIoModestrFmode(modestr: string): number {
+  let fmode = 0;
+  let m = 0;
+  switch (modestr[m++]) {
+    case "r":
+      fmode |= FMODE_READABLE;
+      break;
+    case "w":
+      fmode |= FMODE_WRITABLE | FMODE_TRUNC | FMODE_CREATE;
+      break;
+    case "a":
+      fmode |= FMODE_WRITABLE | FMODE_APPEND | FMODE_CREATE;
+      break;
+    default:
+      throw new ArgumentError(`invalid access mode ${modestr}`);
+  }
+
+  while (m < modestr.length) {
+    const c = modestr[m++];
+    if (c === ":") break;
+    switch (c) {
+      case "b":
+        fmode |= FMODE_BINMODE;
+        break;
+      case "t":
+        fmode |= FMODE_TEXTMODE;
+        break;
+      case "+":
+        fmode |= FMODE_READWRITE;
+        break;
+      case "x":
+        if (modestr[0] !== "w") throw new ArgumentError(`invalid access mode ${modestr}`);
+        fmode |= FMODE_EXCL;
+        break;
+      default:
+        throw new ArgumentError(`invalid access mode ${modestr}`);
+    }
+  }
+
+  if (fmode & FMODE_BINMODE && fmode & FMODE_TEXTMODE) {
+    throw new ArgumentError(`invalid access mode ${modestr}`);
+  }
+
+  return fmode;
+}
+
+/**
+ * `rb_io_ext_int_to_encs` (`vendor/ruby/io.c:6604`) — the pair of encodings a
+ * stream records, given an external and an internal one. `enc` is the INTERNAL
+ * of a transcoding pair and `enc2` the external, which is why
+ * {@link IO#externalEncoding} answers `enc2` first.
+ *
+ * Ruby distinguishes `NULL` (no encoding given, so fall back to a default) from
+ * `Qnil` (one was given and it means "no transcoding"); `undefined` is the
+ * former here and `null` the latter.
+ */
+function rbIoExtIntToEncs(
+  ext: Encoding | null | undefined,
+  intern: Encoding | null | undefined,
+): { enc: Encoding | null; enc2: Encoding | null } {
+  let defaultExt = false;
+  if (ext == null) {
+    ext = Encoding.defaultExternal;
+    defaultExt = true;
+  }
+  if (ext === Encoding.ASCII_8BIT) {
+    intern = undefined;
+  } else if (intern === undefined) {
+    intern = Encoding.defaultInternal;
+  }
+  if (intern == null || intern === ext) {
+    return { enc: defaultExt && intern !== ext ? null : ext, enc2: null };
+  }
+  return { enc: intern, enc2: ext };
+}
+
+/**
+ * `parse_mode_enc` (`vendor/ruby/io.c:6786`), which reads one string as `"enc"`,
+ * `"enc2:enc"` or `"enc:-"` — the form both a mode string's encoding half and
+ * `IO#set_encoding`'s one-argument String take.
+ */
+function parseModeEnc(estr: string): { enc: Encoding | null; enc2: Encoding | null } {
+  const p = estr.lastIndexOf(":");
+  const len = p === -1 ? estr.length : p;
+  const ext = len === 0 ? undefined : Encoding.find(estr.slice(0, len));
+
+  let intern: Encoding | null | undefined;
+  if (p !== -1) {
+    const name = estr.slice(p + 1);
+    if (name === "-") {
+      intern = null;
+    } else {
+      const idx2 = Encoding.find(name);
+      intern = idx2 === ext ? null : idx2;
+    }
+  }
+
+  return rbIoExtIntToEncs(ext, intern);
+}
+
 /**
  * `IO` (`vendor/ruby/io.c:15371` `rb_cIO`), the sliver of it trails calls.
  *
@@ -168,10 +306,13 @@ export class IO {
   /** `fptr->pathv` (`vendor/ruby/io.c:2943` reads it back as `IO#path`). */
   protected pathv: string | null;
 
-  /** `FMODE_BINMODE` (`vendor/ruby/io.c:6311` `rb_io_binmode` sets it). */
-  protected binary = false;
+  /** `fptr->mode`, the `FMODE_*` flags (`vendor/ruby/io.c:6881`). */
+  protected mode: number;
 
   protected enc: Encoding | null = null;
+
+  /** `fptr->encs.enc2` (`vendor/ruby/io.c:11718`). */
+  protected enc2: Encoding | null = null;
 
   /** @internal */
   private _pos = 0;
@@ -181,9 +322,10 @@ export class IO {
    * is protected because `File.open` (`io.c:8148`) is the only way trails
    * opens a stream, and a public TS constructor is measured surface.
    */
-  protected constructor(fd: number, pathv: string | null = null) {
+  protected constructor(fd: number, pathv: string | null = null, vmode = "r") {
     this.fd = fd;
     this.pathv = pathv;
+    this.mode = rbIoModestrFmode(vmode);
   }
 
   /**
@@ -197,16 +339,17 @@ export class IO {
    * (`vendor/ruby/io.c:6379`).
    */
   binmode(): this {
-    this.binary = true;
+    this.mode |= FMODE_BINMODE;
+    this.mode &= ~FMODE_TEXTMODE;
     this.enc = Encoding.ASCII_8BIT;
     return this;
   }
 
   /**
-   * `vendor/ruby/io.c:13474` `rb_io_set_encoding` in its one-argument form —
-   * the external encoding the stream reads and writes through, which
-   * {@link binmode} also sets but which carries no `FMODE_BINMODE` of its own.
-   * It answers the stream.
+   * `vendor/ruby/io.c:13474` `rb_io_set_encoding` — the external encoding the
+   * stream reads and writes through, which {@link binmode} also sets but which
+   * carries no `FMODE_BINMODE` of its own, and, in the two-argument form, the
+   * internal one it transcodes to. It answers the stream.
    *
    * `io_encoding_set` (`vendor/ruby/io.c:11659`) records whatever
    * `find_encoding` answered, so a name that resolves to
@@ -218,23 +361,61 @@ export class IO {
    * @noRailsEquivalent PERMANENT — Ruby core `IO#set_encoding`
    * (`vendor/ruby/io.c:13474`).
    */
-  setEncoding(extEnc: Encoding | string): this {
-    this.enc = Encoding.find(extEnc);
+  setEncoding(extEnc: Encoding | string, intEnc?: Encoding | string): this {
+    let enc: Encoding | null;
+    let enc2: Encoding | null;
+    if (intEnc != null) {
+      enc2 = Encoding.find(extEnc);
+      if (intEnc === "-") {
+        enc = enc2;
+        enc2 = null;
+      } else {
+        enc = Encoding.find(intEnc);
+        if (enc === enc2) enc2 = null;
+      }
+      if (enc2 === Encoding.ASCII_8BIT) {
+        enc = enc2;
+        enc2 = null;
+      }
+    } else if (typeof extEnc === "string") {
+      ({ enc, enc2 } = parseModeEnc(extEnc));
+    } else {
+      ({ enc, enc2 } = rbIoExtIntToEncs(Encoding.find(extEnc), undefined));
+    }
+    this.enc = enc;
+    this.enc2 = enc2;
     return this;
   }
 
   /**
-   * `rb_io_external_encoding` (`vendor/ruby/io.c:13407`) in its
-   * `FMODE_WRITABLE` arm (`io.c:13415-13419`) — `encs.enc`, or `nil` where
-   * none was recorded. The `encs.enc2` arm above it and the `io_read_encoding`
-   * fallthrough below it need a second encoding and an `fptr->mode` that this
-   * partial port of `rb_io_t` does not carry.
+   * `rb_io_external_encoding` (`vendor/ruby/io.c:13407`) — the transcoding
+   * pair's source encoding, the recorded one on a writable stream, and
+   * `io_read_encoding` (`io.c:1010`) on a readable one.
    *
    * @noRailsEquivalent PERMANENT — Ruby core `IO#external_encoding`
    * (`vendor/ruby/io.c:13407`).
    */
   externalEncoding(): Encoding | null {
-    return this.enc;
+    if (this.enc2) {
+      return this.enc2;
+    }
+    if (this.mode & FMODE_WRITABLE) {
+      if (this.enc) return this.enc;
+      return null;
+    }
+    return this.ioReadEncoding();
+  }
+
+  /**
+   * `rb_io_internal_encoding` (`vendor/ruby/io.c:13440`) — the transcoding
+   * pair's destination encoding, and `nil` where no conversion is specified.
+   *
+   * @noRailsEquivalent PERMANENT — Ruby core `IO#internal_encoding`
+   * (`vendor/ruby/io.c:13440`).
+   */
+  internalEncoding(): Encoding | null {
+    if (!this.enc2) return null;
+    return this.ioReadEncoding();
   }
 
   /**
@@ -245,7 +426,7 @@ export class IO {
    * (`vendor/ruby/io.c:6400`).
    */
   isBinmode(): boolean {
-    return this.binary;
+    return (this.mode & FMODE_BINMODE) !== 0;
   }
 
   /**

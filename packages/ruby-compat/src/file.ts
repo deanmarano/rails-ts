@@ -297,8 +297,8 @@ export class File extends IO {
    * discriminated by `typeof`.
    *
    * The mode string carries that encoding too — everything after the first
-   * `:` is `parse_mode_enc`'s `"enc"` or `"enc2:enc"` (`io.c:6667,6883-6886`),
-   * of which the external encoding is the part before the last `:`.
+   * `:` is `parse_mode_enc`'s `"enc"`, `"enc2:enc"` or `"enc:-"`
+   * (`io.c:6667,6883-6886`), which {@link IO#setEncoding} parses.
    *
    * @noRailsEquivalent PERMANENT — Ruby core `File.open`
    * (`vendor/ruby/io.c:8148`).
@@ -319,12 +319,14 @@ export class File extends IO {
     const colon = mode.indexOf(":");
     const estr = colon === -1 ? null : mode.slice(colon + 1);
     const vmode = colon === -1 ? mode : mode.slice(0, colon);
-    const file = new File(getFs().openSync(fileName, vmode.replace(/b/g, ""), opt?.perm), fileName);
+    const file = new File(
+      getFs().openSync(fileName, vmode.replace(/b/g, ""), opt?.perm),
+      fileName,
+      vmode,
+    );
     if (vmode.includes("b")) file.binmode();
-    if (estr !== null) {
-      const p = estr.lastIndexOf(":");
-      file.setEncoding(p === -1 ? estr : estr.slice(0, p));
-    } else if (opt?.externalEncoding != null) file.setEncoding(opt.externalEncoding);
+    if (estr !== null) file.setEncoding(estr);
+    else if (opt?.externalEncoding != null) file.setEncoding(opt.externalEncoding);
     if (!block) return file;
     try {
       return block(file);

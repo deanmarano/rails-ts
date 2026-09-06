@@ -114,9 +114,32 @@ describe("IO", () => {
     const path = join(mkdtempSync(join(tmpdir(), "trails-io-")), "default.txt");
     writeFileSync(path, "héllo");
     const file = File.open(path, "r");
-    expect(file.externalEncoding()).toBeNull();
+    expect(file.externalEncoding()).toBe(Encoding.defaultExternal);
     expect(file.read()).toBe("héllo");
     file.close();
+  });
+
+  it("set_encoding parses a one-argument 'enc2:enc' the way a mode string's encoding half is", () => {
+    // vendor/ruby/io.c:11704-11707 io_encoding_set routes a String through parse_mode_enc.
+    const path = join(mkdtempSync(join(tmpdir(), "trails-io-")), "pair.txt");
+    writeFileSync(path, "hi");
+    const cases: [string, string | null, string | null][] = [
+      ["UTF-8:EUC-JP", "UTF-8", "EUC-JP"],
+      ["UTF-8:-", "UTF-8", null],
+      ["UTF-8:UTF-8", "UTF-8", null],
+      ["EUC-JP", "EUC-JP", null],
+      ["BINARY:EUC-JP", "ASCII-8BIT", null],
+    ];
+    for (const [argument, external, internal] of cases) {
+      const file = File.open(path, "r");
+      file.setEncoding(argument);
+      expect([
+        argument,
+        file.externalEncoding()?.name ?? null,
+        file.internalEncoding()?.name ?? null,
+      ]).toEqual([argument, external, internal]);
+      file.close();
+    }
   });
 
   it("set_encoding('internal') leaves no external encoding while default_internal is unset", () => {
