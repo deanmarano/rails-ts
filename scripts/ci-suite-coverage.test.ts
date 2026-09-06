@@ -858,7 +858,7 @@ describe("CI runs every tooling test suite", () => {
       "packages/activerecord/src/connection-adapters/mysql2-adapter.ts",
       "packages/activerecord/src/connection-adapters/mysql/quoting.ts",
       "packages/activerecord/src/connection-adapters/abstract-mysql-adapter.ts",
-      "packages/activerecord/src/adapters/postgresql/pg-range.ts",
+      "packages/activerecord/src/adapters/postgresql/range.test.ts",
       // Shared substrate: breaks one backend without naming it.
       "packages/activerecord/src/connection-adapters/abstract/quoting.ts",
       "packages/activerecord/src/connection-adapters/abstract-adapter.ts",

@@ -1,5 +1,4 @@
 [
-  "packages/activerecord/src/adapters/postgresql/pg-range.ts",
   "packages/activerecord/src/aggregations.ts",
   "packages/activerecord/src/associations.ts",
   "packages/activerecord/src/associations/association.ts",
