@@ -108,18 +108,23 @@ function ioEncStr(bytes: Uint8Array, length: number, enc: Encoding): string {
  * `do_writeconv` (`vendor/ruby/io.c:1904`) over `NEED_WRITECONV`
  * (`io.c:714`): a stream carrying an external encoding other than ASCII-8BIT
  * transcodes the String to it (`common_encoding`, `io.c:1925-1926`), and one
- * carrying none — or carrying ASCII-8BIT — writes the String's own bytes.
+ * carrying none — or carrying ASCII-8BIT — writes the String's own bytes,
+ * which for the ASCII-8BIT String a binary stream takes is one byte per
+ * character and for every other String is its UTF-8.
  * `TextEncoder` produces UTF-8 and nothing else, so UTF-8 is the only
- * `common_encoding` the transcode arm can reach and any other raises where
- * `rb_econv_open` would (`code converter not found`) rather than writing the
- * bytes of an encoding the stream did not ask for.
+ * `common_encoding` the transcode arm can reach; any other raises the way
+ * `File.lchmod` (`vendor/ruby/file.c:3211`) does for a call the platform has
+ * no implementation of, rather than writing the bytes of an encoding the
+ * stream did not ask for.
  */
 function doWriteconv(string: string, enc: Encoding | null): Uint8Array {
-  if (enc === Encoding.ASCII_8BIT) return binaryBytes(string);
-  if (enc !== null && enc !== Encoding.UTF_8) {
-    throw new NotImplementedError(`code converter not found (UTF-8 to ${enc})`);
+  if (enc !== null && enc !== Encoding.ASCII_8BIT) {
+    if (enc !== Encoding.UTF_8) {
+      throw new NotImplementedError(`encode() to ${enc} is unimplemented on this machine`);
+    }
+    return new TextEncoder().encode(string);
   }
-  return new TextEncoder().encode(string);
+  return enc === Encoding.ASCII_8BIT ? binaryBytes(string) : new TextEncoder().encode(string);
 }
 
 /**

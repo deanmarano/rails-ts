@@ -19,6 +19,16 @@
  * declines the fix. A member with no seat at all is reported without a fix
  * rather than autofixed into a call that does not type-check. `crypto` has no
  * Ruby class of its own, so it keeps the `getCrypto()` adapter accessor.
+ *
+ * The transforms, each read off the seat's own signature:
+ *
+ * - `readFileSync` — `File.read(name)` answers a String already, so the
+ *   encoding argument has no seat and is dropped.
+ * - `writeFileSync` — `File.write(name, string)`; the options arm has none.
+ * - `chmodSync` — `File.chmod(mode, ...files)` takes the mode FIRST.
+ * - `mkdirSync` — `FileUtils.mkdirP(list)` is already recursive, so
+ *   `{ recursive: true }` is dropped.
+ * - `resolve` — `File.expandPath(fileName, dirString)` takes the name FIRST.
  */
 export const RUBY_COMPAT_REPLACEMENTS = {
   fs: {
@@ -34,17 +44,12 @@ export const RUBY_COMPAT_REPLACEMENTS = {
       readdirSync: "Dir.children",
       rmdirSync: "Dir.delete",
       realpathSync: "File.realpath",
-      // `File.read(name)` takes no encoding argument — it answers a String
-      // already (`packages/ruby-compat/src/file.ts`, Ruby `IO.read`).
       readFileSync: { seat: "File.read", args: (args) => args.slice(0, 1) },
-      // `File.write(name, string)`; the options arm has no seat.
       writeFileSync: { seat: "File.write", args: (args) => (args.length === 2 ? args : null) },
-      // `File.chmod(mode, ...files)` takes the mode FIRST.
       chmodSync: {
         seat: "File.chmod",
         args: (args) => (args.length === 2 ? [args[1], args[0]] : null),
       },
-      // `FileUtils.mkdir_p(list)` is already recursive, so `{ recursive: true }` is dropped.
       mkdirSync: { seat: "FileUtils.mkdirP", args: (args) => args.slice(0, 1) },
     },
   },
@@ -59,7 +64,6 @@ export const RUBY_COMPAT_REPLACEMENTS = {
       extname: "File.extname",
       sep: "File.SEPARATOR",
       isAbsolute: "File.isAbsolutePath",
-      // `File.expand_path(file_name, dir_string)` takes the name FIRST.
       resolve: {
         seat: "File.expandPath",
         args: (args) => (args.length === 2 ? [args[1], args[0]] : null),
