@@ -75,7 +75,8 @@ export function serializableHash(
     } else if (
       records &&
       typeof records === "object" &&
-      (records as unknown as SerializationRecord)._attributes
+      ((records as unknown as SerializationRecord)._attributes ||
+        (records as unknown as SerializationRecord).attributes)
     ) {
       safeSet(
         result,

@@ -6,6 +6,8 @@ import { JSON as SerializersJSON } from "../../serializers/json.js";
 export interface Contact extends SerializersJSON {}
 
 export class Contact extends Model {
+  declare static includeRootInJson: boolean | string;
+
   static {
     include(this, SerializersJSON);
   }
@@ -119,11 +121,12 @@ export class Contact extends Model {
   }
 }
 
+const MODEL_BASE_IVARS = ["_errors", "_contextForValidation"];
+
 function instanceValues(contact: Contact): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(InstanceVariablesObject.instanceValues(contact)).map(([ivar, value]) => [
-      ivar.replace(/^_/, ""),
-      value,
-    ]),
+    Object.entries(InstanceVariablesObject.instanceValues(contact))
+      .filter(([ivar]) => !MODEL_BASE_IVARS.includes(ivar))
+      .map(([ivar, value]) => [ivar.replace(/^_/, ""), value]),
   );
 }

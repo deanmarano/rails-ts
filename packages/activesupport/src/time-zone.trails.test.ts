@@ -125,6 +125,21 @@ describe("TimeZoneLocalPeriodsTest", () => {
     expect(() => zone().periodForLocal(Time.utc(2024, 3, 10, 2, 30))).toThrow(PeriodNotFound);
   });
 
+  it("periods_for_local ignores the offset a Time carries", () => {
+    const withOffset = Time.new(2024, 11, 3, 5, 30, 0, "+04:00");
+    expect(zone().periodsForLocal(withOffset).length).toBe(1);
+    expect(zone().periodsForLocal(Time.utc(2024, 11, 3, 1, 30)).length).toBe(2);
+  });
+
+  it("period_for_local ignores the offset a Time carries", () => {
+    expect(() => zone().periodForLocal(Time.new(2024, 3, 10, 2, 30, 0, "-05:00"))).toThrow(
+      PeriodNotFound,
+    );
+    expect(() => zone().periodForLocal(Time.new(2024, 3, 10, 2, 30, 0, "-05:00"))).toThrow(
+      /2024-03-10T02:30:00 is not valid for/,
+    );
+  });
+
   it("local_to_utc raises for an ambiguity dst does not resolve", () => {
     expect(() => zone().localToUtc(Time.utc(2006, 10, 29, 1, 30), null)).toThrow(AmbiguousTime);
     expect(

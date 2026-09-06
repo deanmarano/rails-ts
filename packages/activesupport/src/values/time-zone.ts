@@ -525,7 +525,7 @@ export class Timezone {
   }
 
   periodsForLocal(time: Time): TimezonePeriod[] {
-    const localMs = toDate(time).getTime();
+    const localMs = ignoringOffset(time).getTime();
     const DAY = 86_400_000;
     const around = [
       getZoneInfo(this.identifier, new Date(localMs - DAY)).utcOffsetSeconds,
@@ -551,7 +551,7 @@ export class Timezone {
     if (periods.length === 1) return periods[0];
     if (periods.length === 0) {
       throw new PeriodNotFound(
-        `${toDate(time).toISOString().slice(0, 19)} is not valid for ${this.identifier}`,
+        `${ignoringOffset(time).toISOString().slice(0, 19)} is not valid for ${this.identifier}`,
       );
     }
     if (dst !== null) {
@@ -560,7 +560,7 @@ export class Timezone {
     }
     if (block) return block(periods);
     throw new AmbiguousTime(
-      `${toDate(time).toISOString().slice(0, 19)} is an ambiguous local time for ${this.identifier}`,
+      `${ignoringOffset(time).toISOString().slice(0, 19)} is an ambiguous local time for ${this.identifier}`,
     );
   }
 

@@ -122,7 +122,7 @@ export class Model {
   }
 
   /** @internal */
-  _initializingAttributes = false;
+  declare _initializingAttributes: boolean;
 
   /** @internal */
   declare static predicateForValidationContext: Extended<
@@ -137,6 +137,13 @@ export class Model {
 
   constructor(attributes: Record<string, unknown> = {}) {
     const ctor = this.constructor as typeof Model;
+
+    Object.defineProperty(this, "_initializingAttributes", {
+      value: false,
+      writable: true,
+      configurable: true,
+      enumerable: false,
+    });
 
     this.initInternals();
 
