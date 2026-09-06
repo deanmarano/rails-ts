@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { round } from "./numeric.js";
+import { anybits, round } from "./numeric.js";
 
 describe("Float#round", () => {
   it("rounds to the given number of digits", () => {
@@ -15,5 +15,26 @@ describe("Float#round", () => {
   it("rounds to an integer with no argument", () => {
     expect(round(10.4)).toBe(10);
     expect(round(10.5)).toBe(11);
+  });
+});
+
+describe("anybits", () => {
+  it("returns true if and only if any of the bits of the argument are set in the receiver", () => {
+    expect(anybits(42, 42)).toBe(true);
+    expect(anybits(0b1010_1010, 0b1000_0010)).toBe(true);
+    expect(anybits(0b1010_1010, 0b1000_0001)).toBe(true);
+    expect(anybits(0b1000_0010, 0b0010_1100)).toBe(false);
+  });
+
+  it("reads bits past the 32-bit window JS `&` truncates to", () => {
+    expect(anybits(2 ** 40, 2 ** 40)).toBe(true);
+    expect(anybits(2 ** 40, 2 ** 41)).toBe(false);
+    expect(anybits(1n << 200n, 1n << 200n)).toBe(true);
+  });
+
+  it("handles negative values using two's complement notation", () => {
+    expect(anybits(~42, 42)).toBe(false);
+    expect(anybits(-42, -42)).toBe(true);
+    expect(anybits(~0b100, ~0b1)).toBe(true);
   });
 });

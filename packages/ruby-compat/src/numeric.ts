@@ -14,8 +14,16 @@ export function round(x: number, ndigits = 0): number {
 /**
  * Ruby `Integer#anybits?` (`vendor/ruby/numeric.c:3647` `int_anybits_p`):
  * whether any of `mask`'s set bits are set in `self`.
+ *
+ * Taken over BigInt rather than JS `&`, which truncates both operands to signed
+ * 32 bits: `rb_int_and` is arbitrary-precision, so `(2**40).anybits?(2**40)` is
+ * true in Ruby and false under `&`. BigInt's bitwise operators read a value as
+ * two's complement of unbounded width, which is the notation
+ * `vendor/ruby/spec/ruby/core/integer/anybits_spec.rb:15-20` pins for negative
+ * receivers and the bignum cases at `:9-12`.
+ *
  * @noRailsEquivalent PERMANENT — Ruby core `Integer#anybits?` (`vendor/ruby/numeric.c:3647`).
  */
-export function anybits(x: number, mask: number): boolean {
-  return (x & mask) !== 0;
+export function anybits(x: number | bigint, mask: number | bigint): boolean {
+  return (BigInt(x) & BigInt(mask)) !== 0n;
 }
