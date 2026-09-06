@@ -27,15 +27,12 @@ import { Money } from "./oid/money.js";
 import { Oid } from "./oid/oid.js";
 import { Point } from "./oid/point.js";
 import { SpecializedString } from "./oid/specialized-string.js";
-import { Timestamp } from "./oid/timestamp.js";
-import { TimestampWithTimeZone } from "./oid/timestamp-with-time-zone.js";
 import { Uuid } from "./oid/uuid.js";
 import { Xml } from "./oid/xml.js";
 import {
   extractLimit,
   extractPrecision,
   extractScale,
-  initializeInstanceTypeMap,
   initializeTypeMap,
 } from "./type-map-init.js";
 
@@ -145,18 +142,5 @@ describe("initialize_type_map seeds the PG type_map with known types", () => {
     const type = m.lookup("interval", 0, "interval(3)") as Interval;
     expect(type).toBeInstanceOf(Interval);
     expect(type.precision).toBe(3);
-  });
-});
-
-describe("initialize_instance_type_map layers timestamp + time on top", () => {
-  const m = new HashLookupTypeMap();
-  initializeInstanceTypeMap(m);
-
-  it("registers timestamp → Timestamp", () => {
-    expect(m.lookup("timestamp")).toBeInstanceOf(Timestamp);
-  });
-
-  it("registers timestamptz → TimestampWithTimeZone", () => {
-    expect(m.lookup("timestamptz")).toBeInstanceOf(TimestampWithTimeZone);
   });
 });

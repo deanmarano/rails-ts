@@ -32,8 +32,6 @@ import { Money } from "./oid/money.js";
 import { Oid } from "./oid/oid.js";
 import { Point } from "./oid/point.js";
 import { SpecializedString } from "./oid/specialized-string.js";
-import { Timestamp } from "./oid/timestamp.js";
-import { TimestampWithTimeZone } from "./oid/timestamp-with-time-zone.js";
 import { Uuid } from "./oid/uuid.js";
 import { Vector } from "./oid/vector.js";
 import { Xml } from "./oid/xml.js";
@@ -170,17 +168,6 @@ export function initializeTypeMap(m: HashLookupTypeMap): void {
     const sqlType = sqlTypeFromArgs(args);
     return new Interval({ precision: extractPrecision(sqlType) });
   });
-}
-
-/** @noRailsEquivalent CONVERGEABLE converge-pg-native-types-and-instance-type-map-onto-adapter */
-export function initializeInstanceTypeMap(
-  m: HashLookupTypeMap,
-  defaultTimezone: "utc" | "local" = "utc",
-): void {
-  initializeTypeMap(m);
-  registerClassWithPrecision(m, "time", ArType.Time, { timezone: defaultTimezone });
-  registerClassWithPrecision(m, "timestamp", Timestamp, { timezone: defaultTimezone });
-  registerClassWithPrecision(m, "timestamptz", TimestampWithTimeZone);
 }
 
 function sqlTypeFromArgs(args: unknown[]): string | undefined {

@@ -728,8 +728,10 @@ for (const method of REVERSIBLE_AND_IRREVERSIBLE_METHODS) {
     this: CommandRecorder,
     ...args: unknown[]
   ): Promise<void> {
+    while (args.length > 0 && args[args.length - 1] === undefined) args.pop();
     const block =
       typeof args[args.length - 1] === "function" ? (args.pop() as MigrationBlock) : undefined;
+    while (args.length > 0 && args[args.length - 1] === undefined) args.pop();
     return this.record(method, args, block);
   };
 }
