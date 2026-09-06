@@ -14,9 +14,16 @@ import {
 import { ExplainPrettyPrinter } from "./explain-pretty-printer.js";
 import { fetch, isEmpty } from "@blazetrails/ruby-compat";
 import type { StatementPool } from "../statement-pool.js";
+import { AbstractAdapter } from "../abstract-adapter.js";
 
-export const READ_QUERY =
-  /^(?:\s|\/\*.*?\*\/|--[^\n]*(?:\n|$)|\()*(?:begin|close|commit|declare|explain|fetch|move|release|rollback|savepoint|select|set|show|with)\b/is;
+const READ_QUERY = AbstractAdapter.buildReadQueryRegexp(
+  "close",
+  "declare",
+  "fetch",
+  "move",
+  "set",
+  "show",
+);
 
 /** @internal */
 interface CastResultHost {

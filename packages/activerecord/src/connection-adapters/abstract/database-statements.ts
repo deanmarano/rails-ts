@@ -49,7 +49,6 @@ import {
   type FutureResultConnection,
 } from "../../future-result.js";
 import type { Base } from "../../base.js";
-import { isWriteQuerySql } from "../sql-classification.js";
 import { ActiveRecord } from "../../ar-config.js";
 import { rubyInspect } from "../../relation/ruby-inspect.js";
 
@@ -954,8 +953,9 @@ export const DatabaseStatements = {
     return this.affectedRows(await this.internalExecute(sql, name, binds));
   },
 
-  isWriteQuery(sql: string): boolean {
-    return isWriteQuerySql(sql);
+  isWriteQuery(_sql: string): boolean {
+    // @nie disposition=keep-as-strategy-hook rails=activerecord/lib/active_record/connection_adapters/abstract/database_statements.rb:118
+    throw new NotImplementedError();
   },
 
   emptyInsertStatementValue,

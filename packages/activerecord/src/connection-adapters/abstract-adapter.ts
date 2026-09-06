@@ -41,7 +41,6 @@ import { SchemaCache, SchemaReflection, BoundSchemaReflection } from "./schema-c
 import { NullPool } from "./abstract/connection-pool.js";
 import type { ConnectionPool } from "./abstract/connection-pool.js";
 import type { ConnectionDescriptor } from "./abstract/connection-handler.js";
-import { stripSqlComments } from "./sql-classification.js";
 import {
   TransactionManager,
   type Transaction,
@@ -750,6 +749,8 @@ export class AbstractAdapter implements Quoting {
   static readonly ADAPTER_NAME: string = "Abstract";
   static readonly Version = Version;
 
+  static readonly COMMENT_REGEX = /(?:--.*\n)|\/\*(?:[^*]|\*[^/])*\*\//;
+
   /**
    * @missingRailsCall build_statement_pool — CONVERGEABLE abstract-adapter-constructor-drops-rails-config-arg
    * @missingRailsCall fetch — PERMANENT
@@ -1255,10 +1256,6 @@ export class AbstractAdapter implements Quoting {
     return false;
   }
 
-  protected stripSqlComments(sql: string): string {
-    return stripSqlComments(sql);
-  }
-
   supportsDdlTransactions(): boolean {
     return false;
   }
@@ -1697,8 +1694,24 @@ export class AbstractAdapter implements Quoting {
     }
   }
 
-  buildReadQueryRegexp(): RegExp {
-    return /^\s*(SELECT|EXPLAIN|PRAGMA|SHOW|SET|RESET|DESCRIBE|DESC)\b/i;
+  private static readonly DEFAULT_READ_QUERY = [
+    "begin",
+    "commit",
+    "explain",
+    "release",
+    "rollback",
+    "savepoint",
+    "select",
+    "with",
+  ];
+
+  /** @missingRailsCall union — PERMANENT */
+  static buildReadQueryRegexp(...parts: string[]): RegExp {
+    parts = parts.concat(AbstractAdapter.DEFAULT_READ_QUERY);
+    return new RegExp(
+      `^(?:[(\\s]|${AbstractAdapter.COMMENT_REGEX.source})*(?:${parts.join("|")})`,
+      "i",
+    );
   }
 
   /**

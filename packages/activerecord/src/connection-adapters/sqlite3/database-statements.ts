@@ -2,7 +2,7 @@ import { sql as arelSql } from "@blazetrails/arel";
 import type { SqliteBinds, SqliteConnection, SqliteStatement } from "../../sqlite-adapter.js";
 import { TransactionIsolationError } from "../../errors.js";
 import { Result } from "../../result.js";
-import { stripSqlComments } from "../sql-classification.js";
+import { AbstractAdapter } from "../abstract-adapter.js";
 import {
   combineMultiStatements,
   execute as abstractExecute,
@@ -11,8 +11,7 @@ import {
 } from "../abstract/database-statements.js";
 import { ExplainPrettyPrinter } from "./explain-pretty-printer.js";
 
-const READ_QUERY =
-  /^(?:[(\s]|\/\*[\s\S]*?\*\/)*(?:begin|commit|explain|release|rollback|savepoint|select|with|pragma)\b/i;
+const READ_QUERY = AbstractAdapter.buildReadQueryRegexp("pragma");
 
 export interface DatabaseStatements {
   execQuery(sql: string, name?: string | null): Promise<Result>;
@@ -29,7 +28,7 @@ export interface DatabaseStatements {
 }
 
 export function isWriteQuery(sql: string): boolean {
-  return !READ_QUERY.test(stripSqlComments(sql));
+  return !READ_QUERY.test(sql);
 }
 
 /** @missingRailsArgs internal_exec_query — CONVERGEABLE sqlite3-explain-passes-empty-binds */

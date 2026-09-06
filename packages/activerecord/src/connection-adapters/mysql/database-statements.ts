@@ -9,7 +9,7 @@ import {
   internalExecQuery,
   toSql as abstractToSql,
 } from "../abstract/database-statements.js";
-import type { Version } from "../abstract-adapter.js";
+import { AbstractAdapter, type Version } from "../abstract-adapter.js";
 
 export interface DatabaseStatements {
   execQuery(sql: string, name?: string | null, binds?: unknown[]): Promise<Result>;
@@ -26,11 +26,13 @@ export interface DatabaseStatements {
   highPrecisionCurrentTimestamp(): Nodes.SqlLiteral;
 }
 
-const COMMENT_REGEX = String.raw`(?:--.*\n)|/\*(?:[^*]|\*[^/])*\*/`;
-const READ_QUERY = new RegExp(
-  `^(?:[(\\s]|${COMMENT_REGEX})*` +
-    `(?:desc|describe|set|show|use|kill|begin|commit|explain|release|rollback|savepoint|select|with)`,
-  "i",
+const READ_QUERY = AbstractAdapter.buildReadQueryRegexp(
+  "desc",
+  "describe",
+  "set",
+  "show",
+  "use",
+  "kill",
 );
 
 export function isWriteQuery(sql: string): boolean {
