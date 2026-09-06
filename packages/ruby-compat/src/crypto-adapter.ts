@@ -225,6 +225,116 @@ function tryAutoRegisterNode(): boolean {
   }
 }
 
+interface WebCrypto {
+  getRandomValues<T extends Uint8Array>(array: T): T;
+  randomUUID?(): string;
+  subtle?: {
+    importKey(
+      format: string,
+      keyData: Uint8Array,
+      algorithm: string | { name: string },
+      extractable: boolean,
+      keyUsages: string[],
+    ): Promise<unknown>;
+    deriveBits(
+      algorithm: { name: string; salt: Uint8Array; iterations: number; hash: string },
+      key: unknown,
+      length: number,
+    ): Promise<ArrayBuffer>;
+  };
+}
+
+function webCrypto(): WebCrypto | undefined {
+  const candidate = (globalThis as { crypto?: WebCrypto }).crypto;
+  return typeof candidate?.getRandomValues === "function" ? candidate : undefined;
+}
+
+function toBytes(array: Uint8Array): Bytes {
+  const bytes = array as Bytes;
+  bytes.toString = (encoding?: string): string => {
+    switch (encoding) {
+      case "hex":
+        return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
+      case "base64":
+        return btoa(String.fromCharCode(...array));
+      case "binary":
+      case "latin1":
+        return String.fromCharCode(...array);
+      case undefined:
+      case "utf-8":
+      case "utf8":
+        return new TextDecoder().decode(array);
+      default:
+        throw new Error(`Unsupported encoding: ${encoding}`);
+    }
+  };
+  return bytes;
+}
+
+function subtleHash(digest: string): string {
+  const name = digest.toLowerCase().replace("sha", "sha-").replace("--", "-");
+  return name.toUpperCase();
+}
+
+function wrapWebCrypto(crypto: WebCrypto): CryptoAdapter {
+  const adapter: Partial<CryptoAdapter> = {
+    randomBytes(size: number): Bytes {
+      return toBytes(crypto.getRandomValues(new Uint8Array(size)));
+    },
+    timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
+      if (a.length !== b.length) return false;
+      let diff = 0;
+      for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+      return diff === 0;
+    },
+    async pbkdf2(
+      password: string | Uint8Array,
+      salt: string | Uint8Array,
+      iterations: number,
+      keylen: number,
+      digest: string,
+    ): Promise<Bytes> {
+      const subtle = crypto.subtle;
+      if (!subtle) throw new Error('Crypto adapter "web" does not implement pbkdf2.');
+      const encoder = new TextEncoder();
+      const key = await subtle.importKey(
+        "raw",
+        typeof password === "string" ? encoder.encode(password) : password,
+        "PBKDF2",
+        false,
+        ["deriveBits"],
+      );
+      const bits = await subtle.deriveBits(
+        {
+          name: "PBKDF2",
+          salt: typeof salt === "string" ? encoder.encode(salt) : salt,
+          iterations,
+          hash: subtleHash(digest),
+        },
+        key,
+        keylen * 8,
+      );
+      return toBytes(new Uint8Array(bits));
+    },
+  };
+  if (typeof crypto.randomUUID === "function") {
+    adapter.randomUUID = (): string => crypto.randomUUID!();
+  }
+  return adapter as CryptoAdapter;
+}
+
+let webAttempted = false;
+
+function tryAutoRegisterWebCrypto(): boolean {
+  if (registry.has("web")) return true;
+  if (webAttempted) return false;
+  webAttempted = true;
+  const crypto = webCrypto();
+  if (!crypto) return false;
+  registry.set("web", wrapWebCrypto(crypto));
+  return true;
+}
+
 const REQUIRED_MEMBERS = [
   "randomBytes",
   "randomUUID",
@@ -267,10 +377,14 @@ function resolve(): CryptoAdapter {
     return resolved;
   }
 
+  if (tryAutoRegisterWebCrypto()) {
+    resolved = completeAdapter("web", registry.get("web")!);
+    return resolved;
+  }
+
   throw new Error(
     "No crypto adapter configured. Under ESM, import '@blazetrails/activesupport/node' from your entry point; " +
-      "in a browser, register an adapter with registerCryptoAdapter() and set cryptoAdapterConfig.adapter before " +
-      "the first getCrypto() call; otherwise set ActiveSupport.cryptoAdapter or register a custom adapter.",
+      "otherwise set ActiveSupport.cryptoAdapter or register a custom adapter.",
   );
 }
 

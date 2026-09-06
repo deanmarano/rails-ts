@@ -111,3 +111,39 @@ describe("registerCryptoAdapter", () => {
     }
   });
 });
+
+describe("getCrypto in a browser", () => {
+  it("auto-registers a Web Crypto adapter when there is no node process", async () => {
+    const module = JSON.stringify(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist", "crypto-adapter.js"),
+    );
+    const source =
+      `delete globalThis.process;\n` +
+      `const { getCrypto, pbkdf2Async } = await import(${module});\n` +
+      `const crypto = getCrypto();\n` +
+      `console.log(crypto.randomBytes(10).toString("hex").length);\n` +
+      `console.log(crypto.randomUUID().length);\n` +
+      `console.log(crypto.timingSafeEqual(new Uint8Array([1, 2]), new Uint8Array([1, 2])));\n` +
+      `console.log(crypto.timingSafeEqual(new Uint8Array([1, 2]), new Uint8Array([1, 3])));\n` +
+      `console.log((await pbkdf2Async(crypto, "password", "salt", 2, 16, "sha256")).length);\n` +
+      `try { crypto.createHash("sha256"); } catch (e) { console.log(e.message); }`;
+
+    const { stdout, error } = await new Promise<{ stdout: string; error: string | null }>(
+      (resolve) => {
+        execFile("node", ["--input-type=module", "-e", source], (err, out) =>
+          resolve({ stdout: out.trim(), error: err ? err.message : null }),
+        );
+      },
+    );
+
+    expect(error).toBeNull();
+    expect(stdout.split("\n")).toEqual([
+      "20",
+      "36",
+      "true",
+      "false",
+      "16",
+      'Crypto adapter "web" does not implement createHash.',
+    ]);
+  }, 30_000);
+});
