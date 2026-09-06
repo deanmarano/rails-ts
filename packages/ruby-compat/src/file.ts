@@ -334,20 +334,23 @@ export class File extends IO {
   }
 
   /**
-   * `vendor/ruby/io.c:12200` `rb_io_s_read`, in its whole-file form. Its `opt`
-   * hash reaches `open_key_args` (`io.c:12163`) and so
-   * `rb_io_extract_encoding_option` (`io.c:6725`), where `encoding:` names the
-   * external encoding the read tags its String with (`io_enc_str`,
-   * `io.c:3123`) — `ASCII-8BIT` being the one that answers the file's bytes.
+   * `vendor/ruby/io.c:12200` `rb_io_s_read`, in its whole-file form: its `opt`
+   * hash reaches `open_key_args` (`io.c:12163`), which opens the stream with
+   * it — so `encoding:` is `rb_io_extract_encoding_option`'s external encoding
+   * (`io.c:6725,6750`) and the read tags its String with it (`io_enc_str`,
+   * `io.c:3123`), `ASCII-8BIT` being the one that answers the file's bytes.
+   * `open_key_args` closes the stream through `rb_ensure` (`io.c:12180`).
    *
    * @noRailsEquivalent PERMANENT — Ruby core `File.read` (`IO.read`,
    * `vendor/ruby/io.c:12200`).
    */
   static read(name: string, opt?: { encoding?: Encoding | string }): string {
-    if (opt?.encoding != null && Encoding.find(opt.encoding) === Encoding.ASCII_8BIT) {
-      return File.binread(name);
+    const file = File.open(name, "r", { externalEncoding: opt?.encoding });
+    try {
+      return file.read();
+    } finally {
+      file.close();
     }
-    return getFs().readFileSync(name, "utf-8");
   }
 
   /**

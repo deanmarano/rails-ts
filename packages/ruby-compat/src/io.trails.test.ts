@@ -105,7 +105,7 @@ describe("IO", () => {
     // vendor/ruby/io.c:1904 do_writeconv — TextEncoder produces UTF-8 and nothing else.
     const path = join(mkdtempSync(join(tmpdir(), "trails-io-")), "conv.txt");
     const file = File.open(path, "w:ISO-8859-1");
-    expect(() => file.write("hél")).toThrow("encode() to ISO-8859-1 is unimplemented");
+    expect(() => file.write("hél")).toThrow("code converter not found (UTF-8 to ISO-8859-1)");
     file.close();
   });
 

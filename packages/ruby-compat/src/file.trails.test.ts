@@ -241,4 +241,12 @@ describe("File.fnmatch", () => {
       expect(File.fnmatch(pattern, path, flags)).toBe(matches);
     });
   });
+
+  it("read decodes through the encoding: option, rather than always as UTF-8", () => {
+    // vendor/ruby/io.c:12163 open_key_args — the opt hash opens the stream.
+    const path = File.join(mkdtempSync(join(tmpdir(), "trails-file-")), "latin1.txt");
+    File.binwrite(path, "h\u00e9l");
+    expect(File.read(path, { encoding: "ISO-8859-1" })).toBe("hél");
+    expect(File.read(path, { encoding: "ASCII-8BIT" })).toBe("h\u00e9l");
+  });
 });

@@ -137,6 +137,7 @@ export function outputType(): string {
 /**
  * @internal
  * @missingRailsArgs read — PERMANENT
+ * @missingRailsArgs inline_base64 — PERMANENT
  */
 export function displayImage(
   this: ScreenshotHelperHost,
@@ -153,6 +154,7 @@ export function displayImage(
     const name = inlineBase64(File.basename(absoluteImagePath.call(this)));
     const image = inlineBase64(
       File.read(absoluteImagePath.call(this), { encoding: Encoding.BINARY }),
+      Encoding.BINARY,
     );
     message += `\x1b]1337;File=name=${name};height=400px;inline=1:${image}\x07\n`;
   }
@@ -160,8 +162,8 @@ export function displayImage(
 }
 
 /** @internal */
-export function inlineBase64(path: string): string {
-  return Buffer.from(path, "latin1").toString("base64");
+export function inlineBase64(path: string, enc: Encoding = Encoding.UTF_8): string {
+  return Buffer.from(path, enc === Encoding.BINARY ? "latin1" : "utf-8").toString("base64");
 }
 
 /** @internal */

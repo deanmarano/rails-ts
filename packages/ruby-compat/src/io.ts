@@ -2,7 +2,6 @@ import { Encoding } from "./encoding.js";
 import { getFs, type FsStatResult } from "./fs-adapter.js";
 import { EOFError } from "./eof-error.js";
 import { IOError } from "./io-error.js";
-import { NotImplementedError } from "./not-implemented-error.js";
 
 /** The `rb_exec_recursive` guard `io_puts_ary` (`vendor/ruby/io.c:8880`) is called through. */
 const putsAryInFlight = new Set<unknown[]>();
@@ -92,6 +91,24 @@ function binaryBytes(string: string): Uint8Array {
 }
 
 /**
+ * Ruby's core `Encoding::ConverterNotFoundError`
+ * (`vendor/ruby/transcode.c:4740` `rb_eConverterNotFoundError`), an
+ * `EncodingError` subclass — what `rb_econv_open_exc`
+ * (`vendor/ruby/transcode.c:2097-2105`) raises where no converter between two
+ * encodings exists. It is module-private rather than a `./` file of its own
+ * because ruby-compat's extra-surface mark is only-shrink and a new public
+ * name raises it; nothing in the repo catches the class yet, and exporting it
+ * is filed as `export-converter-not-found-error`, which moves the mark as the
+ * reviewed line of its own diff.
+ */
+class ConverterNotFoundError extends Error {
+  constructor(message?: string) {
+    super(message ?? new.target.name);
+    this.name = new.target.name;
+  }
+}
+
+/**
  * `io_enc_str` (`vendor/ruby/io.c:3123`), which tags the String a read
  * assembled with `io_read_encoding` (`io.c:1010`). ASCII-8BIT is the one
  * encoding assembled a character at a time (see {@link binaryString}); every
@@ -112,15 +129,15 @@ function ioEncStr(bytes: Uint8Array, length: number, enc: Encoding): string {
  * which for the ASCII-8BIT String a binary stream takes is one byte per
  * character and for every other String is its UTF-8.
  * `TextEncoder` produces UTF-8 and nothing else, so UTF-8 is the only
- * `common_encoding` the transcode arm can reach; any other raises the way
- * `File.lchmod` (`vendor/ruby/file.c:3211`) does for a call the platform has
- * no implementation of, rather than writing the bytes of an encoding the
- * stream did not ask for.
+ * `common_encoding` the transcode arm can reach; every other raises what
+ * `rb_econv_open` raises for a pair it has no converter for
+ * (`rb_econv_open_exc`, `vendor/ruby/transcode.c:2097-2105`) rather than
+ * writing the bytes of an encoding the stream did not ask for.
  */
 function doWriteconv(string: string, enc: Encoding | null): Uint8Array {
   if (enc !== null && enc !== Encoding.ASCII_8BIT) {
     if (enc !== Encoding.UTF_8) {
-      throw new NotImplementedError(`encode() to ${enc} is unimplemented on this machine`);
+      throw new ConverterNotFoundError(`code converter not found (UTF-8 to ${enc})`);
     }
     return new TextEncoder().encode(string);
   }
