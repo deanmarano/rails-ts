@@ -1,7 +1,7 @@
 import { quotingHost } from "../../support/quoting-host.js";
 import { NotImplementedError } from "../../errors.js";
 import { describe, expect, it } from "vitest";
-import { Temporal } from "@blazetrails/date";
+import { Temporal, Time as RubyTime } from "@blazetrails/date";
 import { BinaryData } from "@blazetrails/activemodel";
 import { TimeWithZone, TimeZone } from "@blazetrails/activesupport";
 import {
@@ -49,6 +49,12 @@ describe("quotedDate", () => {
 
   it("formats a Temporal.ZonedDateTime via its instant", () => {
     const v = Temporal.ZonedDateTime.from("2026-04-26T14:23:55+00:00[UTC]");
+    expect(quotedDate(v)).toBe("2026-04-26 14:23:55");
+  });
+
+  it("formats an already-UTC Time, which default_timezone=:utc leaves unconverted", () => {
+    const v = RubyTime.utc(2026, 4, 26, 14, 23, 55);
+    expect(v.isUtc()).toBe(true);
     expect(quotedDate(v)).toBe("2026-04-26 14:23:55");
   });
 
