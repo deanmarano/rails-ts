@@ -920,7 +920,6 @@ Base.prototype.expireFragment = expireFragment;
 ).viewCacheDependency = viewCacheDependency;
 
 for (const slot of CACHING_SLOTS) {
-  (Base as unknown as Record<string, unknown>)[slot] = CACHING_DEFAULTS[slot];
   Object.defineProperty(Base.prototype, slot, {
     configurable: true,
     get(this: CachingHost): unknown {
@@ -931,6 +930,11 @@ for (const slot of CACHING_SLOTS) {
     },
   });
 }
+
+const _CachingConfig = Base as unknown as CachingClassMethods;
+_CachingConfig.defaultStaticExtension ??= CACHING_DEFAULTS.defaultStaticExtension;
+_CachingConfig.performCaching ??= CACHING_DEFAULTS.performCaching;
+_CachingConfig.enableFragmentCacheLogging = CACHING_DEFAULTS.enableFragmentCacheLogging;
 
 classAttribute.call(Base, "_viewCacheDependencies", { default: [] });
 helperMethod(Base as unknown as HelpersClassMethods, "viewCacheDependencies");
