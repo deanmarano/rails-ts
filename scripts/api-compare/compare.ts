@@ -3741,23 +3741,19 @@ export function main() {
 
     /**
      * The Ruby member that has already claimed a given TS member, keyed
-     * `${tsFile}#${tsName}#${writer}`.
+     * `${tsFile}#${tsName}#${reader|writer}`.
      *
      * A TS member is ONE port, so it answers for ONE Ruby member. Two Ruby
-     * names that resolve to the same TS name — `content_for?` onto its bare
-     * sibling `content_for`'s port (`capture_helper.rb:172,215`), `delete`
-     * defined in both `base.rb` and `persistence.rb` — otherwise both get
-     * scored against that single body, so the loser's report is a diff against
-     * a body that is not its counterpart at all. First claimer wins: the Ruby
-     * file loop is sorted and `seen` preserves Ruby source order, so the
-     * winner is stable across runs. The loser keeps its name-match credit —
-     * the name IS ported, once — but is held out of the CALL gates through
-     * `checkArity`'s existing `skipCalls`, because reading someone else's body
-     * is exactly what it must not do.
+     * names resolving to the same TS name — `content_for?` onto its bare
+     * sibling's port (`capture_helper.rb:172,215`), `delete` defined in both
+     * `base.rb` and `persistence.rb` — otherwise both get scored against that
+     * single body. First claimer wins; the file loop is sorted and `seen`
+     * preserves Ruby source order, so the winner is stable across runs. The
+     * loser keeps its name-match credit (the name IS ported, once) but is held
+     * out of the CALL gates through `checkArity`'s `skipCalls`.
      *
-     * The writer flag keeps a reader/writer pair (`name` / `name=`) apart —
-     * both spell the same TS name, and a get/set accessor pair really is two
-     * ports under one name.
+     * The reader/writer flag keeps `name` and `name=` apart: both spell the
+     * same TS name, and a get/set pair really is two ports under one name.
      */
     const tsMemberClaims = new Map<string, string>();
 
@@ -4463,9 +4459,8 @@ export function main() {
         _dedupeKey,
         { rubyName, rubyModule, umbrellaConfig, notes, mixinFile, definedInFile },
       ] of seen) {
-        // Null once the sibling set is known — the `new`-beside-`initialize`
-        // wrapper — so it is dropped the way `seen`'s own no-candidate gate
-        // (`rubyMethodToTsForFqn(...) === null`) drops an unportable name.
+        // Null once the sibling set is known (`new` beside `initialize`), so it
+        // is dropped the way `seen`'s own no-candidate gate drops one.
         const tsCandidates = rubyMethodToTsForFqn(rubyModule, rubyName, siblingRubyNames);
         if (tsCandidates === null) continue;
 
@@ -4493,17 +4488,13 @@ export function main() {
         // below is not `directMatch` (that arm runs because the expected file
         // does not exist at all).
         let declOnlyTsName = declOnly ? directMatch : undefined;
-        const claimKey =
-          directMatch === undefined
-            ? null
-            : `${expectedTs}#${directMatch}#${rubyName.endsWith("=") ? "w" : "r"}`;
-        const claimant = claimKey === null ? undefined : tsMemberClaims.get(claimKey);
-        if (claimKey !== null && claimant === undefined) {
-          tsMemberClaims.set(claimKey, `${rubyFile}#${rubyName}`);
-        }
-        const claimedByAnother = claimant !== undefined && claimant !== `${rubyFile}#${rubyName}`;
         if (directMatch && !declOnly) {
           fileMatched++;
+          const claimKey = `${expectedTs}#${directMatch}#${rubyName.endsWith("=") ? "w" : "r"}`;
+          const self = `${rubyFile}#${rubyName}`;
+          const claimant = tsMemberClaims.get(claimKey);
+          if (claimant === undefined) tsMemberClaims.set(claimKey, self);
+          const claimedByAnother = claimant !== undefined && claimant !== self;
           // A method Ruby flattened onto this host through `include` is ported
           // ONCE, in the file mirroring the mixin's own — `PostgreSQL::Quoting`
           // (`postgresql/quoting.rb:143`) into postgresql/quoting.ts — and the

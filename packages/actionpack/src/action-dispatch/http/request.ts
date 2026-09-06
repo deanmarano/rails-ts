@@ -233,8 +233,10 @@ export class Request {
   }
 
   get port(): number {
-    const match = this.rawHostWithPort.match(/:(\d+)$/);
-    this.#port ??= match ? parseInt(match[1], 10) : this.standardPort;
+    if (this.#port === undefined) {
+      const match = this.rawHostWithPort.match(/:(\d+)$/);
+      this.#port = match ? parseInt(match[1], 10) : this.standardPort;
+    }
     return this.#port;
   }
 
