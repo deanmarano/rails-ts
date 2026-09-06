@@ -57,9 +57,9 @@ export async function countBySql(
 ): Promise<number> {
   const sanitized = typeof sql === "string" ? sql : (this.sanitizeSql(sql) ?? "");
   return this.withConnection(async (adapter) => {
-    const rows = await adapter.execute(sanitized);
-    if (!rows[0]) return 0;
-    const firstValue = Object.values(rows[0])[0];
+    const row = (await adapter.execute(sanitized))?.[0];
+    if (!row) return 0;
+    const firstValue = Object.values(row)[0];
     return Number(firstValue) || 0;
   });
 }

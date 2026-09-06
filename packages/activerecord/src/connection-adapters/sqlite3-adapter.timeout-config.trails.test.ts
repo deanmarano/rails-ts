@@ -14,7 +14,7 @@ describe("SQLite3Adapter timeout config coercion", () => {
 
   it("casts a string timeout to an integer", async () => {
     adapter = new BetterSQLite3Adapter({ database: ":memory:", timeout: "5000" });
-    const rows = await adapter.execute("PRAGMA busy_timeout");
+    const rows = (await adapter.execute("PRAGMA busy_timeout"))!;
     expect(Number(rows[0].timeout)).toBe(5000);
   });
 
@@ -41,7 +41,7 @@ describe("SQLite3Adapter timeout config coercion", () => {
 
   it("treats a zero timeout as set", async () => {
     adapter = new BetterSQLite3Adapter({ database: ":memory:", timeout: 0 });
-    const rows = await adapter.execute("PRAGMA busy_timeout");
+    const rows = (await adapter.execute("PRAGMA busy_timeout"))!;
     expect(Number(rows[0].timeout)).toBe(0);
   });
 

@@ -117,10 +117,6 @@ export class Contact extends Model {
   get attributes(): Record<string, unknown> {
     return exceptBang(instanceValues(this), "address", "friends", "contact");
   }
-
-  respondTo(method: string): boolean {
-    return method in (this as unknown as Record<string, unknown>);
-  }
 }
 
 function instanceValues(contact: Contact): Record<string, unknown> {

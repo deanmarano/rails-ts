@@ -91,14 +91,14 @@ export async function execute(
   sql: string,
   name?: string | null,
   options?: { allowRetry?: boolean },
-): Promise<Record<string, unknown>[]> {
+): Promise<Record<string, unknown>[] | undefined> {
   const result = (await abstractExecute.call(
     this as DatabaseStatementsHost,
     sql,
     name,
     options,
   )) as { toArray(): Record<string, unknown>[] } | null | undefined;
-  return result?.toArray() ?? [];
+  return result?.toArray();
 }
 
 export async function resetIsolationLevel(this: InternalBeginTransactionHost): Promise<void> {

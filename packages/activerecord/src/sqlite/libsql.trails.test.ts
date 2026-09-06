@@ -185,7 +185,7 @@ describe("LibSQLAdapter — local-file smoke", () => {
   it("inserts and selects rows through the adapter", async () => {
     await adapter.executeMutation("INSERT INTO items (name) VALUES ('apple')");
     await adapter.executeMutation("INSERT INTO items (name) VALUES ('banana')");
-    const rows = await adapter.execute("SELECT name FROM items ORDER BY id");
+    const rows = (await adapter.execute("SELECT name FROM items ORDER BY id"))!;
     expect(rows.map((r) => (r as { name: string }).name)).toEqual(["apple", "banana"]);
   });
 
@@ -511,7 +511,7 @@ describe.skipIf(!hasCredentials)("LibSQLRemoteAdapter — network adapter smoke 
   });
 
   it("executes a SELECT through the adapter", async () => {
-    const rows = await adapter.execute("SELECT 1 AS n");
+    const rows = (await adapter.execute("SELECT 1 AS n"))!;
     expect((rows[0] as { n: number }).n).toBe(1);
   });
 });
@@ -561,12 +561,12 @@ describe.skipIf(!hasCredentials)(
 
     it("reflects a remote write after syncReplica()", async () => {
       await replica.syncReplica();
-      const rows = await replica.execute(`SELECT label FROM ${table} WHERE id = 1`);
+      const rows = (await replica.execute(`SELECT label FROM ${table} WHERE id = 1`))!;
       expect((rows[0] as { label: string }).label).toBe("remote");
 
       await primary.executeMutation(`INSERT INTO ${table} (id, label) VALUES (2, 'later')`);
       await replica.syncReplica();
-      const after = await replica.execute(`SELECT count(*) AS c FROM ${table}`);
+      const after = (await replica.execute(`SELECT count(*) AS c FROM ${table}`))!;
       expect(Number((after[0] as { c: number }).c)).toBe(2);
     });
   },
@@ -621,7 +621,7 @@ describe.skipIf(!hasCredentials)(
       let label: string | undefined;
       for (let attempt = 0; attempt < 15 && label === undefined; attempt++) {
         await delay(1000);
-        const rows = await replica.execute(`SELECT label FROM ${table} WHERE id = 1`);
+        const rows = (await replica.execute(`SELECT label FROM ${table} WHERE id = 1`))!;
         label = (rows[0] as { label: string } | undefined)?.label;
       }
       expect(label).toBe("auto");

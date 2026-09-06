@@ -701,9 +701,9 @@ export class CreatePosts extends Migration {
     const afterStatus = await context.migrationsStatus();
     expect(afterStatus[0].status).toBe("up");
 
-    const tables = await adapter.execute(
+    const tables = (await adapter.execute(
       `SELECT name FROM sqlite_master WHERE type='table' AND name='posts'`,
-    );
+    ))!;
     expect(tables).toHaveLength(1);
 
     await context.rollback(1);
@@ -711,9 +711,9 @@ export class CreatePosts extends Migration {
     const rollbackStatus = await context.migrationsStatus();
     expect(rollbackStatus[0].status).toBe("down");
 
-    const tablesAfter = await adapter.execute(
+    const tablesAfter = (await adapter.execute(
       `SELECT name FROM sqlite_master WHERE type='table' AND name='posts'`,
-    );
+    ))!;
     expect(tablesAfter).toHaveLength(0);
   });
 
@@ -750,19 +750,19 @@ export class CreateComments extends Migration {
     );
 
     await migrator.migrate(20260101000000);
-    const posts = await adapter.execute(
+    const posts = (await adapter.execute(
       `SELECT name FROM sqlite_master WHERE type='table' AND name='posts'`,
-    );
+    ))!;
     expect(posts).toHaveLength(1);
-    const commentsAfterFirst = await adapter.execute(
+    const commentsAfterFirst = (await adapter.execute(
       `SELECT name FROM sqlite_master WHERE type='table' AND name='comments'`,
-    );
+    ))!;
     expect(commentsAfterFirst).toHaveLength(0);
 
     await migrator.forward(1);
-    const commentsAfterSecond = await adapter.execute(
+    const commentsAfterSecond = (await adapter.execute(
       `SELECT name FROM sqlite_master WHERE type='table' AND name='comments'`,
-    );
+    ))!;
     expect(commentsAfterSecond).toHaveLength(1);
   });
 
@@ -902,9 +902,9 @@ describe("schema dump and load", () => {
       );
       await defineSchema(targetAdapter);
 
-      const tables = await targetAdapter.execute(
+      const tables = (await targetAdapter.execute(
         `SELECT name FROM sqlite_master WHERE type='table' AND name='users'`,
-      );
+      ))!;
       expect(tables).toHaveLength(1);
     } finally {
       sourceAdapter.close();
@@ -964,9 +964,9 @@ describe("db subcommand CLI actions", { timeout: 30_000 }, () => {
       await import("@blazetrails/activerecord/connection-adapters/better-sqlite3-adapter.js");
     const adapter = new BetterSQLite3Adapter(dbFile);
     try {
-      const rows = await adapter.execute(
+      const rows = (await adapter.execute(
         `SELECT name FROM sqlite_master WHERE type='table' AND name='${table}'`,
-      );
+      ))!;
       return rows.length === 1;
     } finally {
       await adapter.close();
@@ -1050,9 +1050,9 @@ export class CreatePosts extends Migration {
       await import("@blazetrails/activerecord/connection-adapters/better-sqlite3-adapter.js");
     const a = new BetterSQLite3Adapter(dbFile);
     try {
-      const tables = await a.execute(
+      const tables = (await a.execute(
         `SELECT name FROM sqlite_master WHERE type='table' AND name='posts'`,
-      );
+      ))!;
       expect(tables).toHaveLength(1);
     } finally {
       await a.close();
@@ -1130,9 +1130,9 @@ export class CreatePosts extends Migration {
       await import("@blazetrails/activerecord/connection-adapters/better-sqlite3-adapter.js");
     const a = new BetterSQLite3Adapter(dbFile);
     try {
-      const tables = await a.execute(
+      const tables = (await a.execute(
         `SELECT name FROM sqlite_master WHERE type='table' AND name='posts'`,
-      );
+      ))!;
       expect(tables).toHaveLength(0);
     } finally {
       await a.close();
@@ -1160,9 +1160,9 @@ export class CreatePosts extends Migration {
       await import("@blazetrails/activerecord/connection-adapters/better-sqlite3-adapter.js");
     const a = new BetterSQLite3Adapter(dbFile);
     try {
-      const rows = await a.execute(
+      const rows = (await a.execute(
         `SELECT value FROM ar_internal_metadata WHERE key = 'environment'`,
-      );
+      ))!;
       expect((rows[0] as { value: string }).value).toBe(resolveEnv());
     } finally {
       await a.close();
@@ -1550,9 +1550,9 @@ fs.writeFileSync(${JSON.stringify(seedMarker)}, "ran");`,
       await import("@blazetrails/activerecord/connection-adapters/better-sqlite3-adapter.js");
     const a = new BetterSQLite3Adapter(dbFile);
     try {
-      const tables = await a.execute(
+      const tables = (await a.execute(
         `SELECT name FROM sqlite_master WHERE type='table' AND name='widgets'`,
-      );
+      ))!;
       expect(tables).toHaveLength(1);
     } finally {
       await a.close();
@@ -1941,26 +1941,26 @@ export class CreateDogs extends Migration {
       await import("@blazetrails/activerecord/connection-adapters/better-sqlite3-adapter.js");
     const pAdapter = new BetterSQLite3Adapter(primaryDb);
     try {
-      const users = await pAdapter.execute(
+      const users = (await pAdapter.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='users'",
-      );
+      ))!;
       expect(users).toHaveLength(1);
-      const noDogs = await pAdapter.execute(
+      const noDogs = (await pAdapter.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='dogs'",
-      );
+      ))!;
       expect(noDogs).toHaveLength(0);
     } finally {
       await pAdapter.close();
     }
     const aAdapter = new BetterSQLite3Adapter(animalsDb);
     try {
-      const dogs = await aAdapter.execute(
+      const dogs = (await aAdapter.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='dogs'",
-      );
+      ))!;
       expect(dogs).toHaveLength(1);
-      const noUsers = await aAdapter.execute(
+      const noUsers = (await aAdapter.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='users'",
-      );
+      ))!;
       expect(noUsers).toHaveLength(0);
     } finally {
       await aAdapter.close();
@@ -2189,18 +2189,18 @@ export class CreateDogs extends Migration {
       await import("@blazetrails/activerecord/connection-adapters/better-sqlite3-adapter.js");
     const pAdapter = new BetterSQLite3Adapter(primaryDb);
     try {
-      const users = await pAdapter.execute(
+      const users = (await pAdapter.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='users'",
-      );
+      ))!;
       expect(users).toHaveLength(0);
     } finally {
       await pAdapter.close();
     }
     const aAdapter = new BetterSQLite3Adapter(animalsDb);
     try {
-      const dogs = await aAdapter.execute(
+      const dogs = (await aAdapter.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='dogs'",
-      );
+      ))!;
       expect(dogs).toHaveLength(1);
     } finally {
       await aAdapter.close();
@@ -2249,9 +2249,9 @@ export class CreateCats extends Migration {
       await import("@blazetrails/activerecord/connection-adapters/better-sqlite3-adapter.js");
     const a = new BetterSQLite3Adapter(animalsDb);
     try {
-      const cats = await a.execute(
+      const cats = (await a.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='cats'",
-      );
+      ))!;
       expect(cats).toHaveLength(1);
     } finally {
       await a.close();

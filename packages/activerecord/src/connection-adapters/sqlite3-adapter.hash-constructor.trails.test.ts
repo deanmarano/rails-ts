@@ -24,7 +24,7 @@ describe("SQLite3Adapter hash-only constructor", () => {
     // eslint-disable-next-line blazetrails/require-table-teardown -- isolated per-test tmp DB, removed in afterEach
     await adapter.executeMutation("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)");
     await adapter.executeMutation("INSERT INTO items (name) VALUES ('apple')");
-    const rows = await adapter.execute("SELECT name FROM items");
+    const rows = (await adapter.execute("SELECT name FROM items"))!;
     expect(rows.map((r) => r.name)).toEqual(["apple"]);
     expect(fs.existsSync(file)).toBe(true);
   });
@@ -34,7 +34,7 @@ describe("SQLite3Adapter hash-only constructor", () => {
 
     // eslint-disable-next-line blazetrails/require-table-teardown -- throwaway :memory: database
     await adapter.executeMutation("CREATE TABLE items (id INTEGER PRIMARY KEY)");
-    const rows = await adapter.execute("SELECT count(*) AS c FROM items");
+    const rows = (await adapter.execute("SELECT count(*) AS c FROM items"))!;
     expect(Number(rows[0].c)).toBe(0);
   });
 

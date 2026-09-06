@@ -58,14 +58,14 @@ describeIfSqlite("SQLite3AdapterPreventWritesTest", () => {
   it("doesnt error when a select query is called while preventing writes", async () => {
     await adapter.exec(`CREATE TABLE "pw5" ("id" INTEGER PRIMARY KEY, "name" TEXT)`);
     await Base.whilePreventingWrites(async () => {
-      const rows = await adapter.execute(`SELECT * FROM "pw5"`);
+      const rows = (await adapter.execute(`SELECT * FROM "pw5"`))!;
       expect(rows).toHaveLength(0);
     });
   });
 
   it("doesnt error when a read query with leading chars is called while preventing writes", async () => {
     await Base.whilePreventingWrites(async () => {
-      const rows = await adapter.execute(`  SELECT 1 AS val`);
+      const rows = (await adapter.execute(`  SELECT 1 AS val`))!;
       expect(rows[0].val).toBe(1);
     });
   });

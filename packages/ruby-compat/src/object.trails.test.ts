@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { rbInspect as inspect, rbObjAsString as toS } from "./object.js";
+import {
+  basicObjRespondTo,
+  rbInspect as inspect,
+  rbObjAsString as toS,
+  rbObjRespondTo,
+} from "./object.js";
 
 describe("Object#inspect", () => {
   it("renders nested arrays, hashes, nil, strings and numbers as MRI does", () => {
@@ -26,5 +31,22 @@ describe("Object#to_s", () => {
     expect(toS(null)).toBe("");
     expect(toS("hi")).toBe("hi");
     expect(toS([{ a: 1 }])).toBe('[{"a"=>1}]');
+  });
+});
+
+describe("Object#respond_to?", () => {
+  it("answers for a method the receiver's class defines, nil included", () => {
+    expect(basicObjRespondTo({ id: 1 }, "id")).toBe(true);
+    expect(basicObjRespondTo({}, "id")).toBe(false);
+    expect(basicObjRespondTo(null, "toString")).toBe(true);
+    expect(basicObjRespondTo(null, "id")).toBe(false);
+  });
+
+  it("sends an overridden respond_to? and otherwise falls back to the default", () => {
+    // vendor/ruby/vm_method.c:2882 vm_respond_to, :2945 the basic_obj_respond_to fallback.
+    const overriding = { respondTo: (mid: string) => mid === "name" };
+    expect(rbObjRespondTo(overriding, "name")).toBe(true);
+    expect(rbObjRespondTo(overriding, "respondTo")).toBe(false);
+    expect(rbObjRespondTo({ id: 1 }, "id")).toBe(true);
   });
 });

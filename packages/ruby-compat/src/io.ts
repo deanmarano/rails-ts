@@ -113,13 +113,42 @@ class ConverterNotFoundError extends Error {
  * `io_enc_str` (`vendor/ruby/io.c:3123`), which tags the String a read
  * assembled with `io_read_encoding` (`io.c:1010`). ASCII-8BIT is the one
  * encoding assembled a character at a time (see {@link binaryString}); every
- * other reaches the platform decoder its registry row names, and an encoding
- * whose row has no decoder at all surfaces as that decoder's own `RangeError`
- * rather than being read in the wrong one.
+ * other reaches the platform decoder its registry row names. An encoding whose
+ * row names no decoder is a converter this platform lacks and MRI has, so it
+ * raises what `rb_econv_open_exc` (`vendor/ruby/transcode.c:2097-2105`) raises
+ * — the treatment {@link doWriteconv} already gives the write half — rather
+ * than leaking `TextDecoder`'s own `RangeError`; the two UTF-32 seats are
+ * decoded here instead, being a four-byte-per-code-point read.
  */
 function ioEncStr(bytes: Uint8Array, length: number, enc: Encoding): string {
   if (enc === Encoding.ASCII_8BIT) return binaryString(bytes, length);
-  return new TextDecoder(enc.decoderLabel as string).decode(bytes.subarray(0, length));
+  const read = bytes.subarray(0, length);
+  if (enc.decoderLabel === null) {
+    if (enc.name === "UTF-32BE" || enc.name === "UTF-32LE") {
+      return utf32Str(read, enc.name === "UTF-32LE");
+    }
+    throw new ConverterNotFoundError(`code converter not found (${enc} to UTF-8)`);
+  }
+  return new TextDecoder(enc.decoderLabel).decode(read);
+}
+
+/**
+ * The `UTF-32BE` / `UTF-32LE` decode `TextDecoder` has no label for: four
+ * bytes per code point (`vendor/ruby/enc/utf_32le.c:44` `utf32le_mbc_to_code`,
+ * `enc/utf_32be.c:43`), which is a small enough transcode to carry rather
+ * than raising where MRI reads. A code point outside Unicode takes the
+ * replacement character its sibling arm's `TextDecoder` substitutes for
+ * malformed input, rather than `String.fromCodePoint`'s own `RangeError`.
+ */
+function utf32Str(bytes: Uint8Array, littleEndian: boolean): string {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let string = "";
+  for (let at = 0; at + 4 <= view.byteLength; at += 4) {
+    const code = view.getUint32(at, littleEndian);
+    const valid = code <= 0x10ffff && (code < 0xd800 || code > 0xdfff);
+    string += valid ? String.fromCodePoint(code) : "\ufffd";
+  }
+  return string;
 }
 
 /**

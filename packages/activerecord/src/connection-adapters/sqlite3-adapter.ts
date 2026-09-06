@@ -1081,7 +1081,7 @@ export class SQLite3Adapter extends AbstractAdapter implements DatabaseAdapter {
   override async checkAllForeignKeysValidBang(): Promise<void> {
     await this.ensureConnected();
     const sql = "PRAGMA foreign_key_check";
-    const result = await this.execute(sql);
+    const result = (await this.execute(sql))!;
 
     if (!isBlank(result)) {
       const tables = result.map((row) => row["table"]);

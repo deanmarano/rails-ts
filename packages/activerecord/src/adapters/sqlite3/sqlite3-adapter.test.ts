@@ -101,7 +101,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
     await adapter.exec(
       `CREATE TABLE "typed" ("id" INTEGER PRIMARY KEY, "name" TEXT, "age" INTEGER, "score" REAL, "data" BLOB)`,
     );
-    const cols = await adapter.execute(`PRAGMA table_info("typed")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("typed")`))!;
     expect(cols.length).toBe(5);
     const types = cols.map((c: any) => c.type);
     expect(types).toContain("TEXT");
@@ -152,7 +152,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
 
   it("primary key returns nil for no pk", async () => {
     await adapter.exec(`CREATE TABLE "no_pk" ("name" TEXT, "value" TEXT)`);
-    const cols = await adapter.execute(`PRAGMA table_info("no_pk")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("no_pk")`))!;
     const pkCols = cols.filter((c: any) => c.pk > 0);
     expect(pkCols).toHaveLength(0);
   });
@@ -185,44 +185,44 @@ describeIfSqlite("SQLite3AdapterTest", () => {
   });
 
   it("encoding", async () => {
-    const rows = await adapter.execute(`PRAGMA encoding`);
+    const rows = (await adapter.execute(`PRAGMA encoding`))!;
     expect(rows[0].encoding).toBe("UTF-8");
   });
 
   it("default pragmas", async () => {
-    const jm = await adapter.execute(`PRAGMA journal_mode`);
+    const jm = (await adapter.execute(`PRAGMA journal_mode`))!;
     expect(["wal", "memory"]).toContain(jm[0].journal_mode);
-    const fk = await adapter.execute(`PRAGMA foreign_keys`);
+    const fk = (await adapter.execute(`PRAGMA foreign_keys`))!;
     expect(fk[0].foreign_keys).toBe(1);
   });
 
   it("overriding default foreign keys pragma", async () => {
-    const fk = await adapter.execute(`PRAGMA foreign_keys`);
+    const fk = (await adapter.execute(`PRAGMA foreign_keys`))!;
     expect(fk[0].foreign_keys).toBe(1);
     await adapter.execute(`PRAGMA foreign_keys = OFF`);
-    const fk2 = await adapter.execute(`PRAGMA foreign_keys`);
+    const fk2 = (await adapter.execute(`PRAGMA foreign_keys`))!;
     expect(fk2[0].foreign_keys).toBe(0);
     await adapter.execute(`PRAGMA foreign_keys = ON`);
   });
 
   it("overriding default journal mode pragma", async () => {
-    const jm = await adapter.execute(`PRAGMA journal_mode`);
+    const jm = (await adapter.execute(`PRAGMA journal_mode`))!;
     expect(jm[0].journal_mode).toBeDefined();
     await adapter.execute(`PRAGMA journal_mode = DELETE`);
-    const jm2 = await adapter.execute(`PRAGMA journal_mode`);
+    const jm2 = (await adapter.execute(`PRAGMA journal_mode`))!;
     expect(jm2[0].journal_mode).toBeDefined();
   });
 
   it("overriding default synchronous pragma", async () => {
     await adapter.execute(`PRAGMA synchronous = OFF`);
-    const rows = await adapter.execute(`PRAGMA synchronous`);
+    const rows = (await adapter.execute(`PRAGMA synchronous`))!;
     expect(rows[0].synchronous).toBe(0);
     await adapter.execute(`PRAGMA synchronous = NORMAL`);
   });
 
   it("overriding default journal size limit pragma", async () => {
     await adapter.execute(`PRAGMA journal_size_limit = 1048576`);
-    const rows = await adapter.execute(`PRAGMA journal_size_limit`);
+    const rows = (await adapter.execute(`PRAGMA journal_size_limit`))!;
     expect(rows[0].journal_size_limit).toBe(1048576);
   });
 
@@ -232,13 +232,13 @@ describeIfSqlite("SQLite3AdapterTest", () => {
 
   it("overriding default cache size pragma", async () => {
     await adapter.execute(`PRAGMA cache_size = 5000`);
-    const rows = await adapter.execute(`PRAGMA cache_size`);
+    const rows = (await adapter.execute(`PRAGMA cache_size`))!;
     expect(rows[0].cache_size).toBe(5000);
   });
 
   it("setting new pragma", async () => {
     await adapter.execute(`PRAGMA temp_store = MEMORY`);
-    const rows = await adapter.execute(`PRAGMA temp_store`);
+    const rows = (await adapter.execute(`PRAGMA temp_store`))!;
     expect(rows[0].temp_store).toBe(2);
   });
 
@@ -247,13 +247,13 @@ describeIfSqlite("SQLite3AdapterTest", () => {
   });
 
   it("exec no binds", async () => {
-    const rows = await adapter.execute(`SELECT 1 AS val`);
+    const rows = (await adapter.execute(`SELECT 1 AS val`))!;
     expect(rows[0].val).toBe(1);
   });
 
   it("exec query with binds", async () => {
     await adapter.executeMutation(`INSERT INTO "items" ("name", "price") VALUES ('widget', 10)`);
-    const rows = await adapter.execute(`SELECT * FROM "items" WHERE "name" = 'widget'`);
+    const rows = (await adapter.execute(`SELECT * FROM "items" WHERE "name" = 'widget'`))!;
     expect(rows).toHaveLength(1);
     expect(rows[0].price).toBe(10);
   });
@@ -276,7 +276,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
     await adapter.executeMutation(`INSERT INTO "bin_esc" ("data") VALUES (?)`, [
       new BinaryData(buf),
     ]);
-    const rows = await adapter.execute(`SELECT "data" FROM "bin_esc"`);
+    const rows = (await adapter.execute(`SELECT "data" FROM "bin_esc"`))!;
     expect(Buffer.from(rows[0].data as Buffer)).toEqual(buf);
   });
 
@@ -292,7 +292,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
 
   it("execute", async () => {
     await adapter.executeMutation(`INSERT INTO "items" ("name") VALUES ('a')`);
-    const rows = await adapter.execute(`SELECT * FROM "items"`);
+    const rows = (await adapter.execute(`SELECT * FROM "items"`))!;
     expect(rows).toHaveLength(1);
   });
 
@@ -323,14 +323,14 @@ describeIfSqlite("SQLite3AdapterTest", () => {
     );
     const id = await adapter.executeMutation(`INSERT INTO "def_vals" DEFAULT VALUES`);
     expect(id).toBe(1);
-    const rows = await adapter.execute(`SELECT * FROM "def_vals"`);
+    const rows = (await adapter.execute(`SELECT * FROM "def_vals"`))!;
     expect(rows[0].name).toBe("default");
   });
 
   it("select rows", async () => {
     await adapter.executeMutation(`INSERT INTO "items" ("name", "price") VALUES ('a', 1)`);
     await adapter.executeMutation(`INSERT INTO "items" ("name", "price") VALUES ('b', 2)`);
-    const rows = await adapter.execute(`SELECT "name", "price" FROM "items" ORDER BY "name"`);
+    const rows = (await adapter.execute(`SELECT "name", "price" FROM "items" ORDER BY "name"`))!;
     expect(rows).toHaveLength(2);
     expect(rows[0].name).toBe("a");
     expect(rows[1].name).toBe("b");
@@ -354,20 +354,20 @@ describeIfSqlite("SQLite3AdapterTest", () => {
     await adapter.beginTransaction({ _lazy: false });
     await adapter.executeMutation(`INSERT INTO "items" ("name") VALUES ('x')`);
     await adapter.commit();
-    const rows = await adapter.execute(`SELECT * FROM "items"`);
+    const rows = (await adapter.execute(`SELECT * FROM "items"`))!;
     expect(rows).toHaveLength(1);
   });
 
   it("tables", async () => {
-    const rows = await adapter.execute(
+    const rows = (await adapter.execute(
       `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`,
-    );
+    ))!;
     const names = rows.map((r: any) => r.name);
     expect(names).toContain("items");
   });
 
   it("columns", async () => {
-    const cols = await adapter.execute(`PRAGMA table_info("items")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("items")`))!;
     const names = cols.map((c: any) => c.name);
     expect(names).toContain("id");
     expect(names).toContain("name");
@@ -386,7 +386,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
     await adapter.exec(
       `CREATE TABLE "strict_items" ("id" INTEGER PRIMARY KEY, "name" TEXT NOT NULL)`,
     );
-    const cols = await adapter.execute(`PRAGMA table_info("strict_items")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("strict_items")`))!;
     const nameCol = cols.find((c: any) => c.name === "name");
     expect(nameCol!.notnull).toBe(1);
   });
@@ -395,7 +395,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
     await adapter.exec(
       `ALTER TABLE "items" ADD COLUMN "required" TEXT NOT NULL DEFAULT 'default_val'`,
     );
-    const cols = await adapter.execute(`PRAGMA table_info("items")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("items")`))!;
     const reqCol = cols.find((c: any) => c.name === "required");
     expect(reqCol!.notnull).toBe(1);
   });
@@ -414,7 +414,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
   });
 
   it("no indexes", async () => {
-    const rows = await adapter.execute(`PRAGMA index_list("items")`);
+    const rows = (await adapter.execute(`PRAGMA index_list("items")`))!;
     expect(rows).toHaveLength(0);
   });
 
@@ -430,7 +430,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
   it("index with if not exists", async () => {
     await adapter.exec(`CREATE INDEX IF NOT EXISTS "idx_items_name" ON "items" ("name")`);
     await adapter.exec(`CREATE INDEX IF NOT EXISTS "idx_items_name" ON "items" ("name")`);
-    const rows = await adapter.execute(`PRAGMA index_list("items")`);
+    const rows = (await adapter.execute(`PRAGMA index_list("items")`))!;
     const matching = rows.filter((r: any) => r.name === "idx_items_name");
     expect(matching).toHaveLength(1);
   });
@@ -504,14 +504,14 @@ describeIfSqlite("SQLite3AdapterTest", () => {
   });
 
   it("primary key", async () => {
-    const cols = await adapter.execute(`PRAGMA table_info("items")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("items")`))!;
     const pkCol = cols.find((c: any) => c.pk === 1);
     expect(pkCol!.name).toBe("id");
   });
 
   it("no primary key", async () => {
     await adapter.exec(`CREATE TABLE "no_pk" ("a" TEXT, "b" TEXT)`);
-    const cols = await adapter.execute(`PRAGMA table_info("no_pk")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("no_pk")`))!;
     const pkCols = cols.filter((c: any) => c.pk > 0);
     expect(pkCols).toHaveLength(0);
   });
@@ -522,7 +522,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
     );
     await adapter.executeMutation(`INSERT INTO "custom_pk_src" ("name") VALUES ('Alice')`);
     await adapter.exec(`CREATE TABLE "custom_pk_dest" AS SELECT * FROM "custom_pk_src"`);
-    const rows = await adapter.execute(`SELECT * FROM "custom_pk_dest"`);
+    const rows = (await adapter.execute(`SELECT * FROM "custom_pk_dest"`))!;
     expect(rows).toHaveLength(1);
     expect(rows[0].custom_id).toBe(1);
   });
@@ -533,14 +533,14 @@ describeIfSqlite("SQLite3AdapterTest", () => {
     );
     await adapter.executeMutation(`INSERT INTO "cpk_src" ("a", "b", "val") VALUES (1, 2, 'x')`);
     await adapter.exec(`CREATE TABLE "cpk_dest" AS SELECT * FROM "cpk_src"`);
-    const rows = await adapter.execute(`SELECT * FROM "cpk_dest"`);
+    const rows = (await adapter.execute(`SELECT * FROM "cpk_dest"`))!;
     expect(rows).toHaveLength(1);
     expect(rows[0].val).toBe("x");
   });
 
   it("custom primary key in create table", async () => {
     await adapter.exec(`CREATE TABLE "custom_pk" ("custom_id" INTEGER PRIMARY KEY, "name" TEXT)`);
-    const cols = await adapter.execute(`PRAGMA table_info("custom_pk")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("custom_pk")`))!;
     const pkCol = cols.find((c: any) => c.pk === 1);
     expect(pkCol!.name).toBe("custom_id");
   });
@@ -548,7 +548,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
   it("custom primary key in change table", async () => {
     await adapter.exec(`CREATE TABLE "change_pk" ("custom_id" INTEGER PRIMARY KEY, "name" TEXT)`);
     await adapter.exec(`ALTER TABLE "change_pk" ADD COLUMN "age" INTEGER DEFAULT 0`);
-    const cols = await adapter.execute(`PRAGMA table_info("change_pk")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("change_pk")`))!;
     expect(cols.find((c: any) => c.name === "age")).toBeDefined();
     const pkCol = cols.find((c: any) => c.pk === 1);
     expect(pkCol!.name).toBe("custom_id");
@@ -628,7 +628,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
     await writer.exec(`CREATE TABLE "test" ("id" INTEGER PRIMARY KEY, "name" TEXT)`);
     await writer.close();
     const reader = new BetterSQLite3Adapter(tmpFile, { readonly: true });
-    const rows = await reader.execute(`SELECT * FROM "test"`);
+    const rows = (await reader.execute(`SELECT * FROM "test"`))!;
     expect(rows).toHaveLength(0);
     await reader.close();
     fs.unlinkSync(tmpFile);
@@ -789,7 +789,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
 
   it("rowid column", async () => {
     await adapter.exec(`CREATE TABLE "rowid_test" ("id" INTEGER PRIMARY KEY, "name" TEXT)`);
-    const cols = await adapter.execute(`PRAGMA table_info("rowid_test")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("rowid_test")`))!;
     const idCol = cols.find((c: any) => c.name === "id");
     expect(idCol!.type).toBe("INTEGER");
     expect(idCol!.pk).toBe(1);
@@ -797,21 +797,21 @@ describeIfSqlite("SQLite3AdapterTest", () => {
 
   it("lowercase rowid column", async () => {
     await adapter.exec(`CREATE TABLE "rowid_lower" ("id" integer PRIMARY KEY, "name" text)`);
-    const cols = await adapter.execute(`PRAGMA table_info("rowid_lower")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("rowid_lower")`))!;
     const idCol = cols.find((c: any) => c.name === "id");
     expect(idCol!.pk).toBe(1);
   });
 
   it("non integer column returns false for rowid", async () => {
     await adapter.exec(`CREATE TABLE "text_pk" ("id" TEXT PRIMARY KEY, "name" TEXT)`);
-    const cols = await adapter.execute(`PRAGMA table_info("text_pk")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("text_pk")`))!;
     const idCol = cols.find((c: any) => c.name === "id");
     expect(idCol!.type).toBe("TEXT");
   });
 
   it("mixed case integer colum returns true for rowid", async () => {
     await adapter.exec(`CREATE TABLE "mixed_case" ("id" Integer PRIMARY KEY, "name" TEXT)`);
-    const cols = await adapter.execute(`PRAGMA table_info("mixed_case")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("mixed_case")`))!;
     const idCol = cols.find((c: any) => c.name === "id");
     expect((idCol as any).type.toUpperCase()).toBe("INTEGER");
     expect(idCol!.pk).toBe(1);
@@ -821,7 +821,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
     await adapter.exec(
       `CREATE TABLE "auto_inc" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "name" TEXT)`,
     );
-    const cols = await adapter.execute(`PRAGMA table_info("auto_inc")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("auto_inc")`))!;
     const idCol = cols.find((c: any) => c.name === "id");
     expect(idCol!.type).toBe("INTEGER");
     expect(idCol!.pk).toBe(1);
@@ -831,7 +831,7 @@ describeIfSqlite("SQLite3AdapterTest", () => {
     await adapter.exec(
       `CREATE TABLE "cpk" ("id1" INTEGER, "id2" INTEGER, "name" TEXT, PRIMARY KEY ("id1", "id2"))`,
     );
-    const cols = await adapter.execute(`PRAGMA table_info("cpk")`);
+    const cols = (await adapter.execute(`PRAGMA table_info("cpk")`))!;
     const pkCols = cols.filter((c: any) => c.pk > 0);
     expect(pkCols).toHaveLength(2);
   });

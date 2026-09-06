@@ -369,7 +369,7 @@ describe("SQLite3::Quoting", () => {
       await adapter.executeMutation(
         `INSERT INTO "quoting_events" ("ts") VALUES (${quote(instant)})`,
       );
-      const rows = await adapter.execute(`SELECT "ts" FROM "quoting_events" LIMIT 1`);
+      const rows = (await adapter.execute(`SELECT "ts" FROM "quoting_events" LIMIT 1`))!;
       const raw = rows[0].ts as string;
       const cast = new ARDateTimeType().cast(raw);
       expect(cast).toBeInstanceOf(RubyTime);
@@ -381,7 +381,7 @@ describe("SQLite3::Quoting", () => {
     it("Temporal.PlainDateTime with microseconds survives INSERT → SELECT as Instant", async () => {
       const dt = Temporal.PlainDateTime.from("2026-04-18T12:34:56.654321");
       await adapter.executeMutation(`INSERT INTO "quoting_events" ("dt") VALUES (${quote(dt)})`);
-      const rows = await adapter.execute(`SELECT "dt" FROM "quoting_events" LIMIT 1`);
+      const rows = (await adapter.execute(`SELECT "dt" FROM "quoting_events" LIMIT 1`))!;
       const raw = rows[0].dt as string;
       const cast = new ARDateTimeType().cast(raw) as RubyTime;
       expect(cast).toBeInstanceOf(RubyTime);
@@ -391,7 +391,7 @@ describe("SQLite3::Quoting", () => {
     it("Temporal.PlainDate survives INSERT → SELECT", async () => {
       const date = Temporal.PlainDate.from("2026-04-18");
       await adapter.executeMutation(`INSERT INTO "quoting_events" ("d") VALUES (${quote(date)})`);
-      const rows = await adapter.execute(`SELECT "d" FROM "quoting_events" LIMIT 1`);
+      const rows = (await adapter.execute(`SELECT "d" FROM "quoting_events" LIMIT 1`))!;
       const raw = rows[0].d as string;
       const cast = new DateType().cast(raw);
       expect(cast).toBeInstanceOf(Temporal.PlainDate);
@@ -404,7 +404,7 @@ describe("SQLite3::Quoting", () => {
     it("Temporal.PlainTime with microseconds survives INSERT → SELECT", async () => {
       const time = Temporal.PlainTime.from("14:23:55.654321");
       await adapter.executeMutation(`INSERT INTO "quoting_events" ("t") VALUES (${quote(time)})`);
-      const rows = await adapter.execute(`SELECT "t" FROM "quoting_events" LIMIT 1`);
+      const rows = (await adapter.execute(`SELECT "t" FROM "quoting_events" LIMIT 1`))!;
       const raw = rows[0].t as string;
       const cast = new TimeType().cast(raw) as RubyTime;
       expect(cast.getutc().xmlschema(6)).toBe("2000-01-01T14:23:55.654321Z");
