@@ -52,14 +52,12 @@ export function parseMultipart(
   let contentLength = env["CONTENT_LENGTH"];
   if (contentLength != null && contentLength !== false) {
     contentLength = parseInt(String(contentLength), 10) || 0;
-  } else {
-    contentLength = null;
   }
 
   const contentType = env["CONTENT_TYPE"];
 
-  const tempfile = env[RACK_MULTIPART_TEMPFILE_FACTORY] ?? Parser.TEMPFILE_FACTORY;
-  const bufsize = env[RACK_MULTIPART_BUFFER_SIZE] ?? Parser.BUFSIZE;
+  const tempfile = env[RACK_MULTIPART_TEMPFILE_FACTORY] || Parser.TEMPFILE_FACTORY;
+  const bufsize = env[RACK_MULTIPART_BUFFER_SIZE] || Parser.BUFSIZE;
 
   const info = Parser.parse(io, contentLength, contentType, tempfile, bufsize, params);
   env[RACK_TEMPFILES] = info.tmpFiles;
