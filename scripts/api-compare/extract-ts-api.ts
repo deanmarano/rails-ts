@@ -3340,6 +3340,7 @@ export function extractFileLocalHelpers(
     if (isNotImplementedStub(node.body)) return out;
     const line = node.getSourceFile().getLineAndCharacterOfPosition(node.getStart()).line + 1;
     const callArgs = extractCallArgs(node.body);
+    const skeleton = extractSkeleton(node.body);
     out.push({
       name: node.name.text,
       visibility: "private",
@@ -3349,6 +3350,7 @@ export function extractFileLocalHelpers(
       file: relPath,
       internal: true,
       ...(callArgs !== undefined ? { callArgs } : {}),
+      ...(skeleton !== undefined ? { localSkeleton: skeleton } : {}),
       ...missingRailsTagsOf(node),
     });
     return out;
@@ -3362,6 +3364,7 @@ export function extractFileLocalHelpers(
     if (isNotImplementedStub(init.body)) continue;
     const line = decl.getSourceFile().getLineAndCharacterOfPosition(decl.getStart()).line + 1;
     const callArgs = extractCallArgs(init.body);
+    const skeleton = extractSkeleton(init.body);
     out.push({
       name: decl.name.text,
       visibility: "private",
@@ -3371,6 +3374,7 @@ export function extractFileLocalHelpers(
       file: relPath,
       internal: true,
       ...(callArgs !== undefined ? { callArgs } : {}),
+      ...(skeleton !== undefined ? { localSkeleton: skeleton } : {}),
       ...missingRailsTagsOf(node),
     });
   }

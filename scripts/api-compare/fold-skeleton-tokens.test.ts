@@ -56,6 +56,15 @@ describe("sameFileHelperSkeletons", () => {
     expect(sameFileHelperSkeletons("helper", ["ref:helper"], resolve)).toBeUndefined();
   });
 
+  it("splices a same-named same-file function a method delegates to", () => {
+    expect(
+      sameFileHelperSkeletons("markOccurrence", ["ref:markOccurrence"], resolve, "ts", [
+        "if",
+        "ref:set",
+      ]),
+    ).toEqual({ markOccurrence: ["if", "ref:set"] });
+  });
+
   it("resolves a reach named after an Object.prototype member", () => {
     expect(sameFileHelperSkeletons("build", ["ref:constructor"], () => ["if"])).toEqual({
       constructor: ["if"],

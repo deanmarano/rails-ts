@@ -85,6 +85,16 @@ export interface MethodInfo {
    */
   skeleton?: string[];
   /**
+   * TS-side only (RFC 0113): the `skeleton` of a NON-exported file-local
+   * helper. Kept out of `skeleton` so the compared population stays exactly
+   * what it was — a file-local helper matches no Ruby entity — while a body
+   * that delegates to one can still resolve the reach, including a method
+   * delegating to a top-level function of its own name
+   * (`has-many-through-association.ts#markOccurrence`). See
+   * compare.ts#sameFileHelperSkeletons.
+   */
+  localSkeleton?: string[];
+  /**
    * Ruby-side only (RFC 0083): the subset of `calls` whose every occurrence in
    * the body had a provably inert receiver — a local variable or a literal
    * (`xs.first`, `opts.fetch`, `{}.merge`). Those say nothing about the port,
