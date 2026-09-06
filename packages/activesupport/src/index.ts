@@ -522,6 +522,8 @@ export {
   extend,
   included,
   extended,
+  initialize,
+  initializeIncludedModules,
   isModuleIncluded,
   Module,
   defineModule,

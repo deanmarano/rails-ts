@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { include } from "@blazetrails/activesupport";
+import { include, initializeIncludedModules } from "@blazetrails/activesupport";
 import { ControllerRuntime, logProcessAction } from "./controller-runtime.js";
 import * as RuntimeRegistry from "../runtime-registry.js";
 
@@ -8,6 +8,10 @@ class FakeController {
   logger: { "info?": boolean } | null = null;
   viewRuntime: number | null = null;
   processedWith: unknown[] = [];
+
+  constructor() {
+    initializeIncludedModules(this);
+  }
 
   processAction(action: string, ...args: unknown[]): unknown {
     this.processedWith = [action, ...args];
@@ -197,6 +201,9 @@ describe("ControllerRuntimeTest", () => {
     it("seats dbRuntime to null on a fresh controller", () => {
       class SeatController {
         logger: { "info?": boolean } | null = null;
+        constructor() {
+          initializeIncludedModules(this);
+        }
         processAction(): unknown {
           return undefined;
         }
@@ -212,9 +219,6 @@ describe("ControllerRuntimeTest", () => {
 
       const controller = new SeatController() as SeatController & { dbRuntime: number | null };
       expect(controller.dbRuntime).toBe(null);
-      expect(Object.hasOwn(controller, "dbRuntime")).toBe(false);
-
-      controller.dbRuntime = 1.5;
       expect(Object.hasOwn(controller, "dbRuntime")).toBe(true);
       expect(new SeatController() as unknown as { dbRuntime: unknown }).toMatchObject({
         dbRuntime: null,

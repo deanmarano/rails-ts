@@ -25,7 +25,11 @@ import { ArgumentError } from "./argument-error.js";
 type AnyClass = new (...args: never[]) => unknown;
 type ModuleObject = object;
 type AnyFunction = (...args: never) => unknown;
-type ModuleHooks = { [included]?: (klass: unknown) => void; [extended]?: (klass: unknown) => void };
+type ModuleHooks = {
+  [included]?: (klass: unknown) => void;
+  [extended]?: (klass: unknown) => void;
+  [initialize]?: (receiver: object) => void;
+};
 
 /**
  * Ruby's `Module.new` — an anonymous module built at runtime and populated
@@ -167,6 +171,74 @@ export const included = Symbol.for("@blazetrails/ruby-compat:included");
  * hook, which the language has no equivalent of.
  */
 export const extended = Symbol.for("@blazetrails/ruby-compat:extended");
+
+/**
+ * Symbol key for a module's `initialize`, the per-instance half of Ruby's
+ * `include`. `rb_include_module` (vendor/ruby/class.c:1179) splices the module
+ * into the lookup chain, so a module that defines `initialize` and calls
+ * `super` runs against every new instance of the including class — which is
+ * how `ActiveRecord::Railties::ControllerRuntime#initialize`
+ * (activerecord/lib/active_record/railties/controller_runtime.rb:26-29) seats
+ * `db_runtime` on each controller.
+ *
+ * JavaScript has no construction hook a mixin can splice into, so the class at
+ * the bottom of the chain calls `initializeIncludedModules(this)` where Ruby's
+ * `initialize` calls `super` — `ActionController::Metal`'s constructor, the
+ * port of `metal.rb:210-217`.
+ *
+ * Symbol-keyed for the same reason `included` is: `initialize` is a Ruby
+ * lifecycle name, and a string-named TS method spelled that way is drift.
+ *
+ * @noRailsEquivalent PERMANENT — the TypeScript spelling of a Ruby lifecycle
+ * hook, which the language has no equivalent of.
+ */
+export const initialize = Symbol.for("@blazetrails/ruby-compat:initialize");
+
+const instanceInitializers = Symbol.for("@blazetrails/ruby-compat:instanceInitializers");
+
+/**
+ * Run the `initialize` of every module included into `instance`'s class, in
+ * include order — the order Ruby unwinds the `super` chain in, since a module
+ * included later sits higher in the ancestry and so completes last.
+ *
+ * Mirrors: the `super` call in a class whose ancestry carries module
+ * `initialize` definitions — vendor/ruby/class.c:1179 `rb_include_module`.
+ *
+ * @noRailsEquivalent PERMANENT — Ruby reaches these through `super`;
+ * JavaScript has no construction hook a mixin can splice into.
+ */
+export function initializeIncludedModules(instance: object): void {
+  const chain: Array<Array<(receiver: object) => void>> = [];
+  for (
+    let proto: object | null = Object.getPrototypeOf(instance) as object | null;
+    proto;
+    proto = Object.getPrototypeOf(proto) as object | null
+  ) {
+    if (!Object.prototype.hasOwnProperty.call(proto, instanceInitializers)) continue;
+    chain.unshift(
+      (proto as Record<symbol, unknown>)[instanceInitializers] as Array<(receiver: object) => void>,
+    );
+  }
+  for (const initializers of chain) {
+    for (const initializer of initializers) initializer.call(instance, instance);
+  }
+}
+
+function trackInstanceInitializer(proto: object, initializer: (receiver: object) => void): void {
+  let list = (proto as Record<symbol, unknown>)[instanceInitializers] as
+    | Array<(receiver: object) => void>
+    | undefined;
+  if (!Object.prototype.hasOwnProperty.call(proto, instanceInitializers)) {
+    list = [];
+    Object.defineProperty(proto, instanceInitializers, {
+      value: list,
+      writable: true,
+      configurable: true,
+      enumerable: false,
+    });
+  }
+  list!.push(initializer);
+}
 
 const includedKeys = Symbol.for("@blazetrails/ruby-compat:includedKeys");
 
@@ -386,6 +458,10 @@ export function include(klass: AnyClass, mod: ModuleObject | AnyClass | Module):
   const appendFeatures = featureHook(mod, "appendFeatures");
   if (appendFeatures) return appendFeatures(klass);
   trackIncludedModule(klass.prototype, mod);
+  const instanceInitializer = (mod as ModuleHooks)[initialize];
+  if (typeof instanceInitializer === "function") {
+    trackInstanceInitializer(klass.prototype, instanceInitializer);
+  }
   if (mod instanceof Module) {
     const proto = klass.prototype as object;
     const carrier = Object.create(Object.getPrototypeOf(proto)) as Record<string, unknown>;

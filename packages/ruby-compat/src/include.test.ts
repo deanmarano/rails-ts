@@ -5,6 +5,8 @@ import {
   included,
   extended,
   Module,
+  initialize,
+  initializeIncludedModules,
   isModuleIncluded,
   defineModule,
   moduleVisibility,
@@ -17,6 +19,56 @@ import {
 type DynMethods = Record<string, (...args: unknown[]) => unknown>;
 type DynProps = Record<string, unknown>;
 type DynSymbols = Record<symbol, unknown>;
+
+describe("initializeIncludedModules", () => {
+  it("seats a module's per-instance state as an own property at construction", () => {
+    class Controller {
+      constructor() {
+        initializeIncludedModules(this);
+      }
+    }
+    const mod = {
+      [initialize](receiver: object) {
+        (receiver as DynProps).dbRuntime = null;
+      },
+    };
+    include(Controller, mod);
+
+    const controller = new Controller();
+    expect(Object.hasOwn(controller, "dbRuntime")).toBe(true);
+    expect((controller as DynProps).dbRuntime).toBe(null);
+  });
+
+  it("runs the initializers of every included module, in include order", () => {
+    const order: string[] = [];
+    class Controller {
+      constructor() {
+        initializeIncludedModules(this);
+      }
+    }
+    include(Controller, { [initialize]: () => order.push("first") });
+    include(Controller, { [initialize]: () => order.push("second") });
+
+    new Controller();
+    expect(order).toEqual(["first", "second"]);
+  });
+
+  it("runs the initializers a superclass included", () => {
+    class Base {
+      constructor() {
+        initializeIncludedModules(this);
+      }
+    }
+    include(Base, {
+      [initialize](receiver: object) {
+        (receiver as DynProps).seated = true;
+      },
+    });
+    class Sub extends Base {}
+
+    expect(Object.hasOwn(new Sub(), "seated")).toBe(true);
+  });
+});
 
 describe("include", () => {
   it("copies instance methods onto the prototype", () => {
