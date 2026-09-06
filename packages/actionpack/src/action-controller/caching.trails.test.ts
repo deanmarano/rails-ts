@@ -51,10 +51,19 @@ describe("AbstractController::Caching included into ActionController::Base", () 
     );
   });
 
+  it("resolves a cache store assigned on the class too, from extend ConfigMethods", () => {
+    class ExtendedController extends Base {}
+    const cls = ExtendedController as unknown as { cacheStore: unknown };
+    cls.cacheStore = ":memory_store";
+    expect(cls.cacheStore).toBeInstanceOf(MemoryStore);
+    expect((new ExtendedController() as unknown as { cacheStore: unknown }).cacheStore).toBe(
+      cls.cacheStore,
+    );
+  });
+
   it("instruments read_fragment / write_fragment when a template caches", async () => {
-    class CachedController extends Base {
-      static cacheStore: MemoryStore | null = new MemoryStore();
-    }
+    class CachedController extends Base {}
+    (CachedController as unknown as { cacheStore: unknown }).cacheStore = new MemoryStore();
 
     const controller = new CachedController();
     const view = new ActionViewBase(null, {}, controller) as ActionViewBase & CacheHelperHost;

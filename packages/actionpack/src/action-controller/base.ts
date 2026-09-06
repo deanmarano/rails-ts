@@ -54,6 +54,8 @@ import {
   isContentSecurityPolicy,
 } from "./metal/content-security-policy.js";
 import { helperMethod, type HelpersClassMethods } from "../abstract-controller/helpers.js";
+import { lookupStore } from "@blazetrails/activesupport/cache";
+import type { CacheStore } from "@blazetrails/activesupport";
 import { defaultFormBuilder } from "./form-builder.js";
 import { instrumentPayload, instrumentName } from "./caching.js";
 import {
@@ -905,6 +907,16 @@ export class Base extends Metal {
 }
 
 include(Base, ConfigMethods);
+const cacheStoreConfig = Symbol("cache_store");
+Object.defineProperty(Base, "cacheStore", {
+  configurable: true,
+  get(this: Record<symbol, unknown>): CacheStore | null {
+    return (this[cacheStoreConfig] as CacheStore | null) ?? null;
+  },
+  set(this: Record<symbol, unknown>, store: unknown) {
+    this[cacheStoreConfig] = lookupStore(store);
+  },
+});
 Base.prototype.viewCacheDependencies = viewCacheDependencies;
 Base.prototype.cache = cache;
 Base.prototype.combinedFragmentCacheKey = combinedFragmentCacheKey;
