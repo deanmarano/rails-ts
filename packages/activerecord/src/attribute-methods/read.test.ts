@@ -25,6 +25,7 @@ describe("ReadTest", () => {
       static setDefineMethodAttribute = setDefineMethodAttribute;
       static attributeMethodsGenerated = isAttributeMethodsGenerated;
       static attributeNames = () => ["one", "two", "three"];
+      static hasAttribute = Base.hasAttribute;
       static _hasAttribute = ClassMethods._hasAttribute;
       static attributeTypes = () => ({});
       static aliasAttribute = Base.aliasAttribute;

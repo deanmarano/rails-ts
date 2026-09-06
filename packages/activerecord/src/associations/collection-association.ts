@@ -11,7 +11,7 @@ import { ArgumentError } from "@blazetrails/activemodel";
 import { Association } from "./association.js";
 import type { AssociationProxy } from "./collection-proxy.js";
 import { _CollectionProxyCtor } from "./collection-proxy-slot.js";
-import { foreignKeyPresent, ownerForeignKeyColumns } from "./foreign-association.js";
+import { ownerForeignKeyColumns } from "./foreign-association.js";
 import { RecordNotFound, RecordNotSaved, Rollback } from "../errors.js";
 import { CollectionIdsAssignmentError, CollectionPersistedAssignmentError } from "./errors.js";
 
@@ -986,5 +986,3 @@ function arraysEqual(a: Base[], b: Base[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((r, i) => r === b[i]);
 }
-
-Object.assign(CollectionAssociation.prototype, { foreignKeyPresent });

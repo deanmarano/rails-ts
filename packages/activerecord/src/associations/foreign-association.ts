@@ -29,14 +29,12 @@ export function ownerForeignKeyColumns(
 
 interface ForeignAssociationHost {
   reflection: AssociationReflection;
-  owner: Base;
+  owner: Base & { attributePresent(attrName: string): boolean };
 }
 
 export function foreignKeyPresent(this: ForeignAssociationHost): boolean {
-  if ((this.reflection as { klass?: { primaryKey?: unknown } }).klass?.primaryKey != null) {
-    return (this.owner as Base & { attributePresent(name: string): boolean }).attributePresent(
-      (this.reflection as unknown as { activeRecordPrimaryKey: string }).activeRecordPrimaryKey,
-    );
+  if (this.reflection.klass.primaryKey != null) {
+    return this.owner.attributePresent(this.reflection.activeRecordPrimaryKey as string);
   } else {
     return false;
   }
