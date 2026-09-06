@@ -114,7 +114,7 @@ describe("IO", () => {
     const path = join(mkdtempSync(join(tmpdir(), "trails-io-")), "default.txt");
     writeFileSync(path, "héllo");
     const file = File.open(path, "r");
-    expect(file.externalEncoding()).toBeNull();
+    expect(file.externalEncoding()).toBe(Encoding.defaultExternal);
     expect(file.read()).toBe("héllo");
     file.close();
   });

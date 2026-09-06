@@ -319,11 +319,16 @@ export class File extends IO {
     const colon = mode.indexOf(":");
     const estr = colon === -1 ? null : mode.slice(colon + 1);
     const vmode = colon === -1 ? mode : mode.slice(0, colon);
-    const file = new File(getFs().openSync(fileName, vmode.replace(/b/g, ""), opt?.perm), fileName);
+    const file = new File(
+      getFs().openSync(fileName, vmode.replace(/b/g, ""), opt?.perm),
+      fileName,
+      vmode,
+    );
     if (vmode.includes("b")) file.binmode();
     if (estr !== null) {
       const p = estr.lastIndexOf(":");
-      file.setEncoding(p === -1 ? estr : estr.slice(0, p));
+      if (p === -1) file.setEncoding(estr);
+      else file.setEncoding(estr.slice(0, p), estr.slice(p + 1));
     } else if (opt?.externalEncoding != null) file.setEncoding(opt.externalEncoding);
     if (!block) return file;
     try {
