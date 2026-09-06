@@ -11,10 +11,17 @@
  */
 
 import { getCrypto, KeyError } from "@blazetrails/ruby-compat";
+import { isPresent } from "@blazetrails/activesupport";
 import { Temporal } from "@blazetrails/activesupport/temporal";
+import { Response } from "@blazetrails/rack";
 import type { RackApp, RackEnv, RackResponse } from "@blazetrails/rack";
+import { _RequestCtor } from "../http/request-slot.js";
 
 export type CookieExpires = Date | Temporal.Instant;
+
+function isFromNow(expires: unknown): expires is { fromNow(): CookieExpires } {
+  return expires != null && typeof (expires as { fromNow?: unknown }).fromNow === "function";
+}
 
 function toUTCString(expires: CookieExpires): string {
   return expires instanceof Temporal.Instant
@@ -40,7 +47,8 @@ export interface CookieJarOptions {
 export interface SetCookieOptions {
   value: string;
   path?: string;
-  domain?: string;
+  domain?: string | string[] | ((request: unknown) => string | undefined);
+  tldLength?: number;
   expires?: CookieExpires;
   maxAge?: number;
   secure?: boolean;
@@ -132,28 +140,82 @@ export class CookieJar implements Iterable<[string, string]> {
 
   set(key: string, valueOrOptions: string | SetCookieOptions): void {
     if (this._committed) return;
+    let options: SetCookieOptions;
     if (typeof valueOrOptions === "string") {
-      this._cookies.set(key, valueOrOptions);
-      this._setCookies.set(key, { value: valueOrOptions });
+      options = { value: valueOrOptions };
     } else {
       if (valueOrOptions.value === undefined || valueOrOptions.value === null) return;
-      this._cookies.set(key, valueOrOptions.value);
-      this._setCookies.set(key, valueOrOptions);
+      options = valueOrOptions;
     }
+    this.handleOptions(options);
+    this._cookies.set(key, options.value);
+    this._setCookies.set(key, options);
     this._deletedCookies.delete(key);
+  }
+
+  /**
+   * @missingRailsCall call — PERMANENT
+   * @missingRailsArgs split — PERMANENT
+   */
+  private handleOptions(options: Partial<SetCookieOptions>): void {
+    if (isFromNow(options.expires)) {
+      options.expires = options.expires.fromNow();
+    }
+
+    options.path ||= "/";
+
+    if (!("sameSite" in options)) {
+      options.sameSite = this._options.sameSite;
+    }
+
+    const request = this._request as unknown as { host?: string } | undefined;
+    if (options.domain === ":all" || options.domain === "all") {
+      let cookieDomain = "";
+      const host = request?.host ?? "";
+      const dotSplittedHost = host.split(".");
+
+      if (/^[\d.]+$/.test(host) || dotSplittedHost.includes("") || dotSplittedHost.length === 1) {
+        options.domain = undefined;
+        return;
+      }
+
+      if (isPresent(options.tldLength)) {
+        if (dotSplittedHost.length >= options.tldLength!) {
+          cookieDomain = dotSplittedHost.slice(-options.tldLength!).join(".");
+        }
+      } else {
+        if (!/\.[^.]{2,3}\.[^.]{2}$/.test(host)) {
+          cookieDomain = dotSplittedHost.slice(-2).join(".");
+        } else {
+          cookieDomain = dotSplittedHost.slice(-3).join(".");
+        }
+      }
+
+      options.domain = isPresent(cookieDomain) ? cookieDomain : undefined;
+    } else if (Array.isArray(options.domain)) {
+      options.domain = options.domain.find((domain) => {
+        domain = domain.replace(/^\./, "");
+        return request?.host === domain || (request?.host ?? "").endsWith(`.${domain}`);
+      });
+    } else if (typeof options.domain === "function") {
+      options.domain = options.domain(this._request);
+    }
   }
 
   delete(name: string, options?: { path?: string; domain?: string }): string | undefined {
     if (!this._cookies.has(name)) return undefined;
     if (this._committed) return undefined;
+    const opts = options ?? {};
+    this.handleOptions(opts);
     const val = this._cookies.get(name);
     this._cookies.delete(name);
     this._setCookies.delete(name);
-    this._deletedCookies.set(name, options ?? {});
+    this._deletedCookies.set(name, opts);
     return val ?? undefined;
   }
 
   isDeleted(name: string, options?: { path?: string; domain?: string }): boolean {
+    this.handleOptions(options ?? {});
     if (!this._deletedCookies.has(name)) return false;
     if (!options) return true;
     const delOpts = this._deletedCookies.get(name)!;
@@ -437,6 +499,11 @@ function capitalize(s: string): string {
 /** @internal */
 export const COOKIES_KEY = "action_dispatch.cookies";
 
+type CookiesRequest = RequestCookieMethodsHost & {
+  isHaveCookieJar(): boolean;
+  cookieJar(): CookieJar;
+};
+
 export class Cookies {
   private app: RackApp;
 
@@ -445,26 +512,18 @@ export class Cookies {
   }
 
   async call(env: RackEnv): Promise<RackResponse> {
-    const response = await this.app(env);
-    const jar = env[COOKIES_KEY] as CookieJar | undefined;
-    if (!jar || jar.isCommitted()) return response;
+    const request = new _RequestCtor!(env) as CookiesRequest;
+    let response: RackResponse | Response = await this.app(env);
 
-    const [status, headers, body] = response;
-    const outHeaders: Record<string, string | string[]> = { ...headers };
-    const setHeaders = jar.getSetCookieHeaders();
-    if (setHeaders.length > 0) {
-      const existingList: string[] = [];
-      for (const key of Object.keys(outHeaders)) {
-        if (key.toLowerCase() !== "set-cookie") continue;
-        const v = outHeaders[key];
-        if (Array.isArray(v)) existingList.push(...v);
-        else existingList.push(v);
-        if (key !== "set-cookie") delete outHeaders[key];
+    if (request.isHaveCookieJar()) {
+      const cookieJar = request.cookieJar();
+      if (!cookieJar.isCommitted()) {
+        response = Response.create(...response);
+        cookieJar.write(response);
       }
-      outHeaders["set-cookie"] = [...existingList, ...setHeaders].join("\n");
     }
-    jar.commitBang();
-    return [status, outHeaders, body];
+
+    return (response instanceof Response ? response.toArray() : response) as RackResponse;
   }
 }
 

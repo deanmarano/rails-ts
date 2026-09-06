@@ -1,5 +1,3 @@
-import { Params } from "@blazetrails/rack";
-
 export type ParamValue =
   | string
   | number
@@ -51,7 +49,7 @@ function normalize(params: ParamValue, stripNil: boolean): ParamValue {
   }
   if (params !== null && typeof params === "object") {
     const proto = Object.getPrototypeOf(params);
-    if (proto !== null && proto !== Object.prototype && !(params instanceof Params)) return params;
+    if (proto !== null && proto !== Object.prototype) return params;
     const out: ParamHash = Object.create(null);
     for (const [k, v] of Object.entries(params)) out[k] = normalize(v, stripNil);
     return out;

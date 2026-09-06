@@ -27,19 +27,30 @@ export class ParamsTooDeepError extends QueryLimitError {
   }
 }
 
-export class Params extends Object {
+export class Params {
   [key: string]: any;
-  toParamsHash(): Record<string, any> {
-    return Object.assign(Object.create(null), this);
+  declare toParamsHash: () => Record<string, any>;
+
+  constructor() {
+    const params: Record<string, any> = Object.create(null);
+    Object.defineProperty(params, "toParamsHash", {
+      value: (): Record<string, any> => Object.assign(Object.create(null), params),
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    });
+    return params as Params;
+  }
+
+  static [Symbol.hasInstance](value: unknown): boolean {
+    return (
+      typeof value === "object" &&
+      value !== null &&
+      Object.getPrototypeOf(value) === null &&
+      typeof (value as Params).toParamsHash === "function"
+    );
   }
 }
-
-Object.defineProperty(Params.prototype, "__proto__", {
-  value: undefined,
-  writable: true,
-  enumerable: false,
-  configurable: true,
-});
 
 const DEFAULT_SEP = /& */;
 const COMMON_SEP: Record<string, RegExp> = {
