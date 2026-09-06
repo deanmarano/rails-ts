@@ -48,7 +48,6 @@ export class MockResponse extends Response {
     this.bufferedBodyBang();
   }
 
-  /** @missingRailsCall new — PERMANENT */
   override get body(): string {
     if (this._bufferedBody !== undefined) return this._bufferedBody;
 
