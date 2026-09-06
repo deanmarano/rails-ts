@@ -71,6 +71,7 @@ export const SQLite3Constants = {
 
 export interface SqliteOpenConfig {
   database: string;
+  flags?: number;
   readOnly?: boolean;
   noMutex?: boolean;
   timeout?: number;
@@ -85,6 +86,7 @@ export interface SqliteDriverCapabilities {
   readonly concurrentStatements: boolean;
   readonly foreignKeysOnByDefault: boolean;
   readonly immediateTransactions: boolean;
+  readonly sharedCache: boolean;
 }
 
 export interface SqliteDriver {

@@ -721,6 +721,7 @@ export class SQLite3Adapter extends AbstractAdapter implements DatabaseAdapter {
   }
 
   isSharedCache(): boolean {
+    if (!this.resolveDriverFactory().capabilities.sharedCache) return false;
     return anybits(fetch(this._config, "flags", 0), SQLite3Constants.Open.SHAREDCACHE);
   }
 
