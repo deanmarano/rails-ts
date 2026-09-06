@@ -8,6 +8,7 @@ import {
   MultipartTotalPartLimitError,
   BoundaryTooLongError,
   EmptyContentError,
+  Parser,
 } from "./multipart/parser.js";
 
 export {
@@ -261,15 +262,14 @@ function parseBody(
         const normalizedFilename = normalizeFilename(filename);
         const ctype = contentTypeHeader || "application/octet-stream";
 
-        let tempfile: any;
-        if (tempfileFactory) {
-          tempfile = tempfileFactory(normalizedFilename, ctype);
-          const content = contentBuf.toString("binary");
-          if (typeof tempfile.write === "function") {
-            tempfile.write(content);
-          }
-        } else {
-          tempfile = makeTempfile(contentBuf);
+        const tempfile: any = (tempfileFactory ?? Parser.TEMPFILE_FACTORY)(
+          normalizedFilename,
+          ctype,
+        );
+        const content = contentBuf.toString("binary");
+        if (typeof tempfile.write === "function") {
+          tempfile.write(content);
+          tempfile.rewind();
         }
 
         const fileInfo: UploadedFileInfo = {
@@ -307,20 +307,6 @@ function parseBody(
   }
 
   return params.toParamsHash();
-}
-
-function makeTempfile(buf: Buffer): { read(): string; rewind(): void } {
-  let pos = 0;
-  return {
-    read(): string {
-      const result = buf.subarray(pos).toString("binary");
-      pos = buf.length;
-      return result;
-    },
-    rewind(): void {
-      pos = 0;
-    },
-  };
 }
 
 function normalizeFilename(filename: string): string {

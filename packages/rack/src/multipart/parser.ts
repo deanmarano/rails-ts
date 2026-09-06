@@ -1,4 +1,4 @@
-import { ArgumentError, Encoding, forceEncoding } from "@blazetrails/ruby-compat";
+import { ArgumentError, Encoding, File, forceEncoding, Tempfile } from "@blazetrails/ruby-compat";
 import { QueryParser } from "../query-parser.js";
 import { getMultipartFileLimit, getMultipartTotalPartLimit, unescapePath } from "../utils.js";
 
@@ -257,6 +257,11 @@ const CONTENT_DISPOSITION_MAX_BYTES = 1536;
 export class Parser {
   static readonly BUFSIZE = 1_048_576;
   static readonly TEXT_PLAIN = "text/plain";
+  static readonly TEMPFILE_FACTORY = (filename: string, _contentType: string): Tempfile => {
+    const extension = File.extname(filename.replace(/\0/g, "%00")).slice(0, 129);
+
+    return Tempfile.new(["RackMultipart", extension]);
+  };
   /** @internal */ state: State = "FAST_FORWARD";
   private queryParser: QueryParser;
   private params: ReturnType<QueryParser["makeParams"]>;
