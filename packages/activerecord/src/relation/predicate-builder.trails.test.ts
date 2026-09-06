@@ -133,6 +133,20 @@ describe("association hash expansion grouping shape", () => {
     expect(() => CpkOrderWithSingularBookChapters.where({ chapters: null })).not.toThrow();
   });
 
+  it("association arm reads a Map attributes hash, whose Array key cannot be a plain object", () => {
+    const rel = Author.where(
+      new Map<unknown, unknown>([
+        [["id", "name"], [[1, "David"]]],
+        ["comments", comments("greetings")],
+      ]),
+    ) as unknown as HasWhereClause;
+    const preds = rel.whereClause.predicates;
+    expect(preds).toHaveLength(3);
+    const sql = (rel as unknown as { toSql(): string }).toSql();
+    expect(sql).toContain(`${quoteTableName("comments")}.${quoteColumnName("id")}`);
+    expect(sql).toContain(`${quoteTableName("authors")}.${quoteColumnName("name")}`);
+  });
+
   it("through-association single query group stays flat, without an And wrapper", () => {
     const rel = Author.where({ comments: comments("greetings") }) as unknown as HasWhereClause;
     const preds = rel.whereClause.predicates;

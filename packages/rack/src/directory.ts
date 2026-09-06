@@ -188,7 +188,9 @@ export class Directory {
   stat(path: string): FsStatResult | null {
     try {
       return File.stat(path);
-    } catch {
+    } catch (error) {
+      const code = (error as { code?: unknown } | null | undefined)?.code;
+      if (code !== "ENOENT" && code !== "ELOOP") throw error;
       return null;
     }
   }

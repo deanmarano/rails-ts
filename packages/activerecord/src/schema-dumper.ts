@@ -1,5 +1,6 @@
 import type { AbstractAdapter as DatabaseAdapter } from "./connection-adapters/abstract-adapter.js";
-import type { Column } from "./connection-adapters/abstract/schema-dumper.js";
+import type { Column } from "./connection-adapters/column.js";
+import type { Column as PostgreSQLColumn } from "./connection-adapters/postgresql/column.js";
 import { isBlank, isPresent } from "@blazetrails/activesupport";
 import { ActiveRecordError } from "./errors.js";
 import type { Base } from "./base.js";
@@ -15,32 +16,6 @@ export function _registerBase(base: typeof Base): void {
 function baseClass(): typeof Base {
   if (!_base) throw new ActiveRecordError("ActiveRecord::Base has not finished loading");
   return _base;
-}
-
-export interface ColumnInfo {
-  name: string;
-  type: string | null;
-  sqlType?: string | null;
-  oid?: number | null;
-  fmod?: number | null;
-  primaryKey?: boolean;
-  null?: boolean;
-  default?: unknown;
-  hasDefault?: boolean;
-  defaultFunction?: string | null;
-  limit?: number | null;
-  precision?: number | null;
-  scale?: number | null;
-  collation?: string | null;
-  array?: boolean;
-  isEnum?: boolean;
-  isSerial?: boolean;
-  comment?: string | null;
-  autoIncrement?: boolean;
-  unsigned?: boolean;
-  virtual?: boolean;
-  virtualStored?: boolean;
-  extra?: string | null;
 }
 
 export interface IndexInfo {
@@ -75,11 +50,11 @@ function conciseOptions<T>(
 export interface SchemaSource {
   /** @internal */
   tables(): Promise<string[]>;
-  columns(tableName: string, pkNames?: readonly string[]): Promise<ColumnInfo[]>;
+  columns(tableName: string): Promise<Column[]>;
   /** @internal */
   indexes(tableName: string): Promise<IndexInfo[]>;
   /** @internal */
-  lookupCastTypeFromColumn(column: ColumnInfo): ValueType;
+  lookupCastTypeFromColumn(column: Column): ValueType;
 }
 
 export type SchemaDumpLanguage = "ts" | "js";
@@ -158,68 +133,12 @@ class AdapterSchemaSource implements SchemaSource {
     return this._adapter.tables();
   }
 
-  lookupCastTypeFromColumn(column: ColumnInfo): ValueType {
+  lookupCastTypeFromColumn(column: Column): ValueType {
     return this._adapter.lookupCastTypeFromColumn(column as { sqlType: string | null });
   }
 
-  /** @internal */
-  private async _primaryKeyNames(tableName: string): Promise<string[]> {
-    const adapter = this._adapter as {
-      primaryKeys?: (t: string) => Promise<string[] | null | undefined>;
-    };
-    if (typeof adapter.primaryKeys !== "function") return [];
-    try {
-      return (await adapter.primaryKeys(tableName)) ?? [];
-    } catch {
-      return [];
-    }
-  }
-
-  async columns(tableName: string, pkNames?: readonly string[]): Promise<ColumnInfo[]> {
-    const cols = await this._adapter.columns(tableName);
-    const pk = new Set(pkNames ?? (await this._primaryKeyNames(tableName)));
-    return cols.map((col) => {
-      const isVirtual =
-        typeof (col as any).isVirtual === "function"
-          ? (col as any).isVirtual()
-          : (col as any).virtual === true;
-      const isVirtualStored =
-        typeof (col as any).isVirtualStored === "function"
-          ? (col as any).isVirtualStored()
-          : (col as any).virtualStored === true;
-      return {
-        name: col.name,
-        type: col.type ?? null,
-        sqlType: col.sqlType ?? undefined,
-        oid: (col as any).oid ?? undefined,
-        fmod: (col as any).fmod ?? undefined,
-        primaryKey: pk.has(col.name),
-        null: col.null,
-        default: isVirtual ? undefined : col.default,
-        hasDefault: isVirtual
-          ? false
-          : typeof (col as any).hasDefault === "boolean"
-            ? (col as any).hasDefault
-            : col.default != null || (col.defaultFunction ?? null) !== null,
-        defaultFunction: col.defaultFunction ?? null,
-        limit: col.limit ?? undefined,
-        precision: col.precision === undefined ? undefined : col.precision,
-        scale: col.scale ?? undefined,
-        collation: col.collation ?? undefined,
-        array: (col as any).array === true ? true : undefined,
-        isEnum: col.type === "enum" ? true : undefined,
-        isSerial: (col as any).isSerial?.() === true ? true : undefined,
-        comment: col.comment ?? undefined,
-        autoIncrement: (col as any).isAutoIncrement?.() || undefined,
-        unsigned:
-          (typeof (col as any).isUnsigned === "function"
-            ? (col as any).isUnsigned()
-            : (col as any).unsigned === true) || undefined,
-        virtual: isVirtual ? true : undefined,
-        virtualStored: isVirtual && isVirtualStored ? true : undefined,
-        extra: (col as any).extra ?? undefined,
-      };
-    });
+  async columns(tableName: string): Promise<Column[]> {
+    return this._adapter.columns(tableName);
   }
 
   /** @internal */
@@ -522,29 +441,29 @@ export abstract class SchemaDumper {
         this.supportsVirtualColumns = false;
       }
     }
-    if (adapter && typeof adapter.primaryKeys === "function") {
+    const columns = await this._source.columns(table);
+
+    let pk: string | string[] | null = null;
+    if (adapter && typeof adapter.primaryKey === "function") {
       try {
-        this.primaryKeyOrderCache[table] = await adapter.primaryKeys(table);
+        pk = await adapter.primaryKey(table);
+        this.primaryKeyOrderCache[table] = pk == null ? [] : Array.isArray(pk) ? pk : [pk];
       } catch {}
     }
-
-    const columns = await this._source.columns(table, this.primaryKeyOrderCache[table]);
 
     try {
       this.tableName = table;
 
       const tbl: string[] = [];
 
-      const pk = this.resolvePrimaryKeyColumns(table, columns);
+      const pkColumns = this.resolvePrimaryKeyColumns(table, columns);
 
       const stripped = this.removePrefixAndSuffix(table);
       const opts: string[] = [];
-      if (pk.length > 1) {
-        opts.push(`primaryKey: ${JSON.stringify(pk.map((c) => c.name))}`);
-      } else if (pk.length === 1) {
-        const pkcol = pk[0];
-        if (pkcol.name !== "id") opts.push(`primaryKey: ${JSON.stringify(pkcol.name)}`);
-        let pkcolspec = this.columnSpecForPrimaryKey(pkcol as Column);
+      if (typeof pk === "string") {
+        if (pk !== "id") opts.push(`primaryKey: ${JSON.stringify(pk)}`);
+        const pkcol = pkColumns[0];
+        let pkcolspec = pkcol ? this.columnSpecForPrimaryKey(pkcol) : {};
         if (Object.keys(pkcolspec).length > 0) {
           if (!Object.keys(pkcolspec).every((k) => k === "id" || k === "default")) {
             const { id: type, ...rest } = pkcolspec;
@@ -552,6 +471,8 @@ export abstract class SchemaDumper {
           }
           opts.push(this.formatColspec(pkcolspec));
         }
+      } else if (Array.isArray(pk)) {
+        opts.push(`primaryKey: ${JSON.stringify(pk)}`);
       } else {
         opts.push("id: false");
       }
@@ -566,24 +487,20 @@ export abstract class SchemaDumper {
         `  await ctx.createTable(${JSON.stringify(stripped)}, { ${opts.join(", ")} }, (t) => {`,
       );
 
-      const singlePkName = pk.length === 1 ? pk[0].name : undefined;
-
       for (const column of columns) {
         if (!this.validType(column.type))
-          throw new Error(
-            `Unknown type '${(column as Column).sqlType ?? ""}' for column '${column.name}'`,
-          );
-        if (column.name === singlePkName) continue;
+          throw new Error(`Unknown type '${column.sqlType ?? ""}' for column '${column.name}'`);
+        if (column.name === pk) continue;
 
-        const [type, colspec] = this.columnSpec(column as Column);
+        const [type, colspec] = this.columnSpec(column);
         const optStr =
           Object.keys(colspec).length > 0 ? `, { ${this.formatColspec(colspec)} }` : "";
         if (this._isDslHelper(type)) {
           tbl.push(`    t.${type}(${JSON.stringify(column.name)}${optStr});`);
-        } else if ((column as { isEnum?: boolean }).isEnum && type === "enum") {
+        } else if ((column as Partial<PostgreSQLColumn>).isEnum?.() === true && type === "enum") {
           tbl.push(`    t.enum(${JSON.stringify(column.name)}${optStr});`);
         } else {
-          const colType = type === "enum" ? ((column as Column).sqlType ?? type) : type;
+          const colType = type === "enum" ? (column.sqlType ?? type) : type;
           tbl.push(
             `    t.column(${JSON.stringify(column.name)}, ${JSON.stringify(colType)}${optStr});`,
           );
@@ -672,19 +589,20 @@ export abstract class SchemaDumper {
   }
 
   /** @internal */
-  protected resolvePrimaryKeyColumns(tableName: string, columns: ColumnInfo[]): ColumnInfo[] {
+  protected resolvePrimaryKeyColumns(tableName: string, columns: Column[]): Column[] {
+    const pkNames = new Set(this.primaryKeyOrderCache[tableName] ?? []);
     return this.orderPrimaryKeyColumns(
       tableName,
-      columns.filter((c) => c.primaryKey),
+      columns.filter((c) => pkNames.has(c.name)),
     );
   }
 
   /** @internal */
-  protected orderPrimaryKeyColumns(tableName: string, pkColumns: ColumnInfo[]): ColumnInfo[] {
+  protected orderPrimaryKeyColumns(tableName: string, pkColumns: Column[]): Column[] {
     const order = this.primaryKeyOrderCache[tableName];
     if (!order || order.length === 0) return pkColumns;
     const byName = new Map(pkColumns.map((c) => [c.name, c]));
-    const reordered: ColumnInfo[] = [];
+    const reordered: Column[] = [];
     for (const name of order) {
       const col = byName.get(name);
       if (col) {

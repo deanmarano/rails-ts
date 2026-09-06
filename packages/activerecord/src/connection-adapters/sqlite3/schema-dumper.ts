@@ -1,14 +1,5 @@
-import type { ColumnInfo } from "../../schema-dumper.js";
+import type { Column } from "./column.js";
 import { SchemaDumper as AbstractSchemaDumper } from "../abstract/schema-dumper.js";
-
-interface Column extends ColumnInfo {
-  bigint?: boolean;
-  virtual?: boolean;
-  virtualStored?: boolean;
-  hasDefault?: boolean;
-  defaultFunction?: string | null;
-  comment?: string | null;
-}
 
 export class SchemaDumper extends AbstractSchemaDumper {
   /** @internal */
@@ -43,9 +34,9 @@ export class SchemaDumper extends AbstractSchemaDumper {
   /** @internal */
   protected override prepareColumnOptions(column: Column): Record<string, unknown> {
     const spec = super.prepareColumnOptions(column);
-    if (column.virtual) {
+    if (column.isVirtual()) {
       spec["as"] = this.extractExpressionForVirtualColumn(column);
-      spec["stored"] = !!column.virtualStored;
+      spec["stored"] = column.isVirtualStored();
       return { type: JSON.stringify(this.schemaType(column)), ...spec };
     }
     return spec;

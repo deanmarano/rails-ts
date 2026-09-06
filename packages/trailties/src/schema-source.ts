@@ -1,5 +1,5 @@
 import type { DatabaseAdapter } from "@blazetrails/activerecord";
-import type { SchemaSource, ColumnInfo, IndexInfo } from "@blazetrails/activerecord";
+import type { SchemaSource, Column, IndexInfo } from "@blazetrails/activerecord";
 
 function sqliteId(name: string): string {
   return `"${name.replace(/"/g, '""')}"`;
@@ -44,34 +44,15 @@ export class AdapterSchemaSource implements SchemaSource {
     return (rows as any[]).map((r: any) => r.name);
   }
 
-  async columns(tableName: string): Promise<ColumnInfo[]> {
+  async columns(tableName: string): Promise<Column[]> {
     const t = this.type();
     if (t === "mysql") {
       throw new Error("MySQL schema introspection is not yet supported by AdapterSchemaSource.");
     }
-    const cols = (await this.adapter.columns(tableName)) as any[];
-    return cols.map((c) => ({
-      name: c.name,
-      type: c.type,
-      sqlType: c.sqlType ?? undefined,
-      primaryKey: c.primaryKey,
-      null: c.null,
-      default: c.default,
-      hasDefault:
-        typeof c.hasDefault === "boolean"
-          ? c.hasDefault
-          : c.default != null || (c.defaultFunction ?? null) !== null,
-      defaultFunction: c.defaultFunction ?? undefined,
-      limit: c.limit ?? undefined,
-      precision: c.precision === undefined ? undefined : c.precision,
-      scale: c.scale ?? undefined,
-      collation: c.collation ?? undefined,
-    }));
+    return this.adapter.columns(tableName);
   }
 
-  lookupCastTypeFromColumn(
-    column: ColumnInfo,
-  ): ReturnType<SchemaSource["lookupCastTypeFromColumn"]> {
+  lookupCastTypeFromColumn(column: Column): ReturnType<SchemaSource["lookupCastTypeFromColumn"]> {
     return this.adapter.lookupCastTypeFromColumn(column as { sqlType: string | null });
   }
 

@@ -3,44 +3,47 @@ import type {
   ExclusionConstraintDefinition,
   UniqueConstraintDefinition,
 } from "./schema-definitions.js";
-import type { ColumnInfo } from "../../schema-dumper.js";
+import type { Column as AbstractColumn } from "../column.js";
+import type { Column } from "./column.js";
 
 export class SchemaDumper extends AbstractSchemaDumper {
   /** @internal */
   protected override resolvePrimaryKeyColumns(
     tableName: string,
-    columns: ColumnInfo[],
-  ): ColumnInfo[] {
+    columns: AbstractColumn[],
+  ): AbstractColumn[] {
     const order = this.primaryKeyOrderCache[tableName];
     if (order === undefined) return super.resolvePrimaryKeyColumns(tableName, columns);
     const byName = new Map(columns.map((c) => [c.name, c]));
-    return order.map((name) => byName.get(name)).filter((c): c is ColumnInfo => c !== undefined);
+    return order
+      .map((name) => byName.get(name))
+      .filter((c): c is AbstractColumn => c !== undefined);
   }
 
   /** @internal */
-  protected override prepareColumnOptions(column: ColumnInfo): Record<string, unknown> {
-    const spec = super.prepareColumnOptions(column as any);
-    if (column.array) spec["array"] = true;
+  protected override prepareColumnOptions(column: Column): Record<string, unknown> {
+    const spec = super.prepareColumnOptions(column);
+    if (column.isArray()) spec["array"] = true;
 
-    if (this.supportsVirtualColumns && this._isVirtual(column)) {
+    if (this.supportsVirtualColumns && column.isVirtual()) {
       spec["as"] = this.extractExpressionForVirtualColumn(column);
       spec["stored"] = true;
-      if (this._isEnum(column)) spec["enumType"] = JSON.stringify(column.sqlType);
+      if (column.isEnum()) spec["enumType"] = JSON.stringify(column.sqlType);
       return { type: JSON.stringify(this.schemaType(column)), ...spec };
     }
 
-    if (this._isEnum(column)) spec["enumType"] = JSON.stringify(column.sqlType);
+    if (column.isEnum()) spec["enumType"] = JSON.stringify(column.sqlType);
 
     return spec;
   }
 
   /** @internal */
-  protected override isDefaultPrimaryKey(column: ColumnInfo): boolean {
+  protected override isDefaultPrimaryKey(column: Column): boolean {
     return this.schemaType(column) === "bigserial";
   }
 
   /** @internal */
-  protected override schemaLimit(column: ColumnInfo): string | undefined {
+  protected override schemaLimit(column: Column): string | undefined {
     if (column.type === "integer" && column.limit === 4) return undefined;
     const base = super.schemaLimit(column);
     if (base !== undefined) return base;
@@ -57,7 +60,7 @@ export class SchemaDumper extends AbstractSchemaDumper {
   }
 
   /** @internal */
-  protected override schemaPrecision(column: ColumnInfo): string | undefined {
+  protected override schemaPrecision(column: Column): string | undefined {
     const base = super.schemaPrecision(column);
     if (base !== undefined) return base;
     const sqlType = (column.sqlType ?? "").toLowerCase();
@@ -66,7 +69,7 @@ export class SchemaDumper extends AbstractSchemaDumper {
   }
 
   /** @internal */
-  protected override schemaScale(column: ColumnInfo): string | undefined {
+  protected override schemaScale(column: Column): string | undefined {
     const base = super.schemaScale(column);
     if (base !== undefined) return base;
     const sqlType = (column.sqlType ?? "").toLowerCase();
@@ -75,14 +78,14 @@ export class SchemaDumper extends AbstractSchemaDumper {
   }
 
   /** @internal */
-  protected isExplicitPrimaryKeyDefault(column: ColumnInfo): boolean {
-    return column.type === "uuid" || (column.type === "integer" && !this._isSerial(column));
+  protected isExplicitPrimaryKeyDefault(column: Column): boolean {
+    return column.type === "uuid" || (column.type === "integer" && !column.isSerial());
   }
 
   /** @internal */
-  protected override schemaType(column: ColumnInfo): string {
+  protected override schemaType(column: Column): string {
     const isBigSql = /^bigint\b/i.test(column.sqlType ?? "");
-    if (this._isSerial(column)) return isBigSql ? "bigserial" : "serial";
+    if (column.isSerial()) return isBigSql ? "bigserial" : "serial";
     if (isBigSql || column.type === "bigint") return "bigint";
     const semantic = column.type ?? undefined;
     if (semantic === "big_integer") return "bigint";
@@ -91,37 +94,19 @@ export class SchemaDumper extends AbstractSchemaDumper {
   }
 
   /** @internal */
-  protected override schemaTypeWithVirtual(column: ColumnInfo): string {
-    if (this.supportsVirtualColumns && this._isVirtual(column)) return "virtual";
+  protected override schemaTypeWithVirtual(column: Column): string {
+    if (this.supportsVirtualColumns && column.isVirtual()) return "virtual";
     return this.schemaType(column);
   }
 
-  private _isEnum(column: ColumnInfo): boolean {
-    return typeof (column as any).isEnum === "function"
-      ? (column as any).isEnum()
-      : (column as any).isEnum === true;
-  }
-
-  private _isSerial(column: ColumnInfo): boolean {
-    return typeof (column as any).isSerial === "function"
-      ? (column as any).isSerial()
-      : (column as any).isSerial === true;
-  }
-
-  private _isVirtual(column: ColumnInfo): boolean {
-    return typeof (column as any).isVirtual === "function"
-      ? (column as any).isVirtual()
-      : !!(column as any).virtual;
+  /** @internal */
+  protected override schemaExpression(column: Column): string | undefined {
+    if (column.isSerial()) return undefined;
+    return super.schemaExpression(column);
   }
 
   /** @internal */
-  protected override schemaExpression(column: ColumnInfo): string | undefined {
-    if (this._isSerial(column)) return undefined;
-    return super.schemaExpression(column as any);
-  }
-
-  /** @internal */
-  protected extractExpressionForVirtualColumn(column: ColumnInfo): string {
+  protected extractExpressionForVirtualColumn(column: Column): string {
     return JSON.stringify(column.defaultFunction);
   }
 

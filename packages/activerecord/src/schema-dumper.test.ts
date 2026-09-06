@@ -12,6 +12,18 @@ import {
   FULL_DUMP_TIMEOUT_MS,
 } from "./support/schema-dumping-helper.js";
 import { withPostgresqlDatetimeType } from "./support/with-postgresql-datetime-type.js";
+import { Column } from "./connection-adapters/column.js";
+import { SqlTypeMetadata } from "./connection-adapters/sql-type-metadata.js";
+import { ValueType } from "@blazetrails/activemodel";
+
+function schemaColumn(name: string, type: string): Column {
+  return new Column(name, null, new SqlTypeMetadata({ sqlType: type, type }));
+}
+
+const PRIMARY_KEY_ADAPTER = {
+  primaryKey: async () => "id",
+  lookupCastTypeFromColumn: () => new ValueType(),
+};
 
 describe("SchemaDumperTest", () => {
   fixtures({}, { useTransactionalTests: false });
@@ -328,7 +340,7 @@ describe("SchemaDumperTest", () => {
   it("schema dump with regexp ignored table", async () => {
     const source = {
       tables: async () => ["users", "temp_cache"],
-      columns: async () => [{ name: "name", type: "string" }],
+      columns: async () => [schemaColumn("name", "string")],
       indexes: async () => [],
     };
     SchemaDumper.ignoreTables = [/^temp_/];
@@ -553,12 +565,10 @@ describe("SchemaDumperTest", () => {
         tables: async () => ["authors", "books"],
         columns: async (t: string) =>
           t === "authors"
-            ? [{ name: "id", type: "integer", primaryKey: true }]
-            : [
-                { name: "id", type: "integer", primaryKey: true },
-                { name: "author_id", type: "integer" },
-              ],
+            ? [schemaColumn("id", "integer")]
+            : [schemaColumn("id", "integer"), schemaColumn("author_id", "integer")],
         indexes: async () => [],
+        adapter: PRIMARY_KEY_ADAPTER,
         foreignKeys: async (t: string) =>
           t === "books"
             ? [
@@ -586,8 +596,9 @@ describe("SchemaDumperTest", () => {
     SchemaDumper.ignoreTables = ["books"];
     const source = {
       tables: async () => ["authors", "books"],
-      columns: async (_t: string) => [{ name: "id", type: "integer", primaryKey: true }],
+      columns: async (_t: string) => [schemaColumn("id", "integer")],
       indexes: async () => [],
+      adapter: PRIMARY_KEY_ADAPTER,
       foreignKeys: async (t: string) =>
         t === "books"
           ? [
@@ -608,8 +619,9 @@ describe("SchemaDumperTest", () => {
   itIfSupports("foreign_keys", "do not dump foreign keys when bypassed by config", async () => {
     const source = {
       tables: async () => ["authors", "books"],
-      columns: async (_t: string) => [{ name: "id", type: "integer", primaryKey: true }],
+      columns: async (_t: string) => [schemaColumn("id", "integer")],
       indexes: async () => [],
+      adapter: PRIMARY_KEY_ADAPTER,
     };
     const output = (await SchemaDumper.dump(source as any)).join("\n");
     expect(output).not.toContain("addForeignKey");
@@ -618,8 +630,9 @@ describe("SchemaDumperTest", () => {
   it("schema dump with table name prefix and suffix", async () => {
     const source = {
       tables: async () => ["myapp_users_v1"],
-      columns: async (_t: string) => [{ name: "id", type: "integer", primaryKey: true }],
+      columns: async (_t: string) => [schemaColumn("id", "integer")],
       indexes: async () => [],
+      adapter: PRIMARY_KEY_ADAPTER,
     };
     const output = (
       await SchemaDumper.dump(source as any, [], {
@@ -634,8 +647,9 @@ describe("SchemaDumperTest", () => {
   it("schema dump with table name prefix and suffix regexp escape", async () => {
     const source = {
       tables: async () => ["app.prefix_users"],
-      columns: async (_t: string) => [{ name: "id", type: "integer", primaryKey: true }],
+      columns: async (_t: string) => [schemaColumn("id", "integer")],
       indexes: async () => [],
+      adapter: PRIMARY_KEY_ADAPTER,
     };
     const output = (
       await SchemaDumper.dump(source as any, [], { tableNamePrefix: "app.prefix_" })
@@ -646,8 +660,9 @@ describe("SchemaDumperTest", () => {
   it("schema dump with table name prefix and ignoring tables", async () => {
     const source = {
       tables: async () => ["myapp_users", "myapp_posts"],
-      columns: async (_t: string) => [{ name: "id", type: "integer", primaryKey: true }],
+      columns: async (_t: string) => [schemaColumn("id", "integer")],
       indexes: async () => [],
+      adapter: PRIMARY_KEY_ADAPTER,
     };
     SchemaDumper.ignoreTables = ["posts"];
     const output = (await SchemaDumper.dump(source as any, [], { tableNamePrefix: "myapp_" })).join(

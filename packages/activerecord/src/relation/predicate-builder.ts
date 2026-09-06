@@ -79,7 +79,7 @@ export class PredicateBuilder {
           this.table.associatedTable(key),
           key,
           value,
-          attributes as Record<string, unknown>,
+          attributes,
         );
         nodes.push(...assocNodes);
       } else if (this.table.aggregatedWith(key)) {
@@ -117,7 +117,7 @@ export class PredicateBuilder {
     associatedTable: any,
     key: string,
     value: unknown,
-    attributes: Record<string, unknown>,
+    attributes: Attributes,
   ): Nodes.Node[] {
     if (associatedTable.isPolymorphicAssociation?.()) {
       const fk = associatedTable.joinForeignKey as string | string[];
@@ -415,12 +415,13 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return proto === Object.prototype || proto === null;
 }
 
-function isSameHash(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
-  const aKeys = Object.keys(a);
-  const bKeys = Object.keys(b);
-  if (aKeys.length !== bKeys.length) return false;
-  for (const k of aKeys) {
-    if (!(k in b) || !isSameValue(a[k], b[k])) return false;
+function isSameHash(a: Attributes, b: Attributes): boolean {
+  const aEntries = entriesOf(a);
+  const bEntries = entriesOf(b);
+  if (aEntries.length !== bEntries.length) return false;
+  for (const [k, v] of aEntries) {
+    const other = bEntries.find(([bk]) => isSameValue(bk, k));
+    if (!other || !isSameValue(v, other[1])) return false;
   }
   return true;
 }
