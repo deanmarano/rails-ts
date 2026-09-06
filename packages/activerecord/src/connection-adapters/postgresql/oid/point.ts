@@ -1,5 +1,6 @@
-import { kernelFloat, rbEqual } from "@blazetrails/ruby-compat";
+import { ArgumentError, kernelFloat, rbEqual } from "@blazetrails/ruby-compat";
 import { ValueType } from "@blazetrails/activemodel";
+import { isBlank, isPlainObject } from "@blazetrails/activesupport";
 
 /** @noRailsEquivalent PERMANENT */
 export class PointValue {
@@ -17,7 +18,7 @@ export class PointValue {
   }
 }
 
-export class Point extends ValueType<PointValue> {
+export class Point extends ValueType {
   override type(): string {
     return "point";
   }
@@ -30,47 +31,46 @@ export class Point extends ValueType<PointValue> {
     return !rbEqual(rawOldValue, this.serialize(newValue));
   }
 
-  cast(value: unknown): PointValue | null {
-    if (value == null) return null;
-    if (value instanceof PointValue) return value;
+  cast(value: unknown): unknown {
     if (typeof value === "string") {
-      const trimmed = value.trim();
-      if (trimmed === "") return null;
-      let inner = trimmed;
-      if (inner.startsWith("(") && inner.endsWith(")")) {
-        inner = inner.slice(1, -1);
+      if (isBlank(value)) return null;
+
+      if (value.startsWith("(") && value.endsWith(")")) {
+        value = value.slice(1, -1);
       }
-      const parts = inner.split(",");
-      if (parts.length !== 2) return null;
-      return this.buildPoint(parts[0], parts[1]);
-    }
-    if (globalThis.Array.isArray(value)) {
-      if (value.length !== 2) return null;
-      return this.buildPoint(value[0], value[1]);
-    }
-    if (typeof value === "object") {
-      if (Object.keys(value as Record<string, unknown>).length === 0) return null;
-      const [x, y] = valuesArrayFromHash(value as Record<string, unknown>);
+      const [x, y] = (value as string).split(",");
       return this.buildPoint(x, y);
     }
-    return null;
+    if (globalThis.Array.isArray(value)) {
+      if (value.length !== 2) {
+        throw new ArgumentError(`wrong number of arguments (given ${value.length}, expected 2)`);
+      }
+      return this.buildPoint(value[0], value[1]);
+    }
+    if (isPlainObject(value)) {
+      if (isBlank(value)) return null;
+
+      const [x, y] = valuesArrayFromHash(value);
+      return this.buildPoint(x, y);
+    }
+    return value;
   }
 
-  override serialize(value: unknown): string | null {
-    if (value == null) return null;
+  override serialize(value: unknown): unknown {
     if (value instanceof PointValue) {
       return `(${this.numberForPoint(value.x)},${this.numberForPoint(value.y)})`;
     }
     if (globalThis.Array.isArray(value)) {
-      if (value.length !== 2) return null;
+      if (value.length !== 2) {
+        throw new ArgumentError(`wrong number of arguments (given ${value.length}, expected 2)`);
+      }
       return this.serialize(this.buildPoint(value[0], value[1]));
     }
-    if (typeof value === "object") {
-      const [x, y] = valuesArrayFromHash(value as Record<string, unknown>);
+    if (isPlainObject(value)) {
+      const [x, y] = valuesArrayFromHash(value);
       return this.serialize(this.buildPoint(x, y));
     }
-    if (typeof value === "string") return value;
-    return null;
+    return super.serialize(value);
   }
 
   override typeCastForSchema(value: unknown): string {
