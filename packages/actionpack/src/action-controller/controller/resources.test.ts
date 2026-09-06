@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { RouteSet } from "../../action-dispatch/routing/route-set.js";
+import { controllerConstants } from "../../action-dispatch/http/request.js";
+import type { DispatchableControllerClass } from "../../action-dispatch/routing/dispatcher.js";
 import {
   assertRecognizes,
   assertRouting,
@@ -7,6 +9,14 @@ import {
 } from "../../action-dispatch/testing/assertions/routing.js";
 
 type Options = Record<string, unknown>;
+
+class StubController {}
+
+beforeAll(() => {
+  for (const name of ["accounts", "images", "messages", "products"]) {
+    controllerConstants.set(name, StubController as unknown as DispatchableControllerClass);
+  }
+});
 
 function assertNotRecognizes(host: RoutingAssertionsHost, options: Options, path: Options): void {
   expect(() =>

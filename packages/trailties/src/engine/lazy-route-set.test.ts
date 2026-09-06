@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Mapper } from "@blazetrails/actionpack";
-import { RouteSet } from "@blazetrails/actionpack";
+import { MockRequest } from "@blazetrails/rack";
+import { RouteSet, controllerConstants } from "@blazetrails/actionpack";
 import { LazyRouteSet } from "./lazy-route-set.js";
 import { Trails } from "../rails.js";
+
+class StubController {}
 
 describe("LazyRouteSet", () => {
   let routes: LazyRouteSet;
@@ -12,6 +15,7 @@ describe("LazyRouteSet", () => {
     routes = new LazyRouteSet();
     reload = vi.fn(async () => true);
     Trails.application = { reloadRoutesUnlessLoaded: reload } as never;
+    controllerConstants.set("posts", StubController as never);
   });
 
   afterEach(() => {
@@ -30,7 +34,7 @@ describe("LazyRouteSet", () => {
     });
     reload.mockClear();
     routes.recognizePath("/posts");
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(reload).toHaveBeenCalledTimes(2);
   });
 
   it("reloads routes when recognize_path_with_request is called", () => {
@@ -38,7 +42,7 @@ describe("LazyRouteSet", () => {
       m.get("/posts", { to: "posts#index" });
     });
     reload.mockClear();
-    routes.recognizePathWithRequest({ requestMethod: "GET" }, "/posts");
+    routes.recognizePathWithRequest(routes.makeRequest(MockRequest.envFor("/posts")), "/posts", {});
     expect(reload).toHaveBeenCalledTimes(1);
   });
 

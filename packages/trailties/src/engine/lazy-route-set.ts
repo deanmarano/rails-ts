@@ -1,4 +1,4 @@
-import { RouteSet, type DrawCallback } from "@blazetrails/actionpack";
+import { RouteSet, type DrawCallback, type Request } from "@blazetrails/actionpack";
 import type { RackEnv, RackResponse } from "@blazetrails/rack";
 import { _Trails } from "../trails-slot.js";
 
@@ -35,9 +35,9 @@ export class LazyRouteSet extends RouteSet {
   }
 
   override recognizePathWithRequest(
-    req: { requestMethod?: string; method?: string },
+    req: Request,
     path: string,
-    extras: Record<string, unknown> = {},
+    extras: Record<string, unknown>,
     options: { raiseOnMissing?: boolean } = {},
   ): Record<string, unknown> | undefined {
     void reloadRoutesUnlessLoaded();

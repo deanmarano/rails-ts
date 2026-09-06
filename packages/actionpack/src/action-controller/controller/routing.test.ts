@@ -1,8 +1,26 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 
 import { bodyFromString, bodyToString } from "@blazetrails/rack";
 import { RouteSet } from "../../action-dispatch/routing/route-set.js";
 import { RoutingError, UrlGenerationError } from "../metal/exceptions.js";
+import { controllerConstants } from "../../action-dispatch/http/request.js";
+import type { DispatchableControllerClass } from "../../action-dispatch/routing/dispatcher.js";
+
+class StubController {}
+
+beforeAll(() => {
+  for (const name of [
+    "content",
+    "subpath_books",
+    "admin/accounts",
+    "admin/users",
+    "user",
+    "pages",
+    "not_a",
+  ]) {
+    controllerConstants.set(name, StubController as unknown as DispatchableControllerClass);
+  }
+});
 
 function urlFor(rs: RouteSet, options: Record<string, unknown>): string {
   const opts = { ...options };

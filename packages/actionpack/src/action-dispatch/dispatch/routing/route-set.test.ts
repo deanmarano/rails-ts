@@ -1,7 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
+import { MockRequest } from "@blazetrails/rack";
+import { controllerConstants } from "../../http/request.js";
+import type { DispatchableControllerClass } from "../../routing/dispatcher.js";
 import { RouteSet } from "../../routing/route-set.js";
 import { Route } from "../../routing/route.js";
 import { escapeSegment } from "../../journey/router/utils.js";
+
+class StubController {}
+
+beforeAll(() => {
+  controllerConstants.set("posts", StubController as unknown as DispatchableControllerClass);
+});
 
 describe("RouteSetTest", () => {
   it("not being empty when route is added", () => {
@@ -161,13 +170,22 @@ describe("RouteSetTest", () => {
     const routes = new RouteSet();
     routes.draw((r) => r.get("/posts/:id", { to: "posts#show" }));
     expect(
-      routes.recognizePathWithRequest({ requestMethod: "GET" }, "/posts/42", { from: "test" }),
+      routes.recognizePathWithRequest(
+        routes.makeRequest(MockRequest.envFor("/posts/42")),
+        "/posts/42",
+        { from: "test" },
+      ),
     ).toMatchObject({ controller: "posts", action: "show", id: "42", from: "test" });
-    expect(() => routes.recognizePathWithRequest({ method: "GET" }, "/nope")).toThrow(
-      /No route matches/,
-    );
+    expect(() =>
+      routes.recognizePathWithRequest(routes.makeRequest(MockRequest.envFor("/nope")), "/nope", {}),
+    ).toThrow(/No route matches/);
     expect(
-      routes.recognizePathWithRequest({ method: "GET" }, "/nope", {}, { raiseOnMissing: false }),
+      routes.recognizePathWithRequest(
+        routes.makeRequest(MockRequest.envFor("/nope")),
+        "/nope",
+        {},
+        { raiseOnMissing: false },
+      ),
     ).toBeUndefined();
   });
 

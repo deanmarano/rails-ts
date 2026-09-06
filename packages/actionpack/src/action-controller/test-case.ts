@@ -1,4 +1,4 @@
-import { camelize, include, isPlainObject, type Included } from "@blazetrails/activesupport";
+import { camelize, include, isPlainObject, toXml, type Included } from "@blazetrails/activesupport";
 import { KeyError, merge, SecureRandom } from "@blazetrails/ruby-compat";
 import {
   DEFAULT_OPTIONS,
@@ -19,7 +19,6 @@ import { Response } from "../action-dispatch/http/response.js";
 import { TestRequest as AbstractTestRequest } from "../action-dispatch/testing/test-request.js";
 import { RequestUtils, type ParamValue } from "../action-dispatch/request/utils.js";
 import type { ParameterParsers } from "../action-dispatch/http/parameters.js";
-import { MimeType } from "../action-dispatch/http/mime-type.js";
 import { FlashHash } from "../action-dispatch/middleware/flash.js";
 import type { Metal } from "./metal.js";
 
@@ -498,22 +497,23 @@ export class TestRequest extends AbstractTestRequest {
           this.setHeader(k, "application/x-www-form-urlencoded");
         });
 
-        const ct = this.getHeader("CONTENT_TYPE") ?? "";
         let data: string;
-        const mediaType = ct.split(";")[0].trim().toLowerCase();
-        const mimeSymbol = MimeType.lookup(mediaType).symbol ?? mediaType;
-
-        if (mimeSymbol === ":json") {
-          data = JSON.stringify(nonPathParameters);
-        } else if (
-          mimeSymbol === ":xml" ||
-          mimeSymbol === ":url_encoded_form" ||
-          ct.includes("application/x-www-form-urlencoded")
-        ) {
-          data = buildNestedQuery(nonPathParameters);
-        } else {
-          this._customParamParsers[mimeSymbol] = () => nonPathParameters;
-          data = buildNestedQuery(nonPathParameters);
+        const contentMimeType = this.contentMimeType;
+        switch (contentMimeType?.symbol ?? null) {
+          case null:
+            throw new Error(`Unknown Content-Type: ${this.contentType ?? ""}`);
+          case ":json":
+            data = JSON.stringify(nonPathParameters);
+            break;
+          case ":xml":
+            data = toXml(nonPathParameters);
+            break;
+          case ":url_encoded_form":
+            data = buildNestedQuery(nonPathParameters);
+            break;
+          default:
+            this._customParamParsers[contentMimeType!.symbol!] = () => nonPathParameters;
+            data = buildNestedQuery(nonPathParameters);
         }
 
         const encoded = new TextEncoder().encode(data);

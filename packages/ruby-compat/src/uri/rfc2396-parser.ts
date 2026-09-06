@@ -137,6 +137,32 @@ export class RFC2396Parser {
     });
   }
 
+  /**
+   * `unescape` (`vendor/ruby/lib/uri/rfc2396_parser.rb:318`).
+   *
+   * Ruby's `gsub` block yields one raw byte per escape and the result is
+   * tagged UTF-8; JS strings are UTF-16, so the bytes are accumulated and
+   * decoded once at the end. As in {@link escape}, a caller's own Regexp is
+   * re-made global because `gsub` replaces every match and `replace` does not.
+   */
+  unescape(str: string, escaped: RegExp | string = this.regexp.ESCAPED): string {
+    if (!(escaped instanceof RegExp)) {
+      escaped = new RegExp(regexpEscape(escaped), "g");
+    } else if (!escaped.flags.includes("g")) {
+      escaped = new RegExp(escaped.source, `${escaped.flags}g`);
+    }
+    const bytes: number[] = [];
+    const encoder = new TextEncoder();
+    let last = 0;
+    for (const m of str.matchAll(escaped)) {
+      for (const byte of encoder.encode(str.slice(last, m.index))) bytes.push(byte);
+      bytes.push(parseInt(m[0].slice(1, 3), 16));
+      last = m.index + m[0].length;
+    }
+    for (const byte of encoder.encode(str.slice(last))) bytes.push(byte);
+    return new TextDecoder().decode(new Uint8Array(bytes));
+  }
+
   /** `initialize_pattern` (`vendor/ruby/lib/uri/rfc2396_parser.rb:338`). */
   private initializePattern(opts: RFC2396ParserOptions = {}): Record<string, string> {
     const ret: Record<string, string> = {};
