@@ -130,3 +130,37 @@ describe.skipIf(!isExpoSqliteAvailable)("SqliteDriver — expo-sqlite round-trip
     expect(expoSqliteDriver.capabilities.immediateTransactions).toBe(true);
   });
 });
+
+describe.skipIf(!isExpoSqliteAvailable)(
+  "SqliteDriver — expo-sqlite binds unsupplied placeholders as NULL",
+  () => {
+    let conn: SqliteConnection;
+
+    beforeAll(async () => {
+      conn = await expoSqliteDriver.open({ database: ":memory:" });
+      const create = await conn.prepare("CREATE TABLE doodads (id INTEGER PRIMARY KEY, name TEXT)");
+      await create.run();
+      const insert = await conn.prepare("INSERT INTO doodads (name) VALUES (?)");
+      await insert.run(["alpha"]);
+    });
+
+    afterAll(async () => {
+      await conn.close();
+    });
+
+    it("runs a statement with placeholders and no values at all, like the Ruby sqlite3 gem", async () => {
+      const stmt = await conn.prepare("SELECT * FROM doodads WHERE id = ?");
+      expect(await stmt.all()).toEqual([]);
+    });
+
+    it("pads only the trailing placeholders left unsupplied", async () => {
+      const stmt = await conn.prepare("SELECT * FROM doodads WHERE name = ? OR id = ?");
+      expect(await stmt.all(["alpha"])).toEqual([{ id: 1, name: "alpha" }]);
+    });
+
+    it("EXPLAIN QUERY PLAN runs against a statement whose binds were never supplied", async () => {
+      const stmt = await conn.prepare("EXPLAIN QUERY PLAN SELECT * FROM doodads WHERE id = ?");
+      expect((await stmt.all()).length).toBeGreaterThan(0);
+    });
+  },
+);

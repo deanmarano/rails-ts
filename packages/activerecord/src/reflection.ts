@@ -986,13 +986,14 @@ export class AssociationReflection extends MacroReflection {
     associatedClass: typeof Base,
   ): AssociationReflection | ThroughReflection | null {
     if (this.hasInverse()) {
-      const name = this.inverseName();
-      if (!name) return null;
-      const inverseRelationship = associatedClass._reflectOnAssociation(name);
-      if (!inverseRelationship) {
+      const inverseRelationship = associatedClass._reflectOnAssociation(
+        this.options.inverseOf as string,
+      );
+      if (inverseRelationship) {
+        return inverseRelationship;
+      } else {
         throw new InverseOfAssociationNotFoundError(this._concrete(), associatedClass);
       }
-      return inverseRelationship;
     }
     return null;
   }
