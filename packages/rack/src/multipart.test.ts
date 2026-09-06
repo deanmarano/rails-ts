@@ -380,11 +380,6 @@ it("ignores initial end boundaries", () => {
 
 it("parses multipart content with different filename and filename*", () => {
   const params = parseFixture("filename_multi")!;
-  expect(params["files"].filename).toBeDefined();
-});
-
-it("parses multipart content with different filename and filename*", () => {
-  const params = parseFixture("filename_multi")!;
   expect(params["files"].filename).toBe("bar");
 });
 
