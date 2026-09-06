@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { include } from "@blazetrails/ruby-compat";
 
 import {
   _helpers,
@@ -151,6 +152,33 @@ describe("helper", () => {
     helper(cls, B);
     expect(cls._helpers!.fromA.call({})).toBe("A");
     expect(cls._helpers!.fromB.call({})).toBe("B");
+  });
+
+  it("an included module is enumerable, so including _helpers elsewhere carries it", () => {
+    const cls = makeBase();
+    const FooHelper: HelperMethodsModule = { foo: () => "FOO" };
+    helper(cls, FooHelper);
+
+    class ViewContext {}
+    include(ViewContext, cls._helpers!);
+
+    expect(typeof (ViewContext.prototype as unknown as { foo: () => string }).foo).toBe("function");
+    expect((ViewContext.prototype as unknown as { foo: () => string }).foo()).toBe("FOO");
+  });
+
+  it("carries every layered module, and helper_method proxies with them", () => {
+    const cls = makeBase();
+    helper(cls, { fromA: () => "A" } as HelperMethodsModule);
+    helper(cls, { fromB: () => "B" } as HelperMethodsModule);
+    helperMethod(cls, "currentUser");
+
+    class ViewContext {}
+    include(ViewContext, cls._helpers!);
+
+    const proto = ViewContext.prototype as unknown as Record<string, () => string>;
+    expect(typeof proto.fromA).toBe("function");
+    expect(typeof proto.fromB).toBe("function");
+    expect(typeof proto.currentUser).toBe("function");
   });
 
   it("accepts modules and a block mixed together", () => {
