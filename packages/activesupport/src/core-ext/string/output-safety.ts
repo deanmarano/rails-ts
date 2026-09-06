@@ -32,6 +32,10 @@ export class SafeBuffer {
     return this._value;
   }
 
+  toStr(): string {
+    return this._value;
+  }
+
   concat(value: string | SafeBuffer): SafeBuffer {
     if (!this._safe) {
       const valueStr = value instanceof SafeBuffer ? value.toString() : String(value);

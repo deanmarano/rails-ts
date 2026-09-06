@@ -54,9 +54,11 @@ export function cacheConfigured(host: CachingHost): boolean {
   return Boolean(cls.performCaching && cls.cacheStore);
 }
 
-export function viewCacheDependency(cls: CachingClassMethods, block: ViewCacheDependency): void {
-  const existing = cls._viewCacheDependencies ?? [];
-  cls._viewCacheDependencies = [...existing, block];
+export function viewCacheDependency(
+  this: CachingClassMethods,
+  dependency: ViewCacheDependency,
+): void {
+  this._viewCacheDependencies = [...(this._viewCacheDependencies ?? []), dependency];
 }
 
 export function viewCacheDependencies(this: CachingHost): unknown[] {

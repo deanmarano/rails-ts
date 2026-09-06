@@ -84,11 +84,11 @@ describe("AbstractController::Caching", () => {
   describe("viewCacheDependency / viewCacheDependencies", () => {
     it("evaluates dependency blocks in host context and drops nullish", () => {
       const host = makeHost();
-      viewCacheDependency(HostClass, function (this: CachingHost) {
+      viewCacheDependency.call(HostClass, function (this: CachingHost) {
         return (this as unknown as HostClass).greeting;
       });
-      viewCacheDependency(HostClass, () => null);
-      viewCacheDependency(HostClass, () => "v2");
+      viewCacheDependency.call(HostClass, () => null);
+      viewCacheDependency.call(HostClass, () => "v2");
       expect(viewCacheDependencies.call(host)).toEqual(["hello", "v2"]);
     });
     it("returns [] when none registered", () => {

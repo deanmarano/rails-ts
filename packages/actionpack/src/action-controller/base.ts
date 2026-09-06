@@ -1,4 +1,11 @@
-import { ArgumentError, Benchmark, Notifications, runLoadHooks } from "@blazetrails/activesupport";
+import {
+  ArgumentError,
+  Benchmark,
+  Notifications,
+  classAttribute,
+  include,
+  runLoadHooks,
+} from "@blazetrails/activesupport";
 import { File, getCrypto, symbolToS } from "@blazetrails/ruby-compat";
 import type { Temporal } from "@blazetrails/activesupport/temporal";
 import { Metal } from "./metal.js";
@@ -49,6 +56,25 @@ import {
 import { helperMethod, type HelpersClassMethods } from "../abstract-controller/helpers.js";
 import { defaultFormBuilder } from "./form-builder.js";
 import { instrumentPayload, instrumentName } from "./caching.js";
+import {
+  CACHING_DEFAULTS,
+  CACHING_SLOTS,
+  ConfigMethods,
+  cache,
+  viewCacheDependencies,
+  viewCacheDependency,
+  type CachingClassMethods,
+  type CachingHost,
+} from "../abstract-controller/caching.js";
+import {
+  combinedFragmentCacheKey,
+  expireFragment,
+  fragmentCacheKey,
+  fragmentExist,
+  readFragment,
+  writeFragment,
+  type FragmentsClassMethods,
+} from "../abstract-controller/caching/fragments.js";
 import {
   authenticateOrRequestWithHttpBasic,
   authenticateWithHttpBasic,
@@ -760,6 +786,15 @@ export class Base extends Metal {
   }
 
   /** @internal */
+  declare viewCacheDependencies: typeof viewCacheDependencies;
+  declare cache: typeof cache;
+  declare combinedFragmentCacheKey: typeof combinedFragmentCacheKey;
+  declare writeFragment: typeof writeFragment;
+  declare readFragment: typeof readFragment;
+  declare fragmentExist: typeof fragmentExist;
+  declare expireFragment: typeof expireFragment;
+
+  /** @internal */
   declare sendFileHeadersBang: typeof sendFileHeadersBang;
   /** @internal */
   declare appendInfoToPayload: typeof appendInfoToPayload;
@@ -869,6 +904,37 @@ export class Base extends Metal {
   }
 }
 
+include(Base, ConfigMethods);
+Base.prototype.viewCacheDependencies = viewCacheDependencies;
+Base.prototype.cache = cache;
+Base.prototype.combinedFragmentCacheKey = combinedFragmentCacheKey;
+Base.prototype.writeFragment = writeFragment;
+Base.prototype.readFragment = readFragment;
+Base.prototype.fragmentExist = fragmentExist;
+Base.prototype.expireFragment = expireFragment;
+(
+  Base as unknown as FragmentsClassMethods & { fragmentCacheKey: typeof fragmentCacheKey }
+).fragmentCacheKey = fragmentCacheKey;
+(
+  Base as unknown as CachingClassMethods & { viewCacheDependency: typeof viewCacheDependency }
+).viewCacheDependency = viewCacheDependency;
+
+for (const slot of CACHING_SLOTS) {
+  (Base as unknown as Record<string, unknown>)[slot] = CACHING_DEFAULTS[slot];
+  Object.defineProperty(Base.prototype, slot, {
+    configurable: true,
+    get(this: CachingHost): unknown {
+      return (this.constructor as unknown as Record<string, unknown>)[slot];
+    },
+    set(this: CachingHost, value: unknown) {
+      (this.constructor as unknown as Record<string, unknown>)[slot] = value;
+    },
+  });
+}
+
+classAttribute.call(Base, "_viewCacheDependencies", { default: [] });
+helperMethod(Base as unknown as HelpersClassMethods, "viewCacheDependencies");
+
 runLoadHooks("action_controller_base", Base);
 runLoadHooks("action_controller", Base);
 
@@ -882,7 +948,6 @@ helperMethod(
   Base as unknown as HelpersClassMethods,
   "isContentSecurityPolicy",
   "contentSecurityPolicyNonce",
-  "viewCacheDependencies",
 );
 
 export { DoubleRenderError };
