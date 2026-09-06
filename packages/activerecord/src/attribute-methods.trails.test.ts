@@ -361,7 +361,7 @@ describe("AttributeMethodsTest (trails)", () => {
     class Loaded extends Base {
       static tableName = "topics";
       static {
-        this.aliasAttribute("heading", "not_a_column");
+        this.aliasAttribute("heading", "title");
       }
     }
     const massGenerated = Loaded as unknown as { _aliasAttributesMassGenerated?: boolean };

@@ -150,7 +150,7 @@ export class Engine extends Trailtie {
 
   async loadConfigInitializer(initializer: string): Promise<void> {
     const { pathToFileURL } = getPath();
-    await Notifications.instrumentAsync(
+    await Notifications.instrument(
       "load_config_initializer.railties",
       { initializer },
       async () => {

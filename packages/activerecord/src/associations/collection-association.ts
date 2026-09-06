@@ -11,8 +11,7 @@ import { ArgumentError } from "@blazetrails/activemodel";
 import { Association } from "./association.js";
 import type { AssociationProxy } from "./collection-proxy.js";
 import { _CollectionProxyCtor } from "./collection-proxy-slot.js";
-import { foreignKeyPresentFor, ownerForeignKeyColumns } from "./foreign-association.js";
-import type { AssociationReflection } from "../reflection.js";
+import { ownerForeignKeyColumns } from "./foreign-association.js";
 import { RecordNotFound, RecordNotSaved, Rollback } from "../errors.js";
 import { CollectionIdsAssignmentError, CollectionPersistedAssignmentError } from "./errors.js";
 
@@ -491,10 +490,6 @@ export class CollectionAssociation extends Association {
       return nulled;
     }
     return s;
-  }
-
-  protected override foreignKeyPresent(): boolean {
-    return foreignKeyPresentFor(this.reflection as unknown as AssociationReflection, this.owner);
   }
 
   isNullScope(): boolean {

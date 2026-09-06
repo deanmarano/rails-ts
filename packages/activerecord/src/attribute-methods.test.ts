@@ -985,19 +985,57 @@ describe("AttributeMethodsTest", () => {
     expect(object.id_value).toBe(123_456);
   });
   it("#alias_attribute with an _in_database method issues raises an error", async () => {
-    const { Post } = makeModel();
-    const p = await Post.create({ title: "alias_db" });
-    expect(p.id).toBeDefined();
+    class ClassWithGeneratedAttributeMethodTarget extends Base {
+      static {
+        this.tableName = "topics";
+        this.aliasAttribute("saved_title", "title_in_database");
+      }
+    }
+
+    const message =
+      "ClassWithGeneratedAttributeMethodTarget model aliases " +
+      "`title_in_database`, but `title_in_database` is not an attribute. " +
+      "Use `alias_method :saved_title, :title_in_database` or define the method manually.";
+
+    expect(() => new ClassWithGeneratedAttributeMethodTarget({})).toThrow(message);
   });
   it("#alias_attribute with enum method raises an error", async () => {
-    const { Post } = makeModel();
-    const p = await Post.create({ title: "alias_enum" });
-    expect(p.id).toBeDefined();
+    class ClassWithEnumMethodTarget extends Base {
+      static {
+        this.tableName = "books";
+
+        this.attribute("status", "string");
+
+        this.enum("status", {
+          pending: "0",
+          completed: "1",
+        });
+        this.aliasAttribute("is_pending?", "pending?");
+      }
+    }
+
+    const message =
+      "ClassWithEnumMethodTarget model aliases `pending?`, but `pending?` is not an attribute. " +
+      "Use `alias_method :is_pending?, :pending?` or define the method manually.";
+
+    expect(() => new ClassWithEnumMethodTarget({})).toThrow(message);
   });
   it("#alias_attribute with an association method raises an error", async () => {
-    const { Post } = makeModel();
-    const p = await Post.create({ title: "alias_assoc" });
-    expect(p.id).toBeDefined();
+    class ClassWithAssociationTarget extends Base {
+      static {
+        this.tableName = "books";
+
+        this.belongsTo("author");
+
+        this.aliasAttribute("written_by", "author");
+      }
+    }
+
+    const message =
+      "ClassWithAssociationTarget model aliases `author`, but `author` is not an attribute. " +
+      "Use `alias_method :written_by, :author` or define the method manually.";
+
+    expect(() => new ClassWithAssociationTarget({})).toThrow(message);
   });
   it("#alias_attribute method on a STI class is available on subclasses", async () => {
     class Superclass extends Base {
@@ -1017,9 +1055,23 @@ describe("AttributeMethodsTest", () => {
     expect(comment.text).toBe("Text");
   });
   it("#alias_attribute with a manually defined method raises an error", async () => {
-    const { Post } = makeModel();
-    const p = await Post.create({ title: "alias_manual" });
-    expect(p.id).toBeDefined();
+    class ClassWithAliasedManuallyDefinedMethod extends Base {
+      static {
+        this.tableName = "books";
+
+        this.aliasAttribute("print", "publish");
+      }
+
+      publish(): string {
+        return "Publishing!";
+      }
+    }
+
+    const message =
+      "ClassWithAliasedManuallyDefinedMethod model aliases `publish`, but `publish` is not an attribute. " +
+      "Use `alias_method :print, :publish` or define the method manually.";
+
+    expect(() => new ClassWithAliasedManuallyDefinedMethod({})).toThrow(message);
   });
 
   it("#id_value alias returns the value in the id column, when id column exists", async () => {

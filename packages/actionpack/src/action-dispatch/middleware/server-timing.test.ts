@@ -12,7 +12,7 @@ afterEach(() => {
 describe("ServerTimingTest", () => {
   it("server timing header is included in the response", async () => {
     const inner = async (_env: RackEnv): Promise<RackResponse> => {
-      await Notifications.instrumentAsync("custom.event", {}, async () => {});
+      await Notifications.instrument("custom.event", {}, async () => {});
       return [200, {}, bodyFromString("")];
     };
     const mw = new ServerTiming(inner);
@@ -22,7 +22,7 @@ describe("ServerTimingTest", () => {
 
   it("includes custom active support events duration", async () => {
     const inner = async (_env: RackEnv): Promise<RackResponse> => {
-      await Notifications.instrumentAsync("custom.event", {}, async () => {});
+      await Notifications.instrument("custom.event", {}, async () => {});
       return [200, {}, bodyFromString("")];
     };
     const mw = new ServerTiming(inner);
@@ -45,7 +45,7 @@ describe("ServerTimingTest", () => {
     });
     const r2 = mw.call({
       "action_dispatch.test": async () => {
-        await Notifications.instrumentAsync("custom.event", {}, async () => {});
+        await Notifications.instrument("custom.event", {}, async () => {});
       },
     });
 
@@ -56,7 +56,7 @@ describe("ServerTimingTest", () => {
 
   it("does not overwrite existing header values", async () => {
     const inner = async (_env: RackEnv): Promise<RackResponse> => {
-      await Notifications.instrumentAsync("custom.event", {}, async () => {});
+      await Notifications.instrument("custom.event", {}, async () => {});
       return [200, { [SERVER_TIMING]: 'entry;desc="description"' }, bodyFromString("")];
     };
     const mw = new ServerTiming(inner);

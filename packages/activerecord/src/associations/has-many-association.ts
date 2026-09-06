@@ -21,7 +21,11 @@ import {
 } from "./errors.js";
 import { CollectionAssociation, includesRecord, isThenable } from "./collection-association.js";
 import type { Association } from "./association.js";
-import { ForeignAssociation, ownerForeignKeyColumns } from "./foreign-association.js";
+import {
+  ForeignAssociation,
+  foreignKeyPresent,
+  ownerForeignKeyColumns,
+} from "./foreign-association.js";
 import { compositeQueryConstraintsList, queryConstraintsList } from "../persistence.js";
 import {
   camelize,
@@ -534,3 +538,5 @@ Object.assign(HasManyAssociation.prototype, {
   updateCounter,
   deleteCount,
 });
+
+Object.assign(HasManyAssociation.prototype, { foreignKeyPresent });

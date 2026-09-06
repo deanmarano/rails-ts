@@ -1,6 +1,7 @@
 import { CodeGenerator, include, Module } from "@blazetrails/activesupport";
 import { isEmpty } from "@blazetrails/ruby-compat";
 import {
+  ArgumentError,
   AttributeMethods,
   type AttributeMethodPattern,
   type InstanceHost as AttributeMethodsInstanceHost,
@@ -123,6 +124,7 @@ export interface AttributeMethodsHost {
   attributeNames(): string[];
   abstractClass?: boolean;
   aliasAttribute(newName: string, oldName: string): void;
+  hasAttribute(attrName: string): boolean;
   _hasAttribute(attrName: string): boolean;
   attributeMethodPatterns: AttributeMethodPattern[];
   /** @internal */
@@ -245,7 +247,6 @@ export function generateAliasAttributeMethods(
   this.attributeMethodPatternsCache().clear();
 }
 
-/** @missingRailsCall has_attribute? — CONVERGEABLE converge-alias-attribute-not-an-attribute-raise */
 export function aliasAttributeMethodDefinition(
   this: AttributeMethodsHost,
   codeGenerator: CodeGenerator,
@@ -255,11 +256,18 @@ export function aliasAttributeMethodDefinition(
 ): void {
   oldName = String(oldName);
 
-  this.defineAttributeMethodPattern(pattern, oldName, {
-    owner: codeGenerator,
-    as: newName,
-    override: true,
-  });
+  if (this.abstractClass !== true && !this.hasAttribute(oldName)) {
+    throw new ArgumentError(
+      `${this.name} model aliases \`${oldName}\`, but \`${oldName}\` is not an attribute. ` +
+        `Use \`alias_method :${newName}, :${oldName}\` or define the method manually.`,
+    );
+  } else {
+    this.defineAttributeMethodPattern(pattern, oldName, {
+      owner: codeGenerator,
+      as: newName,
+      override: true,
+    });
+  }
 }
 
 export function isAttributeMethodsGenerated(this: AttributeMethodsHost): boolean {
