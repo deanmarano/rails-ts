@@ -121,6 +121,27 @@ describe("non-transactional row writes", () => {
     expect(rowWritesAtItScope(src)).toEqual([]);
   });
 
+  it("catches a bang writer", () => {
+    const src = `describe("x", () => {
+  it("writes", async () => {
+    await ShardConnectionTestModel.createBang({ name: "Dune" });
+    await book.saveBang();
+    await book.updateBang({ name: "Emma" });
+    await Book.createOrFindByBang({ name: "Emma" });
+    await Book.firstOrCreateBang({ name: "Emma" });
+  });
+});
+`;
+    expect(rowWritesAtItScope(src).map((w) => w.pattern)).toEqual([
+      ".createBang(",
+      ".saveBang(",
+      ".updateBang(",
+      ".createOrFindByBang(",
+      ".firstOrCreateBang(",
+    ]);
+    expect(isOffender(src)).toBe(true);
+  });
+
   it("catches a raw INSERT INTO in a template literal", () => {
     const src = `describe("x", () => {
   it("inserts", async () => {

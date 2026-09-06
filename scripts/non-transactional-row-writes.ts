@@ -84,11 +84,26 @@ export const TRANSACTIONAL_WIRING = [
   "setupAdapterSuite(",
 ];
 
+const NON_BANG_WRITE_PATTERNS = [".create(", ".insert", ".update(", "INSERT INTO", ".save()"];
+
+/**
+ * The writers whose trails spelling is the Rails bang method with a `Bang`
+ * suffix — `create!`, `update!`, `save!`, `create_or_find_by!`,
+ * `first_or_create!`. They write exactly the rows their non-bang twins do, and
+ * none of them is matched by a non-bang pattern: `.createBang(` does not
+ * contain `.create(`. `insert!` / `insert_all!` need no entry, because the
+ * paren-less `.insert` already prefixes `.insertBang`.
+ */
+export const BANG_WRITERS = ["create", "update", "save", "createOrFindBy", "firstOrCreate"];
+
 /**
  * Row-writing call shapes. Deliberately textual: the point is to catch a new
  * file at review time, not to prove reachability.
  */
-export const WRITE_PATTERNS = [".create(", ".insert", ".update(", "INSERT INTO", ".save()"];
+export const WRITE_PATTERNS = [
+  ...NON_BANG_WRITE_PATTERNS,
+  ...BANG_WRITERS.map((name) => `.${name}Bang(`),
+];
 
 /**
  * Strip block comments, line comments, and string literals so a commented-out
