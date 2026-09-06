@@ -314,6 +314,18 @@ export interface ArmRowFilter {
   /** `missing` keeps rows that drop an arm; `invented` the mirror. */
   direction?: "missing" | "invented";
   package?: string;
+  /**
+   * One control TOKEN, which is the stratum the noise floor turned out to
+   * differ across: `if` is 1,891 of the 2,141 rows and IS the floor, while the
+   * missing-`throw` stratum measured 88.4% real. A whole-population sample
+   * cannot answer either question, so the audit that gated `throw` was drawn
+   * with this flag and has to stay re-drawable.
+   *
+   * Read against the direction the filter already names: `--direction=missing`
+   * keeps rows whose `missing` carries the token, `--direction=invented` the
+   * mirror, and no direction keeps a row carrying it on either side.
+   */
+  token?: string;
 }
 
 export function filterRows(rows: readonly ArmMismatch[], filter: ArmRowFilter = {}): ArmMismatch[] {
@@ -321,6 +333,15 @@ export function filterRows(rows: readonly ArmMismatch[], filter: ArmRowFilter = 
     if (filter.package !== undefined && r.package !== filter.package) return false;
     if (filter.direction === "missing" && r.missing.length === 0) return false;
     if (filter.direction === "invented" && r.invented.length === 0) return false;
+    if (filter.token !== undefined) {
+      const sides =
+        filter.direction === "missing"
+          ? [r.missing]
+          : filter.direction === "invented"
+            ? [r.invented]
+            : [r.missing, r.invented];
+      if (!sides.some((side) => side.includes(filter.token!))) return false;
+    }
     return true;
   });
 }
@@ -502,6 +523,7 @@ export function renderSample(
   const stratum = [
     filter.direction === undefined ? "" : `, ${filter.direction} direction`,
     filter.package === undefined ? "" : `, package ${filter.package}`,
+    filter.token === undefined ? "" : `, token ${filter.token}`,
   ].join("");
   return [
     `call-skeleton arms sample: ${drawn.length} of ${rows.length} mismatched pair(s), ` +
@@ -545,7 +567,8 @@ async function sampleMain(size: number, seed: number, filter: ArmRowFilter): Pro
   return 0;
 }
 
-/** `--direction=missing|invented` and `--package=<name>`, shared by both modes. */
+/** `--direction=missing|invented`, `--package=<name>` and `--token=<arm>`,
+ *  shared by both modes. */
 export function parseFilter(argv: readonly string[]): ArmRowFilter {
   const filter: ArmRowFilter = {};
   const directionArg = argv.find((a) => a.startsWith("--direction="));
@@ -558,6 +581,14 @@ export function parseFilter(argv: readonly string[]): ArmRowFilter {
   }
   const packageArg = argv.find((a) => a.startsWith("--package="));
   if (packageArg !== undefined) filter.package = packageArg.slice("--package=".length);
+  const tokenArg = argv.find((a) => a.startsWith("--token="));
+  if (tokenArg !== undefined) {
+    const token = tokenArg.slice("--token=".length);
+    if (!CONTROL_TOKENS.has(token)) {
+      throw new Error(`--token takes one of ${[...CONTROL_TOKENS].sort().join(", ")}.`);
+    }
+    filter.token = token;
+  }
   return filter;
 }
 
@@ -587,7 +618,8 @@ async function runAsScript(): Promise<void> {
   if (!argv.includes("--report")) {
     console.error(
       "call-skeleton arms: the modes are `--report` and `--sample=N [--seed=S]`, " +
-        "each narrowable with `--direction=missing|invented` and `--package=<name>` " +
+        "each narrowable with `--direction=missing|invented`, `--package=<name>` " +
+        "and `--token=<arm>` " +
         "(RFC 0113 Phase 1 is advisory).",
     );
     process.exit(2);

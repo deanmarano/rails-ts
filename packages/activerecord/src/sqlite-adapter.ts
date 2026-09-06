@@ -59,6 +59,16 @@ export interface SyncSqliteConnection {
   readonly raw: unknown;
 }
 
+export const SQLite3Constants = {
+  Open: {
+    READONLY: 0x00000001,
+    READWRITE: 0x00000002,
+    CREATE: 0x00000004,
+    URI: 0x00000040,
+    SHAREDCACHE: 0x00020000,
+  },
+} as const;
+
 export interface SqliteOpenConfig {
   database: string;
   readOnly?: boolean;

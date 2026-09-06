@@ -576,6 +576,59 @@ describe("body call capture", () => {
     expect(lock.skeleton!.filter((t) => t === "if")).toEqual(["if", "if", "if"]);
   });
 
+  it("reads all three lowerings of one multi-value when as one arm", () => {
+    const cls = extractFromSource(
+      `class Foo {
+        fallthrough(size: string | undefined) {
+          switch (size) {
+            case undefined:
+            case "tiny":
+            case "medium":
+            case "long":
+              return this.sized(size);
+          }
+          throw new ArgumentError("bad");
+        }
+        chained(size: string | undefined) {
+          if (size === undefined || size === "tiny" || size === "medium" || size === "long") {
+            return this.sized(size);
+          }
+          throw new ArgumentError("bad");
+        }
+        listed(size: string | undefined) {
+          if (size === undefined || ["tiny", "medium", "long"].includes(size)) {
+            return this.sized(size);
+          }
+          throw new ArgumentError("bad");
+        }
+      }`,
+    );
+    const arms = (name: string) =>
+      cls.instanceMethods
+        .find((m) => m.name === name)!
+        .skeleton!.filter((t) => t === "if" || t.startsWith("throw"));
+    expect(arms("fallthrough")).toEqual(["if", "throw:ArgumentError"]);
+    expect(arms("chained")).toEqual(["if", "throw:ArgumentError"]);
+    expect(arms("listed")).toEqual(["if", "throw:ArgumentError"]);
+  });
+
+  it("still emits one arm per case clause that carries its own body", () => {
+    const cls = extractFromSource(
+      `class Foo {
+        pick(kind: string) {
+          switch (kind) {
+            case "a":
+              return this.a();
+            case "b":
+              return this.b();
+          }
+        }
+      }`,
+    );
+    const pick = cls.instanceMethods.find((m) => m.name === "pick")!;
+    expect(pick.skeleton!.filter((t) => t === "if")).toEqual(["if", "if"]);
+  });
+
   it("emits one rescue per instanceof arm of a catch, in place of its if", () => {
     const cls = extractFromSource(
       `class Foo {

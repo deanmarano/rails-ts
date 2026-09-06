@@ -119,7 +119,7 @@ export { KeyError } from "./key-error.js";
 export { PROTOCOL_PROBES, methodMissingProxy } from "./method-missing-proxy.js";
 export { NameError } from "./name-error.js";
 export { NoMethodError } from "./no-method-error.js";
-export { round } from "./numeric.js";
+export { anybits, round } from "./numeric.js";
 export { NotImplementedError } from "./not-implemented-error.js";
 export { prepend } from "./prepend.js";
 export { Process } from "./process.js";

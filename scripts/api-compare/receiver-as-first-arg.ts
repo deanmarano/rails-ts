@@ -99,6 +99,11 @@ export const RECEIVER_AS_FIRST_ARG = new Set([
   // prototype to hang it on, so activerecord's `ruby-empty.ts` exports it as
   // `isEmpty(collection)` and the Ruby receiver is TS argument 1.
   "empty?",
+  // Ruby core `Integer#anybits?` (`vendor/ruby/numeric.c:3647`) — a bit test on
+  // a Number, which TS cannot hang on `Number.prototype` any more than it can
+  // on `String.prototype`, so @blazetrails/ruby-compat exports it as
+  // `anybits(x, mask)` and the Ruby receiver is TS argument 1.
+  "anybits?",
   // Ruby core `Class#subclasses` (3.1+) — `subclasses.each { … }` on a class.
   // A JS class has no such built-in and TS cannot add one, so ActiveSupport's
   // DescendantsTracker exports it as `subclasses(cls)` and the Ruby receiver is

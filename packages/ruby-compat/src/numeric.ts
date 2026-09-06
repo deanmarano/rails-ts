@@ -10,3 +10,12 @@ export function round(x: number, ndigits = 0): number {
   const rounded = Math.sign(scaled) * Math.round(Math.abs(scaled));
   return ndigits === 0 ? rounded : rounded / f;
 }
+
+/**
+ * Ruby `Integer#anybits?` (`vendor/ruby/numeric.c:3647` `int_anybits_p`):
+ * whether any of `mask`'s set bits are set in `self`.
+ * @noRailsEquivalent PERMANENT — Ruby core `Integer#anybits?` (`vendor/ruby/numeric.c:3647`).
+ */
+export function anybits(x: number, mask: number): boolean {
+  return (x & mask) !== 0;
+}

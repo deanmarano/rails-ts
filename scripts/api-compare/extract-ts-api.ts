@@ -4267,6 +4267,33 @@ function isInstanceOfTest(expression: ts.Expression): boolean {
  * reaches — where the Ruby `:rescue` clause node sits. A catch with no
  * `instanceof` chain is a bare Ruby `rescue` and emits exactly one.
  */
+/**
+ * Whether this `case` clause is the continuation of a preceding EMPTY one —
+ * `case nil: case "tiny": case "medium": case "long": …` — which is the
+ * faithful TS lowering of a Ruby `when` carrying several values:
+ *
+ *     case size&.to_s
+ *     when nil, "tiny", "medium", "long"
+ *
+ * (`activerecord/lib/active_record/connection_adapters/mysql/schema_statements.rb:272-274`).
+ * Ruby spells that as ONE `:when` clause with a value LIST, and
+ * `extract-ruby-api.rb#walk_for_skeleton` emits one `if` for it, so the shared
+ * arm count is the CLAUSE count — 1 — and not the value count.
+ *
+ * The other two faithful lowerings already land on 1 without help: a single
+ * `if` whose condition `||`s the values together contributes one `if` (the
+ * `||`s are `or` short-circuit tokens, which the arm projection does not read),
+ * and `if (["tiny", …].includes(s))` contributes one `if` plus a `ref:includes`
+ * reach. So all three read as one arm against Ruby's one clause, whichever the
+ * port picked (RFC 0113, #7526's per-clause rule extended to the value list).
+ */
+function isFallenThroughInto(clause: ts.CaseClause): boolean {
+  const clauses = clause.parent.clauses;
+  const index = clauses.indexOf(clause);
+  const previous = index > 0 ? clauses[index - 1] : undefined;
+  return previous !== undefined && ts.isCaseClause(previous) && previous.statements.length === 0;
+}
+
 function extractSkeleton(node: ts.Node | undefined): string[] | undefined {
   if (!node) return undefined;
   const tokens: string[] = [];
@@ -4274,8 +4301,10 @@ function extractSkeleton(node: ts.Node | undefined): string[] | undefined {
     switch (n.kind) {
       case ts.SyntaxKind.IfStatement:
       case ts.SyntaxKind.ConditionalExpression:
-      case ts.SyntaxKind.CaseClause:
         tokens.push("if");
+        break;
+      case ts.SyntaxKind.CaseClause:
+        if (!isFallenThroughInto(n as ts.CaseClause)) tokens.push("if");
         break;
       case ts.SyntaxKind.BinaryExpression: {
         const bin = n as ts.BinaryExpression;

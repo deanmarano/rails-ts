@@ -127,6 +127,26 @@ describe("Ruby extractor body call capture", { timeout: RUBY_SUBPROCESS_TIMEOUT_
     return rubyField(fixtures, "skeleton");
   }
 
+  it("emits one arm for a when carrying several values", () => {
+    const s = rubySkeletons({
+      "foo.rb": `
+        class Foo
+          def type_with_size_to_sql(type, size)
+            case size&.to_s
+            when nil, "tiny", "medium", "long"
+              sized(size)
+            else
+              raise ArgumentError, "bad"
+            end
+          end
+        end
+      `,
+    });
+    expect(
+      s["Foo#type_with_size_to_sql"]!.filter((t) => t === "if" || t.startsWith("throw")),
+    ).toEqual(["if", "throw:ArgumentError"]);
+  });
+
   it("emits an ordered control + call skeleton, with duplicates, alongside calls", () => {
     const s = rubySkeletons({
       "foo.rb": `

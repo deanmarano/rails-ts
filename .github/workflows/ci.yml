@@ -1558,10 +1558,22 @@ jobs:
       - name: Arm-parity report
         # RFC 0113 Phase 1. Reports the arm (control-token) mismatches in the
         # RFC 0084 skeleton artifact the `--calls` step above already wrote.
-        # Report-only and exits 0 on any population: nothing gates until
-        # `measure-arm-mismatch-noise-floor` puts a figure on it, and the merge
-        # rule this reads it under is documented at report-arms.ts:ArmVerdict.
+        # Report-only and exits 0 on any population: the `if`, `loop`, `try`
+        # and `rescue` strata stay advisory, and the merge rule this reads them
+        # under is documented at report-arms.ts:ArmVerdict. Only the
+        # missing-`throw` stratum gates, in the step below.
         run: pnpm exec tsx scripts/api-compare/report-arms.ts --report
+      - name: Missing-throw arm ratchet
+        # RFC 0113. Gates the one stratum the stratified noise-floor
+        # re-measurement cleared: rows whose arm multiset difference drops a
+        # `throw`, measured at 88.4% real over all 69 of them (11.6% non-real,
+        # 95% CI 4.1%-19.1%, entirely under this RFC's pre-committed 1/3
+        # tripwire). The whole population cannot gate at 75% non-real, and
+        # neither can `if`, which IS the population at 1,891 of 2,141 rows.
+        # Only-shrink over scripts/api-compare/arm-throw-mark.json: the fix is
+        # to raise what Rails raises, never to raise the mark. Converged one?
+        # `pnpm parity:api:arms:throws:tighten`; there is no reseed.
+        run: pnpm exec tsx scripts/api-compare/lint-arm-throws.ts
       - name: Extra-surface ratchet
         # RFC 0117. Gates extra surface — public TS names in a Rails-matched
         # file with no Ruby counterpart — against the committed marks in

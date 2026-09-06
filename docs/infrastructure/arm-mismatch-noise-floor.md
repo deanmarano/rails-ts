@@ -253,3 +253,65 @@ The splice is one-directional by construction: it can discharge a flag, never
 raise one (`report-arms.ts#compareArms`). Taken naively in both directions it
 charged every divergent helper's arms to each of its callers and inflated the
 report to 3,684 rows.
+
+## Addendum — the per-token re-measurement, and the one stratum that gates
+
+`remeasure-arm-noise-floor-per-token` re-drew the sample after the six extractor
+stories landed, **stratified by token** with `report-arms.ts --sample=N
+--seed=S --direction=missing --token=<arm>`, and hand-audited 229 rows. That
+flag lands here so the draws stay re-runnable; the per-row verdict tables are in
+the audit report `arm-mismatch-noise-floor-20260906T022720Z.md`.
+
+| stratum          | n   | non-real | verdict     |
+| ---------------- | --- | -------- | ----------- |
+| whole population | 80  | 75.0%    | cannot gate |
+| `if`             | 80  | 70.0%    | cannot gate |
+| missing `throw`  | 69  | 11.6%    | **gates**   |
+
+`if` is 1,891 of the 2,141 rows, so `if` IS the noise floor and the two figures
+above are the same finding twice. The missing-`throw` stratum is the opposite:
+all 69 of its rows were read in full — **61 real, 8 lowering artefact, 0
+extraction bugs** — and the 95% interval on the non-real rate, 4.1%–19.1%, sits
+entirely under this RFC's pre-committed ⅓ tripwire. A dropped raise is a real
+divergence nine times in ten, which is what Rollout Phase 5 assumed. RFC 0095 is
+the precedent for gating one stratum and leaving the rest report-only.
+
+The eight artefacts were two named classes and nothing else:
+
+- **`throw(:abort)` / `throw(:exception, …)` ported through the settled halt
+  helper** — `throwAbort()` (`activesupport/src/callbacks.ts:10`) and
+  `throwException(…)` (`i18n/src/throw-catch.ts`), against
+  `has_many_association.rb:22`, `has_one_association.rb:18,35`,
+  `autosave_association.rb:213` and `i18n/backend/base.rb:47,54`. Suppressed at
+  the source rather than baselined: `compare.ts:TS_CONSTRUCT_SKELETON_NAMES`
+  folds the helper call onto the `throw` construct the Ruby side already folds
+  `ref:throw` onto. A `throw(:abort)` whose port `return false`s for its caller
+  to convert (`associations/builder/association.ts:233`) emits no token at all,
+  so there is nothing to fold it onto and it stays in the population.
+- **Ruby-only guards with no JS counterpart** — `require "bcrypt" rescue
+LoadError` (`secure_password.rb:120-124`), `constantize` / `NameError`
+  (`request.rb:98-103`), and the raise-to-build-a-backtrace trick
+  (`error_reporter.rb:258-263`).
+
+### The seed run
+
+Taken on this branch after the multi-value-`when` fix and the halt-helper fold,
+over 6,072 compared pairs: **2,133 mismatched pairs** in total (from 2,139
+before those two changes), of which **67** drop a `throw`. The mark that
+`scripts/api-compare/lint-arm-throws.ts` gates —
+`scripts/api-compare/arm-throw-mark.json` — was seeded from exactly that run:
+
+```
+abstractcontroller 1; actioncontroller 3; actiondispatch 9; actionview 4;
+activemodel 1; activerecord 35; activerecord-test-support 1; activesupport 7;
+arel 1; rack 3; trailties 2
+```
+
+Every compared package is enrolled, including the six sitting at zero, so a new
+dropped raise anywhere turns the gate red. The mark is only-shrink and carries a
+per-TS-file count beside each total, so a raise converged in one file and
+dropped in another cannot hide behind an unmoved total. There is no reseed;
+`pnpm parity:api:arms:throws:tighten` writes marks DOWN only.
+
+The `if`, `loop`, `try` and `rescue` strata stay report-only and
+`pnpm parity:api:arms:report` is unchanged.

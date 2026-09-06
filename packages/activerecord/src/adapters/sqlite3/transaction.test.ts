@@ -1,11 +1,9 @@
 import { it, expect, afterEach } from "vitest";
-import { getFs } from "@blazetrails/ruby-compat";
 import { describeIfSqlite } from "../../support/describe-if-sqlite.js";
 import { SQLite3Adapter } from "../../connection-adapters/sqlite3-adapter.js";
+import { SQLite3Constants } from "../../sqlite-adapter.js";
 import { BetterSQLite3Adapter } from "../../connection-adapters/better-sqlite3-adapter.js";
 import { TransactionIsolationError } from "../../errors.js";
-
-const SHARED_CACHE_DB = "file::memory:?cache=shared";
 
 const openAdapters: SQLite3Adapter[] = [];
 afterEach(async () => {
@@ -14,17 +12,18 @@ afterEach(async () => {
       await openAdapters.pop()!.close();
     } catch {}
   }
-  const fs = getFs();
-  for (const suffix of ["", "-wal", "-shm"]) {
-    try {
-      await fs.unlink!(SHARED_CACHE_DB + suffix);
-    } catch {}
-  }
 });
 
-async function withConn(opts: { sharedCache?: boolean } = {}): Promise<SQLite3Adapter> {
-  const filename = opts.sharedCache ? SHARED_CACHE_DB : ":memory:";
-  const adapter = new BetterSQLite3Adapter(filename);
+function sharedCacheFlags(): number {
+  return (
+    SQLite3Constants.Open.READWRITE |
+    SQLite3Constants.Open.CREATE |
+    SQLite3Constants.Open.SHAREDCACHE
+  );
+}
+
+async function withConn(options: { flags?: number } = {}): Promise<SQLite3Adapter> {
+  const adapter = new BetterSQLite3Adapter(":memory:", options);
   openAdapters.push(adapter);
   await adapter.connectBang();
   return adapter;
@@ -39,12 +38,14 @@ function readUncommitted(conn: SQLite3Adapter): boolean {
 
 describeIfSqlite("SQLite3TransactionTest", () => {
   it("shared_cached? is true when cache-mode is enabled", async () => {
-    const conn = await withConn({ sharedCache: true });
+    const conn = await withConn({ flags: sharedCacheFlags() });
     expect(conn.isSharedCache()).toBe(true);
   });
 
   it("shared_cached? is false when cache-mode is disabled", async () => {
-    const conn = await withConn();
+    const conn = await withConn({
+      flags: SQLite3Constants.Open.READWRITE | SQLite3Constants.Open.CREATE,
+    });
     expect(conn.isSharedCache()).toBe(false);
   });
 
@@ -69,14 +70,14 @@ describeIfSqlite("SQLite3TransactionTest", () => {
   });
 
   it.skip("opens a `read_uncommitted` transaction", async () => {
-    const conn1 = await withConn({ sharedCache: true });
+    const conn1 = await withConn({ flags: sharedCacheFlags() });
     await conn1.execute(
       `CREATE TABLE IF NOT EXISTS "zines" ("id" INTEGER PRIMARY KEY, "title" TEXT)`,
     );
     await conn1.beginDbTransaction();
     await conn1.executeMutation(`INSERT INTO "zines" ("title") VALUES ('foo')`);
 
-    const conn2 = await withConn({ sharedCache: true });
+    const conn2 = await withConn({ flags: sharedCacheFlags() });
     await conn2.beginIsolatedDbTransaction(":read_uncommitted");
     const rows = (await conn2.execute(`SELECT * FROM "zines" WHERE title = 'foo'`))!;
     expect(rows.length).toBeGreaterThan(0);
@@ -88,7 +89,7 @@ describeIfSqlite("SQLite3TransactionTest", () => {
   });
 
   it("reset the read_uncommitted PRAGMA when a transaction is rolled back", async () => {
-    const conn = await withConn({ sharedCache: true });
+    const conn = await withConn({ flags: sharedCacheFlags() });
     expect(readUncommitted(conn)).toBe(false);
     await conn.beginIsolatedDbTransaction(":read_uncommitted");
     expect(readUncommitted(conn)).toBe(true);
@@ -98,7 +99,7 @@ describeIfSqlite("SQLite3TransactionTest", () => {
   });
 
   it("reset the read_uncommitted PRAGMA when a transaction is committed", async () => {
-    const conn = await withConn({ sharedCache: true });
+    const conn = await withConn({ flags: sharedCacheFlags() });
     expect(readUncommitted(conn)).toBe(false);
     await conn.beginIsolatedDbTransaction(":read_uncommitted");
     expect(readUncommitted(conn)).toBe(true);
@@ -108,7 +109,7 @@ describeIfSqlite("SQLite3TransactionTest", () => {
   });
 
   it("set the read_uncommitted PRAGMA to its previous value", async () => {
-    const conn = await withConn({ sharedCache: true });
+    const conn = await withConn({ flags: sharedCacheFlags() });
     (conn as any)._rawConnection.exec("PRAGMA read_uncommitted=ON");
     expect(readUncommitted(conn)).toBe(true);
     await conn.beginIsolatedDbTransaction(":read_uncommitted");

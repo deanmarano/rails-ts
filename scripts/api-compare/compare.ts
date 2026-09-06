@@ -329,6 +329,33 @@ const CONSTRUCT_SKELETON_NAMES = new Map([
   ["throw", "throw"],
 ]);
 
+/**
+ * trails' names for Ruby's `Kernel#throw` / `Kernel#catch`, one per tag the
+ * repo has a settled helper for: `throw(:abort)` is `throwAbort()`
+ * (`activesupport/src/callbacks.ts:10`, the port of the callback-halt idiom) and
+ * `throw(:exception, …)` / `catch(:exception)` are `throwException(…)` /
+ * `catchException(…)` (`i18n/src/throw-catch.ts`, against
+ * `i18n/lib/i18n/backend/base.rb:47,54`).
+ *
+ * The Ruby side already folds `ref:throw` onto the `throw` construct
+ * ({@link CONSTRUCT_SKELETON_NAMES}); without this mirror the helper CALL reads
+ * as an ordinary `ref:` reach and the port scores a missing `throw` for
+ * spelling the halt exactly as this repo settled it. That is one of the two
+ * lowering-artefact classes the RFC 0113 noise-floor audit found under the
+ * missing-`throw` stratum, and it is suppressed here — at the source — rather
+ * than baselined into the ratchet that stratum now carries.
+ *
+ * The audit's other artefact class is NOT folded: a `throw(:abort)` whose port
+ * `return false`s for its caller to convert
+ * (`associations/builder/association.ts:233`) emits no token at all, so there
+ * is nothing to fold it onto.
+ */
+const TS_CONSTRUCT_SKELETON_NAMES = new Map([
+  ["throwAbort", "throw"],
+  ["throwException", "throw"],
+  ["catchException", "try"],
+]);
+
 export function foldSkeletonTokens(
   skeleton: readonly string[],
   side: SkeletonSide = "ruby",
@@ -350,7 +377,8 @@ export function foldSkeletonTokens(
       folded.push(...lowering);
       continue;
     }
-    folded.push(CONSTRUCT_SKELETON_NAMES.get(name) ?? token);
+    const tsConstruct = side === "ts" ? TS_CONSTRUCT_SKELETON_NAMES.get(name) : undefined;
+    folded.push(tsConstruct ?? CONSTRUCT_SKELETON_NAMES.get(name) ?? token);
   }
   return folded;
 }

@@ -1,5 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { ActiveRecord } from "../ar-config.js";
+import { File } from "@blazetrails/ruby-compat";
+import { setTrailsRoot, trailsRoot } from "@blazetrails/activesupport";
 import { AbstractMysqlAdapter } from "./abstract-mysql-adapter.js";
 import { SQLite3Adapter } from "./sqlite3-adapter.js";
 import { PostgreSQLAdapter } from "./postgresql-adapter.js";
@@ -78,19 +80,21 @@ describe("AbstractMysqlAdapter.dbconsole option keys", () => {
 });
 
 describe("SQLite3Adapter.dbconsole option keys", () => {
+  const expanded = (database: string) => File.expandPath(database, trailsRoot() ?? undefined);
+
   it("prepends -#{mode} and -header before the database path", () => {
     expect(
       SQLite3Adapter.dbconsole(dbConfig({ database: "db.sqlite3" }), {
         mode: "html",
         header: true,
       }),
-    ).toEqual(["sqlite3", "-html", "-header", "db.sqlite3"]);
+    ).toEqual(["sqlite3", "-html", "-header", expanded("db.sqlite3")]);
   });
 
   it("omits the flags when mode/header are absent", () => {
     expect(SQLite3Adapter.dbconsole(dbConfig({ database: "db.sqlite3" }))).toEqual([
       "sqlite3",
-      "db.sqlite3",
+      expanded("db.sqlite3"),
     ]);
   });
 
@@ -98,8 +102,34 @@ describe("SQLite3Adapter.dbconsole option keys", () => {
     expect(SQLite3Adapter.dbconsole(dbConfig({ database: "db.sqlite3" }), { mode: "" })).toEqual([
       "sqlite3",
       "-",
-      "db.sqlite3",
+      expanded("db.sqlite3"),
     ]);
+  });
+
+  it("expands a relative database against the application root", () => {
+    const original = trailsRoot();
+    setTrailsRoot("/srv/app");
+    try {
+      expect(SQLite3Adapter.dbconsole(dbConfig({ database: "db/development.sqlite3" }))).toEqual([
+        "sqlite3",
+        "/srv/app/db/development.sqlite3",
+      ]);
+    } finally {
+      setTrailsRoot(original);
+    }
+  });
+
+  it("passes an absolute database through unchanged", () => {
+    const original = trailsRoot();
+    setTrailsRoot("/srv/app");
+    try {
+      expect(SQLite3Adapter.dbconsole(dbConfig({ database: "/var/db/x.sqlite3" }))).toEqual([
+        "sqlite3",
+        "/var/db/x.sqlite3",
+      ]);
+    } finally {
+      setTrailsRoot(original);
+    }
   });
 });
 
