@@ -415,6 +415,16 @@ class Entry_ {
     getFs().unlinkSync(this.path);
   }
 
+  /** `Entry_#preorder_traverse` (`vendor/ruby/lib/fileutils.rb:2354-2360`). */
+  preorderTraverse(yieldFn: (ent: Entry_) => void): void {
+    const stack: Entry_[] = [this];
+    let ent: Entry_ | undefined;
+    while ((ent = stack.pop()) != null) {
+      yieldFn(ent);
+      if (ent.isDirectory) stack.push(...ent.entries().reverse());
+    }
+  }
+
   /** `Entry_#postorder_traverse` (`vendor/ruby/lib/fileutils.rb:2364-2382`). */
   postorderTraverse(yieldFn: (ent: Entry_) => void): void {
     if (this.isDirectory) {
@@ -434,16 +444,6 @@ class Entry_ {
       }
     }
     yieldFn(this);
-  }
-
-  /** `Entry_#preorder_traverse` (`vendor/ruby/lib/fileutils.rb:2354-2360`). */
-  preorderTraverse(yieldFn: (ent: Entry_) => void): void {
-    const stack: Entry_[] = [this];
-    let ent: Entry_ | undefined;
-    while ((ent = stack.pop()) != null) {
-      yieldFn(ent);
-      if (ent.isDirectory) stack.push(...ent.entries().reverse());
-    }
   }
 
   /** `Entry_#wrap_traverse` (`vendor/ruby/lib/fileutils.rb:2386-2393`). */
