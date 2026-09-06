@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 
-import { toFormattedS, toFs, toSentence } from "../../array-utils.js";
+import { toFormattedS, toFs, toSentence, toXml } from "../../array-utils.js";
+import { BigDecimal } from "../big-decimal/conversions.js";
 import { ArgumentError } from "../../hash-utils.js";
 
 describe("ToSentenceTest", () => {
@@ -80,27 +81,139 @@ describe("ToFsTest", () => {
 });
 
 describe("ToXmlTest", () => {
-  it.skip("to xml with hash elements");
+  it("to xml with hash elements", () => {
+    const xml = toXml(
+      [
+        { name: "David", age: 26, age_in_millis: 820497600000 },
+        { name: "Jason", age: 31, age_in_millis: new BigDecimal("1.0") },
+      ],
+      { skipInstruct: true, indent: 0 },
+    );
 
-  it.skip("to xml with non hash elements");
+    expect(xml.slice(0, 30)).toBe('<objects type="array"><object>');
+    expect(xml).toContain('<age type="integer">26</age>');
+    expect(xml).toContain('<age-in-millis type="integer">820497600000</age-in-millis>');
+    expect(xml).toContain("<name>David</name>");
+    expect(xml).toContain('<age type="integer">31</age>');
+    expect(xml).toContain('<age-in-millis type="decimal">1.0</age-in-millis>');
+    expect(xml).toContain("<name>Jason</name>");
+  });
 
-  it.skip("to xml with non hash different type elements");
+  it("to xml with non hash elements", () => {
+    const xml = toXml(["1", "2", "3"], { skipInstruct: true, indent: 0 });
 
-  it.skip("to xml with dedicated name");
+    expect(xml.slice(0, 29)).toBe('<strings type="array"><string');
+    expect(xml).toContain("<string>2</string>");
+  });
 
-  it.skip("to xml with options");
+  it("to xml with dedicated name", () => {
+    const xml = toXml(
+      [
+        { name: "David", age: 26, age_in_millis: 820497600000 },
+        { name: "Jason", age: 31 },
+      ],
+      { skipInstruct: true, indent: 0, root: "people" },
+    );
 
-  it.skip("to xml with indent set");
+    expect(xml.slice(0, 29)).toBe('<people type="array"><person>');
+  });
 
-  it.skip("to xml with dasherize false");
+  it("to xml with options", () => {
+    const xml = toXml(
+      [
+        { name: "David", street_address: "Paulina" },
+        { name: "Jason", street_address: "Evergreen" },
+      ],
+      { skipInstruct: true, skipTypes: true, indent: 0 },
+    );
 
-  it.skip("to xml with dasherize true");
+    expect(xml.slice(0, 17)).toBe("<objects><object>");
+    expect(xml).toContain("<street-address>Paulina</street-address>");
+    expect(xml).toContain("<name>David</name>");
+    expect(xml).toContain("<street-address>Evergreen</street-address>");
+    expect(xml).toContain("<name>Jason</name>");
+  });
 
-  it.skip("to xml with instruct");
+  it("to xml with indent set", () => {
+    const xml = toXml(
+      [
+        { name: "David", street_address: "Paulina" },
+        { name: "Jason", street_address: "Evergreen" },
+      ],
+      { skipInstruct: true, skipTypes: true, indent: 4 },
+    );
 
-  it.skip("to xml with block");
+    expect(xml.slice(0, 22)).toBe("<objects>\n    <object>");
+    expect(xml).toContain("\n        <street-address>Paulina</street-address>");
+    expect(xml).toContain("\n        <name>David</name>");
+    expect(xml).toContain("\n        <street-address>Evergreen</street-address>");
+    expect(xml).toContain("\n        <name>Jason</name>");
+  });
 
-  it.skip("to xml with empty");
+  it("to xml with dasherize false", () => {
+    const xml = toXml(
+      [
+        { name: "David", street_address: "Paulina" },
+        { name: "Jason", street_address: "Evergreen" },
+      ],
+      { skipInstruct: true, skipTypes: true, indent: 0, dasherize: false },
+    );
 
-  it.skip("to xml dups options");
+    expect(xml.slice(0, 17)).toBe("<objects><object>");
+    expect(xml).toContain("<street_address>Paulina</street_address>");
+    expect(xml).toContain("<street_address>Evergreen</street_address>");
+  });
+
+  it("to xml with dasherize true", () => {
+    const xml = toXml(
+      [
+        { name: "David", street_address: "Paulina" },
+        { name: "Jason", street_address: "Evergreen" },
+      ],
+      { skipInstruct: true, skipTypes: true, indent: 0, dasherize: true },
+    );
+
+    expect(xml.slice(0, 17)).toBe("<objects><object>");
+    expect(xml).toContain("<street-address>Paulina</street-address>");
+    expect(xml).toContain("<street-address>Evergreen</street-address>");
+  });
+
+  it("to xml with instruct", () => {
+    const xml = toXml(
+      [
+        { name: "David", age: 26, age_in_millis: 820497600000 },
+        { name: "Jason", age: 31, age_in_millis: new BigDecimal("1.0") },
+      ],
+      { skipInstruct: false, indent: 0 },
+    );
+
+    expect(xml).toMatch(/^<\?xml [^>]*/);
+    expect(xml.lastIndexOf("<?xml ")).toBe(0);
+  });
+
+  it("to xml with block", () => {
+    const xml = toXml(
+      [
+        { name: "David", age: 26, age_in_millis: 820497600000 },
+        { name: "Jason", age: 31, age_in_millis: new BigDecimal("1.0") },
+      ],
+      { skipInstruct: true, indent: 0 },
+      (builder) => {
+        builder.tag("count", "2");
+      },
+    );
+
+    expect(xml).toContain("<count>2</count>");
+  });
+
+  it("to xml with empty", () => {
+    const xml = toXml([]);
+    expect(xml).toMatch(/type="array"\/>/);
+  });
+
+  it("to xml dups options", () => {
+    const options = { skipInstruct: true };
+    toXml([], options);
+    expect(options).toEqual({ skipInstruct: true });
+  });
 });

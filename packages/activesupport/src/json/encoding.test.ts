@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 import { ActiveSupportJSON } from "../json.js";
-import { Temporal } from "@blazetrails/date";
+import { DateTime, Temporal } from "@blazetrails/date";
 import { TimeWithZone } from "../time-with-zone.js";
 import { TimeZone } from "../values/time-zone.js";
 import { Encoding, type EncodeOptions } from "./encoding.js";
@@ -337,7 +337,11 @@ describe("TestJSONEncoding", () => {
     });
   });
 
-  it.skip("twz to json when wrapping a date time");
+  it("twz to json when wrapping a date time", () => {
+    const zone = TimeZone.find("Eastern Time (US & Canada)")!;
+    const time = new TimeWithZone(DateTime.civil(2000), zone);
+    expect(ActiveSupportJSON.encode(time)).toBe('"1999-12-31T19:00:00.000-05:00"');
+  });
 
   it("exception to json", () => {
     const exception = new Error("foo");

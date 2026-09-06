@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import { toDate, toDatetime, toTime } from "./string/conversions.js";
-import { ArgumentError, Temporal, Time, resetLocalTimeZoneId } from "@blazetrails/date";
+import { ArgumentError, DateTime, Temporal, Time, resetLocalTimeZoneId } from "@blazetrails/date";
 import { at, from, to, first, last, indent, exclude } from "../string-utils.js";
 import {
   registerConstantizeFixtures,
@@ -38,6 +38,7 @@ import {
   upcaseFirst,
 } from "../index.js";
 import { StringInquirer } from "../string-inquirer.js";
+import { I18n } from "../i18n.js";
 
 describe("StringAccessTest", () => {
   it("#at with Integer, returns a substring of one character at that position", () => {
@@ -308,8 +309,57 @@ describe("StringConversionsTest", () => {
     });
   });
 
-  it.skip("partial string to time when current time is standard time");
-  it.skip("partial string to time when current time is daylight savings");
+  it("partial string to time when current time is standard time", () => {
+    withEnvTz("US/Eastern", () => {
+      const now = vi.spyOn(Time, "now").mockReturnValue(Time.mktime(2012, 1, 1));
+      try {
+        expect(epochNs(toTime("10:00"))).toBe(epochNs(Time.mktime(2012, 1, 1, 10, 0)));
+        expect(epochNs(toTime("10:00", "utc"))).toBe(epochNs(Time.utc(2012, 1, 1, 10, 0)));
+        expect(epochNs(toTime("10:00 -0100"))).toBe(epochNs(Time.mktime(2012, 1, 1, 6, 0)));
+        expect(epochNs(toTime("10:00 -0100", "utc"))).toBe(epochNs(Time.utc(2012, 1, 1, 11, 0)));
+        expect(epochNs(toTime("10:00 -0500"))).toBe(epochNs(Time.mktime(2012, 1, 1, 10, 0)));
+        expect(epochNs(toTime("10:00 -0500", "utc"))).toBe(epochNs(Time.utc(2012, 1, 1, 15, 0)));
+        expect(epochNs(toTime("10:00 UTC"))).toBe(epochNs(Time.mktime(2012, 1, 1, 5, 0)));
+        expect(epochNs(toTime("10:00 UTC", "utc"))).toBe(epochNs(Time.utc(2012, 1, 1, 10, 0)));
+        expect(epochNs(toTime("10:00 PST"))).toBe(epochNs(Time.mktime(2012, 1, 1, 13, 0)));
+        expect(epochNs(toTime("10:00 PST", "utc"))).toBe(epochNs(Time.utc(2012, 1, 1, 18, 0)));
+        expect(epochNs(toTime("10:00 PDT"))).toBe(epochNs(Time.mktime(2012, 1, 1, 12, 0)));
+        expect(epochNs(toTime("10:00 PDT", "utc"))).toBe(epochNs(Time.utc(2012, 1, 1, 17, 0)));
+        expect(epochNs(toTime("10:00 EST"))).toBe(epochNs(Time.mktime(2012, 1, 1, 10, 0)));
+        expect(epochNs(toTime("10:00 EST", "utc"))).toBe(epochNs(Time.utc(2012, 1, 1, 15, 0)));
+        expect(epochNs(toTime("10:00 EDT"))).toBe(epochNs(Time.mktime(2012, 1, 1, 9, 0)));
+        expect(epochNs(toTime("10:00 EDT", "utc"))).toBe(epochNs(Time.utc(2012, 1, 1, 14, 0)));
+      } finally {
+        now.mockRestore();
+      }
+    });
+  });
+
+  it("partial string to time when current time is daylight savings", () => {
+    withEnvTz("US/Eastern", () => {
+      const now = vi.spyOn(Time, "now").mockReturnValue(Time.mktime(2012, 7, 1));
+      try {
+        expect(epochNs(toTime("10:00"))).toBe(epochNs(Time.mktime(2012, 7, 1, 10, 0)));
+        expect(epochNs(toTime("10:00", "utc"))).toBe(epochNs(Time.utc(2012, 7, 1, 10, 0)));
+        expect(epochNs(toTime("10:00 -0100"))).toBe(epochNs(Time.mktime(2012, 7, 1, 7, 0)));
+        expect(epochNs(toTime("10:00 -0100", "utc"))).toBe(epochNs(Time.utc(2012, 7, 1, 11, 0)));
+        expect(epochNs(toTime("10:00 -0500"))).toBe(epochNs(Time.mktime(2012, 7, 1, 11, 0)));
+        expect(epochNs(toTime("10:00 -0500", "utc"))).toBe(epochNs(Time.utc(2012, 7, 1, 15, 0)));
+        expect(epochNs(toTime("10:00 UTC"))).toBe(epochNs(Time.mktime(2012, 7, 1, 6, 0)));
+        expect(epochNs(toTime("10:00 UTC", "utc"))).toBe(epochNs(Time.utc(2012, 7, 1, 10, 0)));
+        expect(epochNs(toTime("10:00 PST"))).toBe(epochNs(Time.mktime(2012, 7, 1, 14, 0)));
+        expect(epochNs(toTime("10:00 PST", "utc"))).toBe(epochNs(Time.utc(2012, 7, 1, 18, 0)));
+        expect(epochNs(toTime("10:00 PDT"))).toBe(epochNs(Time.mktime(2012, 7, 1, 13, 0)));
+        expect(epochNs(toTime("10:00 PDT", "utc"))).toBe(epochNs(Time.utc(2012, 7, 1, 17, 0)));
+        expect(epochNs(toTime("10:00 EST"))).toBe(epochNs(Time.mktime(2012, 7, 1, 11, 0)));
+        expect(epochNs(toTime("10:00 EST", "utc"))).toBe(epochNs(Time.utc(2012, 7, 1, 15, 0)));
+        expect(epochNs(toTime("10:00 EDT"))).toBe(epochNs(Time.mktime(2012, 7, 1, 10, 0)));
+        expect(epochNs(toTime("10:00 EDT", "utc"))).toBe(epochNs(Time.utc(2012, 7, 1, 14, 0)));
+      } finally {
+        now.mockRestore();
+      }
+    });
+  });
   it("string to datetime", () => {
     expect(String(toDatetime("2039-02-27 23:50"))).toEqual("2039-02-27T23:50:00");
     expect(String(toDatetime("2039-02-27T23:50:19.275038-04:00"))).toEqual(
@@ -317,7 +367,15 @@ describe("StringConversionsTest", () => {
     );
     expect(toDatetime("")).toBeUndefined();
   });
-  it.skip("partial string to datetime");
+  it("partial string to datetime", () => {
+    const now = DateTime.now();
+    expect(String(toDatetime("23:50"))).toBe(
+      String(DateTime.civil(now.year, now.month, now.day, 23, 50)),
+    );
+    expect(String(toDatetime("23:50 -0400"))).toBe(
+      String(DateTime.civil(now.year, now.month, now.day, 23, 50, 0, "-04:00")),
+    );
+  });
   it("string to date", () => {
     expect(String(toDate("2005-02-27"))).toBe("2005-02-27");
     expect(toDate("")).toBeUndefined();
@@ -385,6 +443,15 @@ describe("StringExcludeTest", () => {
 });
 
 describe("StringInflectionsTest", () => {
+  let enforceAvailableLocales: boolean;
+  beforeAll(() => {
+    enforceAvailableLocales = I18n.config().enforceAvailableLocales;
+    I18n.config().enforceAvailableLocales = false;
+  });
+  afterAll(() => {
+    I18n.config().enforceAvailableLocales = enforceAvailableLocales;
+  });
+
   it("strip heredoc on an empty string", () => {
     expect(stripHeredoc("")).toBe("");
   });
@@ -577,7 +644,11 @@ describe("StringInflectionsTest", () => {
     );
   });
 
-  it.skip("parameterize with locale");
+  it("parameterize with locale", () => {
+    const word = "Fünf autos";
+    I18n.backend().storeTranslations("de", { i18n: { transliterate: { rule: { ü: "ue" } } } });
+    expect(parameterize(word, { locale: "de" })).toBe("fuenf-autos");
+  });
 
   it("humanize", () => {
     expect(humanize("employee_salary")).toBe("Employee salary");
@@ -662,6 +733,11 @@ describe("StringInflectionsTest", () => {
   it("truncates bytes preserves encoding", () => {
     const result = truncateBytes("こんにちは", 12);
     expect(typeof result).toBe("string");
+  });
+
+  it("truncate words", () => {
+    expect(truncateWords("Hello Big World!", 3)).toBe("Hello Big World!");
+    expect(truncateWords("Hello Big World!", 2)).toBe("Hello Big...");
   });
 
   it("truncate words with omission", () => {
