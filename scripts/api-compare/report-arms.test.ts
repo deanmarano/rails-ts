@@ -5,6 +5,7 @@ import {
   compareArms,
   compareShortCircuits,
   filterRows,
+  parseFilter,
   controlArms,
   shortCircuitOps,
   renderReport,
@@ -373,8 +374,24 @@ describe("renderReport strata", () => {
   it("restricts every tally to the named package", () => {
     const report = renderReport(artifact, 20, { package: "arel" });
 
-    expect(report).toContain("1 mismatched pair(s) across 1 file(s), 3 pair(s) compared");
+    expect(report).toContain("1 mismatched pair(s) across 1 file(s), 1 pair(s) compared");
     expect(report).toContain("Arm tokens — arel");
     expect(report).not.toContain("Arm tokens — activerecord");
+  });
+});
+
+describe("parseFilter", () => {
+  it("reads both flags, and leaves them unset when neither is passed", () => {
+    expect(parseFilter(["--report"])).toEqual({});
+    expect(parseFilter(["--report", "--direction=missing", "--package=arel"])).toEqual({
+      direction: "missing",
+      package: "arel",
+    });
+  });
+
+  it("rejects a direction that is neither side of the difference", () => {
+    expect(() => parseFilter(["--direction=both"])).toThrow(
+      "--direction takes `missing` or `invented`.",
+    );
   });
 });

@@ -327,7 +327,7 @@ export function filterRows(rows: readonly ArmMismatch[], filter: ArmRowFilter = 
 
 /** The stratum the per-token re-measurement found highest-yield: arms dropped
  *  and none invented, so the port-added-a-guard lowering artefact cannot apply. */
-export function isMissingOnly(row: ArmMismatch): boolean {
+function isMissingOnly(row: ArmMismatch): boolean {
   return row.missing.length > 0 && row.invented.length === 0;
 }
 
@@ -377,17 +377,19 @@ export function renderReport(
   top: number,
   filter: ArmRowFilter = {},
 ): string {
+  const skeletons =
+    filter.package === undefined
+      ? artifact.skeletons
+      : artifact.skeletons.filter((s) => s.package === filter.package);
   const rows = filterRows(
-    artifact.skeletons.flatMap((s) => compareArms(s) ?? []),
+    skeletons.flatMap((s) => compareArms(s) ?? []),
     filter,
   );
-  const shortCircuits = artifact.skeletons
-    .flatMap((s) => compareShortCircuits(s) ?? [])
-    .filter((r) => filter.package === undefined || r.package === filter.package);
+  const shortCircuits = skeletons.flatMap((s) => compareShortCircuits(s) ?? []);
   const files = new Set(rows.map((r) => `${r.package} ${r.tsFile}`)).size;
   return [
     `call-skeleton arms report: ${rows.length} mismatched pair(s) across ${files} file(s), ` +
-      `${artifact.skeletons.length} pair(s) compared` +
+      `${skeletons.length} pair(s) compared` +
       " — report-only, nothing gates on this (RFC 0113)",
     `short-circuit projection: ${shortCircuits.length} mismatched pair(s) over the ` +
       "`or` / `and` tokens, which the arm verdicts above do not read",
