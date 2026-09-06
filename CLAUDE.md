@@ -133,6 +133,30 @@ per package (`pnpm tasks list | grep surfaced-deviations`), and
 RFC `0082-ruby-ts-idiom-conversion-classes` in the tasks repo enumerates these
 as convergence classes.
 
+## Bugs found from an application land here
+
+trailmap (`blazetrailsdev/trailmap`) is the first real application built on
+trails, and it consumes the framework as committed tarballs rather than a
+workspace link. When it hits a framework bug, **the fix belongs here**, in the
+package that owns the behaviour, with a test here — the application then picks
+it up by re-vendoring. trailmap's own CLAUDE.md carries the matching rule from
+its side, and an application-side workaround is a defect in its own right.
+
+Two things follow for you, receiving such a report:
+
+- **The reproduction usually arrives in application terms** ("a helper method
+  is not defined in a view"). Reduce it to the framework behaviour and write
+  the test at that level, in the package's own suite. A test that boots an
+  application to prove a `Proxy` trap is missing is the wrong altitude — though
+  a single end-to-end test through `packages/trailties/src/__fixtures__/boot-app`
+  is a fair way to prove the whole chain reconnects.
+- **Do not trust a report's claim about what the framework does.** The tarballs
+  the app runs on can be behind `main`, and behind whatever `vendor/TRAILS_PIN`
+  claims: the `app/helpers` report (#7558) described an `ActionView::Base.withHelpers`
+  that had already been removed from `main` by #7390, which had moved
+  view-context construction onto the controller. Check `main` before believing
+  a bug is unfixed, and before believing it is.
+
 ## Working in this repo
 
 - Do use worktrees for any changes; leave the default worktree for the user.
