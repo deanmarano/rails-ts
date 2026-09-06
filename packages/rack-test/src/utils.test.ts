@@ -16,7 +16,7 @@ function parseData(data: string) {
     ":input": new StringIO(data),
   };
   const env = MockRequest.envFor("/", options);
-  return Multipart.parseMultipart(env);
+  return Multipart.parseMultipart(env)!;
 }
 
 describe("Rack::Test::Utils#build_nested_query", () => {

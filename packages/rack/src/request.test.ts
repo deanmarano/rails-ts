@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import { Request } from "./request.js";
 import { EmptyContentError } from "./multipart/parser.js";
 import { MockRequest } from "./mock-request.js";
+import { StringIO } from "@blazetrails/ruby-compat";
+import { setMultipartFileLimit, setMultipartTotalPartLimit } from "./utils.js";
 import { MultipartPartLimitError, MultipartTotalPartLimitError } from "./multipart.js";
 
 function makeEnv(overrides: Record<string, any> = {}): Record<string, any> {
@@ -475,11 +477,7 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(body, "binary");
-        },
-      },
+      "rack.input": new StringIO(body),
     };
     const req = new Request(env);
     expect(typeof req.POST).toBe("object");
@@ -670,11 +668,7 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(body, "binary");
-        },
-      },
+      "rack.input": new StringIO(body),
     };
     const req = new Request(env);
     const pairs = req.formPairs;
@@ -690,11 +684,7 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(body, "binary");
-        },
-      },
+      "rack.input": new StringIO(body),
     };
     const req = new Request(env);
     const _post = req.POST;
@@ -707,11 +697,7 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(body, "binary");
-        },
-      },
+      "rack.input": new StringIO(body),
     };
     const req = new Request(env);
     const pairs = req.formPairs;
@@ -727,11 +713,7 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(body, "binary");
-        },
-      },
+      "rack.input": new StringIO(body),
     };
     const req = new Request(env);
     expect(req.formPairs).toEqual([]);
@@ -1015,14 +997,22 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(input, "binary");
-        },
-      },
+      "rack.input": new StringIO(input),
     };
     const req = new Request(env);
-    expect(() => req.POST).toThrow();
+    expect(Object.keys(req.POST)).toContain("fileupload");
+    expect(Object.keys(req.POST)).toContain("reply");
+
+    expect(req.formData).toBe(true);
+    expect(req.mediaType).toBe("multipart/form-data");
+    expect(req.mediaTypeParams["boundary"]).toBe("AaB03x");
+
+    expect(req.POST["reply"]).toBe("yes");
+
+    const f = req.POST["fileupload"];
+    expect(f.type).toBe("image/jpeg");
+    expect(f.filename).toBe("dj.jpg");
+    expect(f.tempfile).toBeDefined();
   });
 
   it("not infinite loop with a malformed HTTP request", () => {
@@ -1031,11 +1021,7 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(input, "binary");
-        },
-      },
+      "rack.input": new StringIO(input),
     };
     const req = new Request(env);
     try {
@@ -1051,11 +1037,7 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(input, "binary");
-        },
-      },
+      "rack.input": new StringIO(input),
     };
     const req = new Request(env);
     expect(req.POST["reply"]).toBe("yes");
@@ -1073,11 +1055,7 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(input, "binary");
-        },
-      },
+      "rack.input": new StringIO(input),
     };
     const req = new Request(env);
     expect(req.POST).toEqual({});
@@ -1098,15 +1076,15 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(body, "binary");
-        },
-      },
-      _multipart_file_limit: 5,
+      "rack.input": new StringIO(body),
     };
-    const req = new Request(env);
-    expect(() => req.POST).toThrow(MultipartPartLimitError);
+    setMultipartFileLimit(5);
+    try {
+      const req = new Request(env);
+      expect(() => req.POST).toThrow(MultipartPartLimitError);
+    } finally {
+      setMultipartFileLimit(128);
+    }
   });
 
   it("MultipartPartLimitError when request has too many multipart total parts if limit set", () => {
@@ -1120,15 +1098,15 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(body, "binary");
-        },
-      },
-      _multipart_total_limit: 5,
+      "rack.input": new StringIO(body),
     };
-    const req = new Request(env);
-    expect(() => req.POST).toThrow(MultipartTotalPartLimitError);
+    setMultipartTotalPartLimit(5);
+    try {
+      const req = new Request(env);
+      expect(() => req.POST).toThrow(MultipartTotalPartLimitError);
+    } finally {
+      setMultipartTotalPartLimit(4096);
+    }
   });
 
   it("closes tempfiles it created in the case of too many created", () => {
@@ -1144,15 +1122,15 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(body, "binary");
-        },
-      },
-      _multipart_file_limit: 5,
+      "rack.input": new StringIO(body),
     };
-    const req = new Request(env);
-    expect(() => req.POST).toThrow(MultipartPartLimitError);
+    setMultipartFileLimit(5);
+    try {
+      const req = new Request(env);
+      expect(() => req.POST).toThrow(MultipartPartLimitError);
+    } finally {
+      setMultipartFileLimit(128);
+    }
   });
 
   it("parse big multipart form data", () => {
@@ -1162,11 +1140,7 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(input, "binary");
-        },
-      },
+      "rack.input": new StringIO(input),
     };
     const req = new Request(env);
     expect(req.POST["huge"].tempfile.read().length).toBe(32768);
@@ -1180,11 +1154,7 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(input, "binary");
-        },
-      },
+      "rack.input": new StringIO(input),
     };
     const req = new Request(env);
     void req.POST;
@@ -1198,11 +1168,7 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(input, "binary");
-        },
-      },
+      "rack.input": new StringIO(input),
     };
     const req = new Request(env);
     expect(() => req.POST).toThrow(EmptyContentError);
@@ -1211,11 +1177,7 @@ describe("RackRequestTest", () => {
     const env2 = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(input2, "binary");
-        },
-      },
+      "rack.input": new StringIO(input2),
     };
     expect(() => new Request(env2).POST).toThrow(EmptyContentError);
   });
@@ -1226,11 +1188,7 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(input, "binary");
-        },
-      },
+      "rack.input": new StringIO(input),
     };
     const req = new Request(env);
     expect(() => req.POST).toThrow(EmptyContentError);
@@ -1243,11 +1201,7 @@ describe("RackRequestTest", () => {
     const env = {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/related; boundary=${boundary}`,
-      "rack.input": {
-        read() {
-          return Buffer.from(input, "binary");
-        },
-      },
+      "rack.input": new StringIO(input),
     };
     const req = new Request(env);
     expect(Object.keys(req.POST)).toEqual(["<soap-start>"]);
@@ -1300,11 +1254,7 @@ describe("RackRequestTest", () => {
       ...makeEnv(),
       CONTENT_TYPE: `multipart/form-data; boundary=${boundary}`,
       CONTENT_LENGTH: String(input.length),
-      "rack.input": {
-        read() {
-          return Buffer.from(input, "binary");
-        },
-      },
+      "rack.input": new StringIO(input),
     };
     const req = new Request(env);
     const file = req.POST["fileupload"];
