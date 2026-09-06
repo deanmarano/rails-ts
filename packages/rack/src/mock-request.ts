@@ -50,9 +50,9 @@ export type RackApp = (
   env: Record<string, any>,
 ) => [number, RackResponse[1], any] | Promise<[number, RackResponse[1], any]>;
 
-let parser: RFC2396Parser | undefined;
-
 export class MockRequest {
+  private static parser: RFC2396Parser | undefined;
+
   private app: RackApp;
 
   constructor(app: RackApp) {
@@ -105,8 +105,8 @@ export class MockRequest {
   }
 
   static parseUriRfc2396(uri: string): Generic {
-    parser ??= new RFC2396Parser();
-    return parser.parse(uri);
+    MockRequest.parser ??= new RFC2396Parser();
+    return MockRequest.parser.parse(uri);
   }
 
   static envFor(uri = "", opts: Record<string, any> = {}): Record<string, any> {

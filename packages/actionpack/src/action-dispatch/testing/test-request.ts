@@ -40,12 +40,7 @@ export class TestRequest extends Request {
   }
 
   get port(): number {
-    const httpHost = this.env["HTTP_HOST"] as string | undefined;
-    if (httpHost) {
-      const match = httpHost.match(/:(\d+)$/);
-      if (match) return parseInt(match[1], 10);
-    }
-    return parseInt((this.env["SERVER_PORT"] as string) || "80", 10);
+    return super.port;
   }
 
   set port(number: string | number) {
