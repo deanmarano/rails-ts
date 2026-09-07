@@ -9,6 +9,7 @@ import { TimeWithZone } from "./time-with-zone.js";
 import { Temporal, Time } from "@blazetrails/date";
 import { travelTo, travelBack } from "./testing/time-helpers.js";
 import { RuntimeError } from "@blazetrails/ruby-compat";
+import { Assertion } from "./testing/assertions.js";
 import { resetLocalTimeZoneId } from "@blazetrails/date";
 import { useZone } from "./time-zone-config.js";
 import { midnight } from "./core-ext/date/calculations.js";
@@ -223,11 +224,14 @@ describe("TimeZoneTest", () => {
   it("travel to travels back and reraises if the block raises", () => {
     const ts = new Date((current() as Date).getTime() - Duration.seconds(1).inSeconds() * 1000);
 
-    expect(() => {
+    try {
       travelTo(ts, {}, () => {
         throw new RuntimeError();
       });
-    }).toThrow();
+      throw new Assertion("travel_to did not re-raise");
+    } catch (error) {
+      if (error instanceof Assertion) throw error;
+    }
     expect(String(current())).not.toEqual(String(ts));
   });
 

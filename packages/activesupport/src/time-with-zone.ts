@@ -549,7 +549,7 @@ export class TimeWithZone {
       if (ObjectExt.actsLike(interval, "time")) {
         const result = datetimeSince(
           this.utc().toDatetime(),
-          (interval as { toR(): Rational }).toR().toF(),
+          (interval as { toR(): Rational }).toR(),
         );
         const otherClass =
           (interval as { [rubyClass]?: string })[rubyClass] ??

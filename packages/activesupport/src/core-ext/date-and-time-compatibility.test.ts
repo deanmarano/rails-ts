@@ -8,7 +8,7 @@ import { toTime as stringToTime } from "./string/conversions.js";
 import { toTimePreservesTimezone, setToTimePreservesTimezone } from "../active-support.js";
 import { deprecator } from "../deprecator.js";
 import { assertDeprecated, assertNotDeprecated } from "../testing/deprecation.js";
-import { assertNotPredicate } from "../testing/assertions.js";
+import { assertNotPredicate, assertPredicate } from "../testing/assertions.js";
 
 function withEnvTz<T>(newTz: string, fn: () => T): T {
   const oldTz = process.env.TZ;
@@ -215,6 +215,7 @@ describe("DateAndTimeCompatibilityTest", () => {
         expect(getutc(time).epochNanoseconds).toEqual(utcTime.toTime().epochNanoseconds);
         expect(utcOffset(time)).toEqual(utcOffsetValue);
         expect(time).toEqual(source.toTime());
+        assertPredicate(source, (t) => Object.isFrozen(t));
       }),
     );
   });
@@ -229,6 +230,7 @@ describe("DateAndTimeCompatibilityTest", () => {
         expect(getutc(time).epochNanoseconds).toEqual(utcTime.toTime().epochNanoseconds);
         expect(utcOffset(time)).toEqual(systemOffset);
         expect(time).not.toEqual(source.toTime());
+        assertNotPredicate(time, (t) => Object.isFrozen(t));
       }),
     );
   });
@@ -270,6 +272,7 @@ describe("DateAndTimeCompatibilityTest", () => {
         expect(time).toBeInstanceOf(Temporal.ZonedDateTime);
         expect(getutc(time).epochNanoseconds).toEqual(utcTime.toTime().epochNanoseconds);
         expect(utcOffset(time)).toEqual(utcOffsetValue);
+        assertNotPredicate(time, (t) => Object.isFrozen(t));
       }),
     );
   });
@@ -285,6 +288,7 @@ describe("DateAndTimeCompatibilityTest", () => {
         expect(time).toBeInstanceOf(Temporal.ZonedDateTime);
         expect(getutc(time).epochNanoseconds).toEqual(utcTime.toTime().epochNanoseconds);
         expect(utcOffset(time)).toEqual(systemOffset);
+        assertNotPredicate(time, (t) => Object.isFrozen(t));
       }),
     );
   });
