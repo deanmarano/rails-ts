@@ -519,7 +519,7 @@ export class DatabaseTasks {
     const { SchemaCache } = await import("../connection-adapters/schema-cache.js");
     const fresh = new SchemaCache();
     await fresh.addAll(connOrPool);
-    fresh.dumpTo(filename);
+    await fresh.dumpTo(filename);
   }
 
   static clearSchemaCache(filename: string): void {
