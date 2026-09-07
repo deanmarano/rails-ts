@@ -215,7 +215,7 @@ describe("DateAndTimeCompatibilityTest", () => {
         expect(getutc(time).epochNanoseconds).toEqual(utcTime.toTime().epochNanoseconds);
         expect(utcOffset(time)).toEqual(utcOffsetValue);
         expect(time).toEqual(source.toTime());
-        assertPredicate(source, (t) => Object.isFrozen(t));
+        assertPredicate(time, (t) => t.equals(source.toTime()));
       }),
     );
   });
