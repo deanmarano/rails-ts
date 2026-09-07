@@ -488,7 +488,7 @@ export class DatabaseTasks {
       typeof (reflection as { dumpTo?: unknown }).dumpTo === "function" &&
       typeof (reflection as { addAll?: unknown }).addAll !== "function"
     ) {
-      await (reflection as { dumpTo: (f: string) => Promise<void> | void }).dumpTo(filename);
+      await (reflection as { dumpTo: (f: string) => Promise<void> }).dumpTo(filename);
       return;
     }
 

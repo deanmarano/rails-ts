@@ -4,6 +4,16 @@ import { Tempfile } from "../../tempfile.js";
 export function atomicWrite<T>(
   fileName: string,
   tempDir: string | undefined,
+  block: (tempFile: Tempfile) => Promise<T>,
+): Promise<T>;
+export function atomicWrite<T>(
+  fileName: string,
+  tempDir: string | undefined,
+  block: (tempFile: Tempfile) => T,
+): T;
+export function atomicWrite<T>(
+  fileName: string,
+  tempDir: string | undefined,
   block: (tempFile: Tempfile) => T,
 ): T {
   tempDir ??= File.dirname(fileName);
