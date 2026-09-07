@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { createHash } from "crypto";
 import { OpenSSL } from "@blazetrails/ruby-compat";
+import { ArgumentError } from "./hash-utils.js";
 import { Digest } from "./digest.js";
 
 describe("DigestTest", () => {
@@ -26,6 +27,6 @@ describe("DigestTest", () => {
   it("should raise argument error if custom digest is missing hexdigest method", () => {
     expect(() => {
       Digest.hashDigestClass = InvalidDigest as never;
-    }).toThrow("is expected to implement hexdigest class method");
+    }).toThrow(ArgumentError);
   });
 });
