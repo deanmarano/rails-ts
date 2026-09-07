@@ -8,6 +8,28 @@ import { Duration } from "./duration.js";
 import { TimeWithZone } from "./time-with-zone.js";
 import { Temporal, Time } from "@blazetrails/date";
 import { travelTo, travelBack } from "./testing/time-helpers.js";
+import { RuntimeError } from "@blazetrails/ruby-compat";
+import { resetLocalTimeZoneId } from "@blazetrails/date";
+import { useZone } from "./time-zone-config.js";
+import { midnight } from "./core-ext/date/calculations.js";
+import * as DateExt from "./core-ext/date/calculations.js";
+import { current } from "./time-ext.js";
+
+function withEnvTz<T>(newTz: string, fn: () => T): T {
+  const oldTz = process.env.TZ;
+  process.env.TZ = newTz;
+  resetLocalTimeZoneId();
+  try {
+    return fn();
+  } finally {
+    if (oldTz === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = oldTz;
+    }
+    resetLocalTimeZoneId();
+  }
+}
 
 function withUtcToLocalReturnsUtcOffsetTimes(value: boolean, block: () => void): void {
   const oldTzinfo2Format = utcToLocalReturnsUtcOffsetTimes();
@@ -184,8 +206,30 @@ describe("TimeZoneTest", () => {
     }
   });
 
-  it.skip("travel to a date");
-  it.skip("travel to travels back and reraises if the block raises");
+  it("travel to a date", () => {
+    withEnvTz("US/Eastern", () => {
+      useZone("Hawaii", () => {
+        const date = new Temporal.PlainDate(2014, 2, 18);
+        const time = midnight(date);
+
+        travelTo(date, {}, () => {
+          expect(DateExt.current().toString()).toEqual(date.toString());
+          expect(current().toString()).toEqual(time.toString());
+        });
+      });
+    });
+  });
+
+  it("travel to travels back and reraises if the block raises", () => {
+    const ts = new Date((current() as Date).getTime() - Duration.seconds(1).inSeconds() * 1000);
+
+    expect(() => {
+      travelTo(ts, {}, () => {
+        throw new RuntimeError();
+      });
+    }).toThrow();
+    expect(String(current())).not.toEqual(String(ts));
+  });
 
   it("local", () => {
     const hawaii = TimeZone.find("Hawaii")!;

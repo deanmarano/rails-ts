@@ -18,6 +18,9 @@ import {
 import { inTimeZone } from "./date-and-time/zones.js";
 import { current } from "../time-ext.js";
 import { setPreserveTimezone } from "./date-and-time/compatibility.js";
+import { Rational, rational } from "@blazetrails/ruby-compat";
+import { assertDeprecated } from "../testing/deprecation.js";
+import { deprecator } from "../deprecator.js";
 
 describe("TimeWithZoneTest", () => {
   let eastern: TimeZone;
@@ -1138,8 +1141,21 @@ describe("TimeWithZoneTest", () => {
     expect(() => (twz as any).thisMethodDoesNotExist()).toThrow(TypeError);
   });
 
-  it.skip("to r");
-  it.skip("plus two time instances raises deprecation warning");
+  it("to r", () => {
+    const result = new TimeWithZone(
+      instantFromDate(new Date(Date.UTC(2000, 0, 1))),
+      TimeZone.find("Hawaii")!,
+    ).toR();
+    expect(result).toEqual(rational(946684800, 1));
+    expect(result).toBeInstanceOf(Rational);
+  });
+
+  it("plus two time instances raises deprecation warning", async () => {
+    const twz = new TimeWithZone(instantFromDate(new Date(Date.UTC(2000, 0, 1))), eastern);
+    await assertDeprecated(null, deprecator(), () =>
+      twz.plus(RubyTime.at(new Rational(Duration.days(10).ago().epochNanoseconds, 1_000_000_000n))),
+    );
+  });
 });
 
 describe("TimeWithZoneMethodsForTimeAndDateTimeTest", () => {

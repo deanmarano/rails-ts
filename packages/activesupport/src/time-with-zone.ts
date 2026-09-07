@@ -20,6 +20,8 @@ import { Rational, rational } from "@blazetrails/ruby-compat";
 import { Encoding } from "./json/encoding.js";
 import { DATE_FORMATS, toFs } from "./core-ext/time/conversions.js";
 import { advance as timeAdvance } from "./time-ext.js";
+import { since as datetimeSince } from "./core-ext/date-time/calculations.js";
+import { deprecator } from "./deprecator.js";
 import { inTimeZone } from "./core-ext/date-and-time/zones.js";
 import {
   preserveTimezone,
@@ -524,7 +526,7 @@ export class TimeWithZone {
     return this.asJson();
   }
 
-  plus(interval: number | Duration): TimeWithZone {
+  plus(interval: number | Duration | TimeWithZone | Time): TimeWithZone {
     if (interval instanceof Duration) {
       if (interval.isVariable()) {
         return this.advance({
@@ -544,6 +546,17 @@ export class TimeWithZone {
       );
     }
     if (typeof interval !== "number") {
+      if (ObjectExt.actsLike(interval, "time")) {
+        const result = datetimeSince(
+          this.utc().toDatetime(),
+          (interval as { toR(): Rational }).toR().toF(),
+        );
+        deprecator().warn(
+          `Adding an instance of ${(interval as object).constructor.name} to an instance of ${this.constructor.name} is deprecated. This behavior will raise ` +
+            "a `TypeError` in Rails 8.1.",
+        );
+        return inTimeZone(result, this.timeZone) as TimeWithZone;
+      }
       const desc =
         interval === null ? "null" : interval === undefined ? "undefined" : typeof interval;
       throw new TypeError(`no implicit conversion of ${desc} into number`);
