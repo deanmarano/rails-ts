@@ -551,8 +551,11 @@ export class TimeWithZone {
           this.utc().toDatetime(),
           (interval as { toR(): Rational }).toR().toF(),
         );
+        const otherClass =
+          (interval as { [rubyClass]?: string })[rubyClass] ??
+          (interval as object).constructor.name;
         deprecator().warn(
-          `Adding an instance of ${(interval as object).constructor.name} to an instance of ${this.constructor.name} is deprecated. This behavior will raise ` +
+          `Adding an instance of ${otherClass} to an instance of ${this[rubyClass]} is deprecated. This behavior will raise ` +
             "a `TypeError` in Rails 8.1.",
         );
         return inTimeZone(result, this.timeZone) as TimeWithZone;
