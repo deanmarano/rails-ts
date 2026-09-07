@@ -428,13 +428,13 @@ describe("TimeExtCalculationsTest", () => {
   it("to datetime", () => {
     const t = new RubyTime(2005, 2, 4, 10, 10, 10, 3600);
     const result = toTime(t);
-    expect(result.epochNanoseconds).toBe(t.toTime().epochNanoseconds);
+    expect(result.toTime().epochNanoseconds).toBe(t.toTime().epochNanoseconds);
   });
 
   it("to time", () => {
     const t = new RubyTime(2005, 2, 4, 10, 10, 10, 3600);
     const result = toTime(t);
-    expect(result.epochNanoseconds).toBe(t.toTime().epochNanoseconds);
+    expect(result.toTime().epochNanoseconds).toBe(t.toTime().epochNanoseconds);
   });
 
   it("formatted offset with utc", () => {

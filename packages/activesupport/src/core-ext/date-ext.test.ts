@@ -27,13 +27,46 @@ import {
   xmlschema as dateXmlschema,
 } from "./date/conversions.js";
 import * as DateExt from "./date/calculations.js";
-import { isFuture, isPast } from "./date-and-time/calculations.js";
+import {
+  allDay as dateAllDay,
+  beginningOfWeek,
+  isFuture,
+  isPast,
+  nextWeek,
+} from "./date-and-time/calculations.js";
 import { isBlank } from "./object/blank.js";
 import { assertNothingRaised, assertNotPredicate, assertPredicate } from "../testing/assertions.js";
 import { Object as ObjectExt } from "./object/acts-like.js";
-import { setZone } from "../time-zone-config.js";
+import { setZone, zone } from "../time-zone-config.js";
+import { Time as RubyTime, resetLocalTimeZoneId } from "@blazetrails/date";
+import { travelTo } from "../testing/time-helpers.js";
 import { TimeZone } from "../values/time-zone.js";
 
+function withEnvTz<T>(newTz: string, fn: () => T): T {
+  const oldTz = process.env.TZ;
+  process.env.TZ = newTz;
+  resetLocalTimeZoneId();
+  try {
+    return fn();
+  } finally {
+    if (oldTz === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = oldTz;
+    }
+    resetLocalTimeZoneId();
+  }
+}
+
+function withTzDefault<T>(tz: TimeZone | null, fn: () => T): T {
+  const oldTz = zone();
+  setZone(tz);
+  try {
+    return fn();
+  } finally {
+    setZone(oldTz);
+  }
+}
 function d(year: number, month: number, day: number, hour = 0, min = 0, sec = 0, ms = 0): Date {
   return new Date(year, month - 1, day, hour, min, sec, ms);
 }
@@ -164,6 +197,19 @@ describe("DateExtCalculationsTest", () => {
     expect(toDate(asDate(endOfWeek(d(2008, 2, 29))))).toEqual(pd(2008, 3, 2));
   });
 
+  it("beginning of week in calendar reform", () => {
+    expect(beginningOfWeek(pd(1582, 10, 15)).toString()).toEqual(pd(1582, 10, 11).toString());
+  });
+
+  it("end of week in calendar reform", () => {
+    expect(endOfWeek(pd(1582, 10, 4)).toString()).toEqual(pd(1582, 10, 10).toString());
+  });
+
+  it("next week in calendar reform", () => {
+    expect(nextWeek(pd(1582, 9, 30), "friday").toString()).toEqual(pd(1582, 10, 8).toString());
+    expect(nextWeek(pd(1582, 10, 4)).toString()).toEqual(pd(1582, 10, 11).toString());
+  });
+
   it("last year in calendar reform", () => {
     const result = asDate(advance(d(1583, 10, 14), { years: -1 }));
     expect(result.getFullYear()).toBe(1582);
@@ -213,7 +259,15 @@ describe("DateExtCalculationsTest", () => {
     expect(yesterday < new Date()).toBe(true);
   });
 
-  it.skip("yesterday constructor when zone is set");
+  it("yesterday constructor when zone is set", () => {
+    withEnvTz("UTC", () => {
+      withTzDefault(TimeZone.find("Eastern Time (US & Canada)"), () => {
+        travelTo(RubyTime.local(2000, 1, 1), {}, () => {
+          expect(DateExt.yesterday().toString()).toEqual(pd(1999, 12, 30).toString());
+        });
+      });
+    });
+  });
 
   it("tomorrow constructor", () => {
     const tomorrow = new Date();
@@ -227,7 +281,15 @@ describe("DateExtCalculationsTest", () => {
     expect(tomorrow > new Date()).toBe(true);
   });
 
-  it.skip("tomorrow constructor when zone is set");
+  it("tomorrow constructor when zone is set", () => {
+    withEnvTz("UTC", () => {
+      withTzDefault(TimeZone.find("Europe/Paris"), () => {
+        travelTo(RubyTime.local(1999, 12, 31, 23), {}, () => {
+          expect(DateExt.tomorrow().toString()).toEqual(pd(2000, 1, 2).toString());
+        });
+      });
+    });
+  });
 
   it("since", () => {
     expect(DateExt.since(pd(2005, 2, 21), 45).toI()).toEqual(seconds(d(2005, 2, 21, 0, 0, 45)));
@@ -302,7 +364,20 @@ describe("DateExtCalculationsTest", () => {
     });
   });
 
-  it.skip("all day when zone is set");
+  it("all day when zone is set", () => {
+    const zone = TimeZone.find("Hawaii")!;
+    withEnvTz("UTC", () => {
+      withTzDefault(zone, () => {
+        const beginningOfDay = zone.local(2011, 6, 7, 0, 0, 0);
+        const endOfDay = zone.local(2011, 6, 7, 23, 59, 59, 999.999999);
+        const allDayRange = dateAllDay(pd(2011, 6, 7));
+        expect([String(allDayRange.begin), String(allDayRange.end)]).toEqual([
+          String(beginningOfDay),
+          String(endOfDay),
+        ]);
+      });
+    });
+  });
 
   it("all week", () => {
     expect(rubyRange(allWeek(d(2011, 6, 7)))).toEqual([pd(2011, 6, 6), pd(2011, 6, 12)]);
@@ -352,7 +427,16 @@ describe("DateExtCalculationsTest", () => {
     expect(isToday(new Date())).toBe(true);
   });
 
-  it.skip("current returns time zone today when zone is set");
+  it("current returns time zone today when zone is set", () => {
+    setZone(TimeZone.find("Eastern Time (US & Canada)"));
+    try {
+      withEnvTz("US/Central", () => {
+        expect(DateExt.current().toString()).toEqual(zone()!.today().toString());
+      });
+    } finally {
+      setZone(null);
+    }
+  });
 
   it("date advance should not change passed options hash", () => {
     const opts = { years: 3, months: 11, days: 2 };

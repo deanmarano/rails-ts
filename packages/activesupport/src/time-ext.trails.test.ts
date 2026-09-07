@@ -30,7 +30,7 @@ describe("to_time over a receiver that carries an offset", () => {
     setPreserveTimezone(true);
     const time = new RubyTime(2005, 2, 21, 17, 44, 30, 3600);
     const result = toTime(time);
-    expect(result.offset).toBe("+01:00");
+    expect(result).toBe(time);
     expect(result.hour).toBe(17);
   });
 
@@ -38,8 +38,8 @@ describe("to_time over a receiver that carries an offset", () => {
     setPreserveTimezone(false);
     const time = new RubyTime(2005, 2, 21, 17, 44, 30, 3600);
     const result = toTime(time);
-    expect(result.timeZoneId).toBe(Temporal.Now.timeZoneId());
-    expect(result.epochNanoseconds).toBe(time.toTime().epochNanoseconds);
+    expect(result).not.toBe(time);
+    expect(result.toTime().epochNanoseconds).toBe(time.toTime().epochNanoseconds);
   });
 
   it("DateTime#to_time returns getlocal(utc_offset) when preserve_timezone is set", () => {

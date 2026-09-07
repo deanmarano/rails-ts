@@ -846,13 +846,13 @@ describe("TimeExtCalculationsTest", () => {
   it("to datetime", () => {
     const t = new RubyTime(2005, 2, 21, 17, 44, 30, 3600);
     const result = toTime(t);
-    expect(result.epochNanoseconds).toBe(t.toTime().epochNanoseconds);
+    expect(result.toTime().epochNanoseconds).toBe(t.toTime().epochNanoseconds);
   });
 
   it("to time", () => {
     const t = new RubyTime(2005, 2, 21, 17, 44, 30, 3600);
     const result = toTime(t);
-    expect(result.epochNanoseconds).toBe(t.toTime().epochNanoseconds);
+    expect(result.toTime().epochNanoseconds).toBe(t.toTime().epochNanoseconds);
   });
 
   it("fp inaccuracy ticket 1836", () => {
