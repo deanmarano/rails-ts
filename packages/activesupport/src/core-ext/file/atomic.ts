@@ -10,33 +10,31 @@ export function atomicWrite<T>(
 
   return Tempfile.open(`.${File.basename(fileName)}`, tempDir, (tempFile) => {
     tempFile.binmode();
+    const overwrite = (returnVal: T): T => {
+      tempFile.close();
+
+      const oldStat = File.isExist(fileName)
+        ? File.stat(fileName)
+        : probeStatIn(File.dirname(fileName));
+
+      if (oldStat) {
+        try {
+          File.chown(oldStat.uid, oldStat.gid, tempFile.path!);
+          File.chmod(oldStat.mode, tempFile.path!);
+        } catch (error) {
+          const code = (error as { code?: string }).code;
+          if (code !== "EPERM" && code !== "EACCES") throw error;
+        }
+      }
+
+      File.rename(tempFile.path!, fileName);
+      return returnVal;
+    };
+
     const returnVal = block(tempFile);
-    if (returnVal instanceof Promise) {
-      return returnVal.then((value) => overwrite(fileName, tempFile, value)) as T;
-    }
-    return overwrite(fileName, tempFile, returnVal);
+    if (returnVal instanceof Promise) return returnVal.then(overwrite) as T;
+    return overwrite(returnVal);
   });
-}
-
-function overwrite<T>(fileName: string, tempFile: Tempfile, returnVal: T): T {
-  tempFile.close();
-
-  const oldStat = File.isExist(fileName)
-    ? File.stat(fileName)
-    : probeStatIn(File.dirname(fileName));
-
-  if (oldStat) {
-    try {
-      File.chown(oldStat.uid, oldStat.gid, tempFile.path!);
-      File.chmod(oldStat.mode, tempFile.path!);
-    } catch (error) {
-      const code = (error as { code?: string }).code;
-      if (code !== "EPERM" && code !== "EACCES") throw error;
-    }
-  }
-
-  File.rename(tempFile.path!, fileName);
-  return returnVal;
 }
 
 export function probeStatIn(dir: string): FsStatResult | null {
