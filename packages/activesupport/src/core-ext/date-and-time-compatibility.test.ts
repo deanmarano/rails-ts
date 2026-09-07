@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { Temporal, Time as RubyTime, resetLocalTimeZoneId } from "@blazetrails/date";
-import { Rational } from "@blazetrails/ruby-compat";
 import { TimeWithZone } from "../time-with-zone.js";
 import { TimeZone } from "../values/time-zone.js";
 import { toTime } from "./time/compatibility.js";
@@ -49,10 +48,6 @@ function getutc(time: Temporal.ZonedDateTime): Temporal.ZonedDateTime {
   return time.withTimeZone("UTC");
 }
 
-function rubyTimeAt(time: Temporal.ZonedDateTime): RubyTime {
-  return RubyTime.at(new Rational(time.epochNanoseconds, 1_000_000_000n));
-}
-
 describe("DateAndTimeCompatibilityTest", () => {
   let utcTime: RubyTime;
   let dateTime: Temporal.ZonedDateTime;
@@ -73,10 +68,10 @@ describe("DateAndTimeCompatibilityTest", () => {
         const source = new RubyTime(2016, 4, 23, 15, 11, 12, 3600);
         const time = toTime(source);
 
-        expect(time).toBeInstanceOf(Temporal.ZonedDateTime);
-        expect(getutc(time).epochNanoseconds).toEqual(utcTime.toTime().epochNanoseconds);
+        expect(time).toBeInstanceOf(RubyTime);
+        expect(getutc(time.toTime()).epochNanoseconds).toEqual(utcTime.toTime().epochNanoseconds);
         expect(utcOffset(time)).toEqual(utcOffsetValue);
-        expect(time).toEqual(source.toTime());
+        expect(time).toBe(source);
       }),
     );
   });
@@ -87,10 +82,10 @@ describe("DateAndTimeCompatibilityTest", () => {
         const source = new RubyTime(2016, 4, 23, 15, 11, 12, 3600);
         const time = toTime(source);
 
-        expect(time).toBeInstanceOf(Temporal.ZonedDateTime);
-        expect(getutc(time).epochNanoseconds).toEqual(utcTime.toTime().epochNanoseconds);
+        expect(time).toBeInstanceOf(RubyTime);
+        expect(getutc(time.toTime()).epochNanoseconds).toEqual(utcTime.toTime().epochNanoseconds);
         expect(utcOffset(time)).toEqual(systemOffset);
-        expect(time).not.toEqual(source.toTime());
+        expect(time).not.toBe(source);
       }),
     );
   });
@@ -101,15 +96,13 @@ describe("DateAndTimeCompatibilityTest", () => {
         const source = new RubyTime(2016, 4, 23, 15, 11, 12);
         const baseTime = toTime(source);
 
-        const utcTimeValue = rubyTimeAt(baseTime).getutc();
-        const convertedTime: Temporal.ZonedDateTime = await assertDeprecated(
-          null,
-          deprecator(),
-          () => toTime(utcTimeValue),
+        const utcTimeValue = baseTime.getutc();
+        const convertedTime: RubyTime = await assertDeprecated(null, deprecator(), () =>
+          toTime(utcTimeValue),
         );
 
-        expect(baseTime.epochNanoseconds).toEqual(source.toTime().epochNanoseconds);
-        expect(convertedTime.epochNanoseconds).toEqual(source.toTime().epochNanoseconds);
+        expect(baseTime.toTime().epochNanoseconds).toEqual(source.toTime().epochNanoseconds);
+        expect(convertedTime.toTime().epochNanoseconds).toEqual(source.toTime().epochNanoseconds);
         expect(utcOffset(baseTime)).toEqual(systemOffset);
         expect(utcOffset(convertedTime)).toEqual(systemOffset);
       });
@@ -120,15 +113,13 @@ describe("DateAndTimeCompatibilityTest", () => {
         const source = new RubyTime(2016, 11, 23, 15, 11, 12);
         const baseTime = toTime(source);
 
-        const utcTimeValue = rubyTimeAt(baseTime).getutc();
-        const convertedTime: Temporal.ZonedDateTime = await assertDeprecated(
-          null,
-          deprecator(),
-          () => toTime(utcTimeValue),
+        const utcTimeValue = baseTime.getutc();
+        const convertedTime: RubyTime = await assertDeprecated(null, deprecator(), () =>
+          toTime(utcTimeValue),
         );
 
-        expect(baseTime.epochNanoseconds).toEqual(source.toTime().epochNanoseconds);
-        expect(convertedTime.epochNanoseconds).toEqual(source.toTime().epochNanoseconds);
+        expect(baseTime.toTime().epochNanoseconds).toEqual(source.toTime().epochNanoseconds);
+        expect(convertedTime.toTime().epochNanoseconds).toEqual(source.toTime().epochNanoseconds);
         expect(utcOffset(baseTime)).toEqual(systemDstOffset);
         expect(utcOffset(convertedTime)).toEqual(systemDstOffset);
       });
@@ -139,13 +130,13 @@ describe("DateAndTimeCompatibilityTest", () => {
     await withPreserveTimezone(null, async () => {
       await withEnvTz("US/Eastern", async () => {
         const foreignTime = new RubyTime(2016, 4, 23, 15, 11, 12, "-0700");
-        const convertedTime: Temporal.ZonedDateTime = await assertDeprecated(
-          null,
-          deprecator(),
-          () => toTime(foreignTime),
+        const convertedTime: RubyTime = await assertDeprecated(null, deprecator(), () =>
+          toTime(foreignTime),
         );
 
-        expect(convertedTime.epochNanoseconds).toEqual(foreignTime.toTime().epochNanoseconds);
+        expect(convertedTime.toTime().epochNanoseconds).toEqual(
+          foreignTime.toTime().epochNanoseconds,
+        );
         expect(utcOffset(convertedTime)).toEqual(systemOffset);
         expect(utcOffset(foreignTime)).not.toEqual(utcOffset(convertedTime));
       });
@@ -154,13 +145,13 @@ describe("DateAndTimeCompatibilityTest", () => {
     await withPreserveTimezone(null, async () => {
       await withEnvTz("US/Eastern", async () => {
         const foreignTime = new RubyTime(2016, 11, 23, 15, 11, 12, "-0700");
-        const convertedTime: Temporal.ZonedDateTime = await assertDeprecated(
-          null,
-          deprecator(),
-          () => toTime(foreignTime),
+        const convertedTime: RubyTime = await assertDeprecated(null, deprecator(), () =>
+          toTime(foreignTime),
         );
 
-        expect(convertedTime.epochNanoseconds).toEqual(foreignTime.toTime().epochNanoseconds);
+        expect(convertedTime.toTime().epochNanoseconds).toEqual(
+          foreignTime.toTime().epochNanoseconds,
+        );
         expect(utcOffset(convertedTime)).toEqual(systemDstOffset);
         expect(utcOffset(foreignTime)).not.toEqual(utcOffset(convertedTime));
       });
@@ -211,11 +202,11 @@ describe("DateAndTimeCompatibilityTest", () => {
         const source = Object.freeze(new RubyTime(2016, 4, 23, 15, 11, 12, 3600)) as RubyTime;
         const time = toTime(source);
 
-        expect(time).toBeInstanceOf(Temporal.ZonedDateTime);
-        expect(getutc(time).epochNanoseconds).toEqual(utcTime.toTime().epochNanoseconds);
+        expect(time).toBeInstanceOf(RubyTime);
+        expect(getutc(time.toTime()).epochNanoseconds).toEqual(utcTime.toTime().epochNanoseconds);
         expect(utcOffset(time)).toEqual(utcOffsetValue);
-        expect(time).toEqual(source.toTime());
-        assertPredicate(time, (t) => t.equals(source.toTime()));
+        expect(time).toBe(source);
+        assertPredicate(time, (t) => Object.isFrozen(t));
       }),
     );
   });
@@ -226,10 +217,10 @@ describe("DateAndTimeCompatibilityTest", () => {
         const source = Object.freeze(new RubyTime(2016, 4, 23, 15, 11, 12, 3600)) as RubyTime;
         const time = toTime(source);
 
-        expect(time).toBeInstanceOf(Temporal.ZonedDateTime);
-        expect(getutc(time).epochNanoseconds).toEqual(utcTime.toTime().epochNanoseconds);
+        expect(time).toBeInstanceOf(RubyTime);
+        expect(getutc(time.toTime()).epochNanoseconds).toEqual(utcTime.toTime().epochNanoseconds);
         expect(utcOffset(time)).toEqual(systemOffset);
-        expect(time).not.toEqual(source.toTime());
+        expect(time).not.toBe(source);
         assertNotPredicate(time, (t) => Object.isFrozen(t));
       }),
     );
