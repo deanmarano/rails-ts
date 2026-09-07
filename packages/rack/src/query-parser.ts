@@ -25,6 +25,7 @@ export class QueryLimitError extends RangeError {
 include(QueryLimitError, BadRequest);
 
 export const ParamsTooDeepError = QueryLimitError;
+export type ParamsTooDeepError = QueryLimitError;
 
 export class Params {
   [key: string]: any;
