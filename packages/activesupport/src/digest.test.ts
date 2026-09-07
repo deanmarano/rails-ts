@@ -1,14 +1,13 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { createHash } from "crypto";
+import { OpenSSL } from "@blazetrails/ruby-compat";
 import { Digest } from "./digest.js";
 
 describe("DigestTest", () => {
+  class InvalidDigest {}
+
   afterEach(() => {
-    Digest.hashDigestClass = {
-      hexdigest(data: string) {
-        return createHash("md5").update(data).digest("hex");
-      },
-    };
+    Digest.hashDigestClass = OpenSSL.Digest.MD5;
   });
 
   it("with default hash digest class", () => {
@@ -17,12 +16,7 @@ describe("DigestTest", () => {
   });
 
   it("with custom hash digest class", () => {
-    const sha1Class = {
-      hexdigest(data: string) {
-        return createHash("sha1").update(data).digest("hex");
-      },
-    };
-    Digest.hashDigestClass = sha1Class;
+    Digest.hashDigestClass = OpenSSL.Digest.SHA1;
     const digest = Digest.hexdigest("hello friend");
 
     expect(digest.length).toBe(32);
@@ -31,7 +25,7 @@ describe("DigestTest", () => {
 
   it("should raise argument error if custom digest is missing hexdigest method", () => {
     expect(() => {
-      Digest.hashDigestClass = {} as any;
+      Digest.hashDigestClass = InvalidDigest as never;
     }).toThrow("is expected to implement hexdigest class method");
   });
 });
