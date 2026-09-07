@@ -7,8 +7,12 @@ import {
   RACK_MULTIPART_TEMPFILE_FACTORY,
   RACK_TEMPFILES,
 } from "./constants.js";
+import { include } from "@blazetrails/ruby-compat";
+import { BadRequest } from "./bad-request.js";
+import { MULTIPART_BOUNDARY } from "./multipart-boundary.js";
 import type { QueryParser } from "./query-parser.js";
 
+export { MULTIPART_BOUNDARY } from "./multipart-boundary.js";
 export { UploadedFile } from "./multipart/uploaded-file.js";
 import {
   MultipartPartLimitError,
@@ -39,6 +43,7 @@ export class MissingInputError extends Error {
     this.name = "MissingInputError";
   }
 }
+include(MissingInputError, BadRequest);
 
 export function parseMultipart(
   env: Record<string, any>,
@@ -100,6 +105,7 @@ export function buildMultipart(
 }
 
 export const Multipart = {
+  MULTIPART_BOUNDARY,
   parseMultipart,
   extractMultipart,
   buildMultipart,

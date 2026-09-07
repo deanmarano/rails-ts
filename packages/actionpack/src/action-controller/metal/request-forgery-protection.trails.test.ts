@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CookieJar, cookieJar } from "../../action-dispatch/middleware/cookies.js";
+import { Response } from "@blazetrails/rack";
 import { SessionHash } from "@blazetrails/rack-session";
 import {
   NullCookieJar,
@@ -56,7 +57,8 @@ describe("NullSession", () => {
     jar.set("user_name", "david");
 
     expect(jar).toBeInstanceOf(CookieJar);
-    jar.write();
-    expect(jar.getSetCookieHeaders()).toEqual([]);
+    const response = new Response();
+    jar.write(response);
+    expect(response.headers["set-cookie"]).toBeUndefined();
   });
 });

@@ -1,4 +1,5 @@
 import { it, expect } from "vitest";
+import { EOFError } from "@blazetrails/ruby-compat";
 import {
   MultipartPartLimitError,
   MultipartTotalPartLimitError,
@@ -563,7 +564,7 @@ it("raises an EOF error on content-length mismatch", () => {
       },
     },
   };
-  expect(() => parseMultipart(env)).toThrow(EmptyContentError);
+  expect(() => parseMultipart(env)).toThrow(EOFError);
 });
 
 it("parses multipart upload with text file", () => {

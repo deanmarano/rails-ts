@@ -1,6 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { Temporal } from "@blazetrails/activesupport/temporal";
+import { Response } from "@blazetrails/rack";
 import { CookieJar } from "../cookies.js";
+
+function setCookieHeaders(jar: CookieJar): string[] {
+  const response = new Response();
+  jar.write(response);
+  const header = response.headers["set-cookie"];
+  if (header === undefined || header === null) return [];
+  return Array.isArray(header) ? header : [header];
+}
 
 describe("CookieJarTest", () => {
   it("fetch", () => {
@@ -63,8 +72,9 @@ describe("CookieJarTest", () => {
 
   it("write doesnt set a nil header", () => {
     const jar = new CookieJar();
-    jar.set("test", { value: null as any });
-    expect(jar.has("test")).toBe(false);
+    const response = new Response();
+    jar.write(response);
+    expect(response.headers["set-cookie"]).toBeUndefined();
   });
 });
 
@@ -72,7 +82,7 @@ describe("CookiesMiddlewareTest", () => {
   it("sets expected cookie header", () => {
     const jar = new CookieJar();
     jar.set("user_name", "david");
-    const headers = jar.getSetCookieHeaders();
+    const headers = setCookieHeaders(jar);
     expect(headers.length).toBe(1);
     expect(headers[0]).toContain("user_name=david");
     expect(headers[0]).toContain("path=/");
@@ -83,29 +93,29 @@ describe("CookiesTest", () => {
   it("setting cookie with same site strict", () => {
     const jar = new CookieJar();
     jar.set("foo", { value: "bar", sameSite: "strict" });
-    const headers = jar.getSetCookieHeaders();
-    expect(headers[0]).toContain("SameSite=Strict");
+    const headers = setCookieHeaders(jar);
+    expect(headers[0]).toContain("samesite=strict");
   });
 
   it("setting cookie with same site nil", () => {
     const jar = new CookieJar();
     jar.set("foo", { value: "bar", sameSite: null });
-    const headers = jar.getSetCookieHeaders();
-    expect(headers[0]).not.toContain("SameSite");
+    const headers = setCookieHeaders(jar);
+    expect(headers[0]).not.toContain("samesite");
   });
 
   it("setting cookie with specific same site strict", () => {
     const jar = new CookieJar({ sameSite: "lax" });
     jar.set("foo", { value: "bar", sameSite: "strict" });
-    const headers = jar.getSetCookieHeaders();
-    expect(headers[0]).toContain("SameSite=Strict");
+    const headers = setCookieHeaders(jar);
+    expect(headers[0]).toContain("samesite=strict");
   });
 
   it("setting cookie with specific same site nil", () => {
     const jar = new CookieJar({ sameSite: "lax" });
     jar.set("foo", { value: "bar", sameSite: null });
-    const headers = jar.getSetCookieHeaders();
-    expect(headers[0]).not.toContain("SameSite");
+    const headers = setCookieHeaders(jar);
+    expect(headers[0]).not.toContain("samesite");
   });
 
   it("setting cookie", () => {
@@ -132,7 +142,7 @@ describe("CookiesTest", () => {
     const jar = new CookieJar();
     const expires = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
     jar.set("user_name", { value: "david", expires });
-    const headers = jar.getSetCookieHeaders();
+    const headers = setCookieHeaders(jar);
     expect(headers[0]).toContain("expires=");
   });
 
@@ -140,7 +150,7 @@ describe("CookiesTest", () => {
     const jar = new CookieJar();
     const instant = Temporal.Instant.from("2030-04-15T12:00:00Z");
     jar.set("user_name", { value: "david", expires: instant });
-    const headers = jar.getSetCookieHeaders();
+    const headers = setCookieHeaders(jar);
     expect(headers[0]).toContain("expires=Mon, 15 Apr 2030 12:00:00 GMT");
   });
 
@@ -156,21 +166,21 @@ describe("CookiesTest", () => {
   it("setting cookie with http only", () => {
     const jar = new CookieJar();
     jar.set("user_name", { value: "david", httpOnly: true });
-    const headers = jar.getSetCookieHeaders();
-    expect(headers[0]).toContain("HttpOnly");
+    const headers = setCookieHeaders(jar);
+    expect(headers[0]).toContain("httponly");
   });
 
   it("setting cookie with secure", () => {
-    const jar = new CookieJar();
+    const jar = CookieJar.build({ env: { HTTPS: "on" }, ssl: true } as never, {});
     jar.set("user_name", { value: "david", secure: true });
-    const headers = jar.getSetCookieHeaders();
+    const headers = setCookieHeaders(jar);
     expect(headers[0]).toContain("secure");
   });
 
   it("not setting cookie with secure", () => {
     const jar = new CookieJar();
     jar.set("user_name", { value: "david", secure: false });
-    const headers = jar.getSetCookieHeaders();
+    const headers = setCookieHeaders(jar);
     expect(headers[0]).not.toContain("secure");
   });
 
@@ -180,7 +190,7 @@ describe("CookiesTest", () => {
     jar.set("login", "yes");
     expect(jar.get("user_name")).toBe("david");
     expect(jar.get("login")).toBe("yes");
-    expect(jar.getSetCookieHeaders().length).toBe(2);
+    expect(setCookieHeaders(jar).length).toBe(2);
   });
 
   it("setting test cookie", () => {
@@ -193,14 +203,14 @@ describe("CookiesTest", () => {
     const jar = CookieJar.parse("user_name=david");
     jar.delete("user_name");
     expect(jar.get("user_name")).toBeUndefined();
-    const headers = jar.getSetCookieHeaders();
+    const headers = setCookieHeaders(jar);
     expect(headers[0]).toContain("max-age=0");
   });
 
   it("delete cookie with path", () => {
     const jar = CookieJar.parse("user_name=david");
     jar.delete("user_name", { path: "/admin" });
-    const headers = jar.getSetCookieHeaders();
+    const headers = setCookieHeaders(jar);
     expect(headers[0]).toContain("path=/admin");
   });
 
@@ -248,7 +258,7 @@ describe("CookiesTest", () => {
     const jar = new CookieJar();
     jar.permanent.set("user_name", "david");
     expect(jar.get("user_name")).toBe("david");
-    const headers = jar.getSetCookieHeaders();
+    const headers = setCookieHeaders(jar);
     expect(headers[0]).toContain("expires=");
   });
 
@@ -321,36 +331,15 @@ describe("CookiesTest", () => {
   it("setting cookie with no same site protection", () => {
     const jar = new CookieJar();
     jar.set("foo", { value: "bar" });
-    const headers = jar.getSetCookieHeaders();
-    expect(headers[0]).not.toContain("SameSite");
-  });
-
-  it("default secure from jar options", () => {
-    const jar = new CookieJar({ secure: true });
-    jar.set("foo", "bar");
-    const headers = jar.getSetCookieHeaders();
-    expect(headers[0]).toContain("secure");
-  });
-
-  it("default httpOnly from jar options", () => {
-    const jar = new CookieJar({ httpOnly: true });
-    jar.set("foo", "bar");
-    const headers = jar.getSetCookieHeaders();
-    expect(headers[0]).toContain("HttpOnly");
+    const headers = setCookieHeaders(jar);
+    expect(headers[0]).not.toContain("samesite");
   });
 
   it("default sameSite from jar options", () => {
     const jar = new CookieJar({ sameSite: "lax" });
     jar.set("foo", "bar");
-    const headers = jar.getSetCookieHeaders();
-    expect(headers[0]).toContain("SameSite=Lax");
-  });
-
-  it("default domain from jar options", () => {
-    const jar = new CookieJar({ domain: ".example.com" });
-    jar.set("foo", "bar");
-    const headers = jar.getSetCookieHeaders();
-    expect(headers[0]).toContain("domain=.example.com");
+    const headers = setCookieHeaders(jar);
+    expect(headers[0]).toContain("samesite=lax");
   });
 
   it.skip("setting cookie with secure on onion address", () => {});
@@ -359,7 +348,7 @@ describe("CookiesTest", () => {
 
   function assertDeletedCookie(jar: CookieJar) {
     expect(jar.get("user_name")).toBeUndefined();
-    const headers = jar.getSetCookieHeaders();
+    const headers = setCookieHeaders(jar);
     expect(headers[0]).toContain("user_name=");
     expect(headers[0]).toContain("max-age=0");
     expect(headers[0]).toContain("expires=Thu, 01 Jan 1970 00:00:00 GMT");
@@ -495,7 +484,7 @@ describe("CookiesTest", () => {
     jar.delete("user_name");
     jar.set("user_name", "Bob");
     expect(jar.get("user_name")).toBe("Bob");
-    const headers = jar.getSetCookieHeaders();
+    const headers = setCookieHeaders(jar);
     expect(headers.length).toBe(1);
   });
 

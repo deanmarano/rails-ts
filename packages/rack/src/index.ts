@@ -61,6 +61,7 @@ export {
   RACK_SESSION,
   RACK_SESSION_OPTIONS,
 } from "./constants.js";
+export { BadRequest } from "./bad-request.js";
 export { Files } from "./files.js";
 export { Lint, LintError } from "./lint.js";
 export { Multipart, type UploadedFileInfo } from "./multipart.js";
