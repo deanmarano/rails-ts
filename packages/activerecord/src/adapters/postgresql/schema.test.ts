@@ -117,64 +117,66 @@ const UNMATCHED_SEQUENCE_NAME = "unmatched_primary_key_default_value_seq";
 const UNMATCHED_PK_TABLE_NAME = "table_with_unmatched_sequence_for_pk";
 
 async function setupSchemas(adapter: PostgreSQLAdapter) {
-  await adapter.exec(
+  await adapter.execute(
     `CREATE SCHEMA ${SCHEMA_NAME} CREATE TABLE ${TABLE_NAME} (${COLUMNS.join(",")})`,
   );
-  await adapter.exec(`CREATE TABLE ${SCHEMA_NAME}."${TABLE_NAME}.table" (${COLUMNS.join(",")})`);
-  await adapter.exec(
+  await adapter.execute(`CREATE TABLE ${SCHEMA_NAME}."${TABLE_NAME}.table" (${COLUMNS.join(",")})`);
+  await adapter.execute(
     `CREATE TABLE ${SCHEMA_NAME}."${CAPITALIZED_TABLE_NAME}" (${COLUMNS.join(",")})`,
   );
-  await adapter.exec(
+  await adapter.execute(
     `CREATE SCHEMA ${SCHEMA2_NAME} CREATE TABLE ${TABLE_NAME} (${COLUMNS.join(",")})`,
   );
-  await adapter.exec(
+  await adapter.execute(
     `CREATE INDEX ${INDEX_A_NAME} ON ${SCHEMA_NAME}.${TABLE_NAME} USING btree (${INDEX_A_COLUMN})`,
   );
-  await adapter.exec(
+  await adapter.execute(
     `CREATE INDEX ${INDEX_A_NAME} ON ${SCHEMA2_NAME}.${TABLE_NAME} USING btree (${INDEX_A_COLUMN})`,
   );
-  await adapter.exec(
+  await adapter.execute(
     `CREATE INDEX ${INDEX_B_NAME} ON ${SCHEMA_NAME}.${TABLE_NAME} USING btree (${INDEX_B_COLUMN_S1})`,
   );
-  await adapter.exec(
+  await adapter.execute(
     `CREATE INDEX ${INDEX_B_NAME} ON ${SCHEMA2_NAME}.${TABLE_NAME} USING btree (${INDEX_B_COLUMN_S2})`,
   );
-  await adapter.exec(
+  await adapter.execute(
     `CREATE INDEX ${INDEX_C_NAME} ON ${SCHEMA_NAME}.${TABLE_NAME} USING gin (${INDEX_C_COLUMN})`,
   );
-  await adapter.exec(
+  await adapter.execute(
     `CREATE INDEX ${INDEX_C_NAME} ON ${SCHEMA2_NAME}.${TABLE_NAME} USING gin (${INDEX_C_COLUMN})`,
   );
-  await adapter.exec(
+  await adapter.execute(
     `CREATE INDEX ${INDEX_D_NAME} ON ${SCHEMA_NAME}.${TABLE_NAME} USING btree (${INDEX_D_COLUMN} DESC)`,
   );
-  await adapter.exec(
+  await adapter.execute(
     `CREATE INDEX ${INDEX_D_NAME} ON ${SCHEMA2_NAME}.${TABLE_NAME} USING btree (${INDEX_D_COLUMN} DESC)`,
   );
-  await adapter.exec(
+  await adapter.execute(
     `CREATE INDEX ${INDEX_E_NAME} ON ${SCHEMA_NAME}.${TABLE_NAME} USING gin (${INDEX_E_COLUMN})`,
   );
-  await adapter.exec(
+  await adapter.execute(
     `CREATE INDEX ${INDEX_E_NAME} ON ${SCHEMA2_NAME}.${TABLE_NAME} USING gin (${INDEX_E_COLUMN})`,
   );
-  await adapter.exec(`CREATE TABLE ${SCHEMA_NAME}.${PK_TABLE_NAME} (id serial primary key)`);
-  await adapter.exec(`CREATE TABLE ${SCHEMA2_NAME}.${PK_TABLE_NAME} (id serial primary key)`);
-  await adapter.exec(`CREATE SEQUENCE ${SCHEMA_NAME}.${UNMATCHED_SEQUENCE_NAME}`);
-  await adapter.exec(
+  await adapter.execute(`CREATE TABLE ${SCHEMA_NAME}.${PK_TABLE_NAME} (id serial primary key)`);
+  await adapter.execute(`CREATE TABLE ${SCHEMA2_NAME}.${PK_TABLE_NAME} (id serial primary key)`);
+  await adapter.execute(`CREATE SEQUENCE ${SCHEMA_NAME}.${UNMATCHED_SEQUENCE_NAME}`);
+  await adapter.execute(
     `CREATE TABLE ${SCHEMA_NAME}.${UNMATCHED_PK_TABLE_NAME} (id integer NOT NULL DEFAULT nextval('${SCHEMA_NAME}.${UNMATCHED_SEQUENCE_NAME}'::regclass), CONSTRAINT unmatched_pkey PRIMARY KEY (id))`,
   );
-  await adapter.exec(`CREATE SCHEMA IF NOT EXISTS music`);
-  await adapter.exec(`CREATE TABLE music.songs (id serial primary key)`);
-  await adapter.exec(
+  await adapter.execute(`CREATE SCHEMA IF NOT EXISTS music`);
+  await adapter.execute(`CREATE TABLE music.songs (id serial primary key)`);
+  await adapter.execute(
     `CREATE TABLE music.albums (id serial primary key, deleted boolean default false)`,
   );
-  await adapter.exec(
+  await adapter.execute(
     `CREATE TABLE music.albums_songs (album_id integer, song_id integer, PRIMARY KEY (album_id, song_id))`,
   );
 }
 
 async function teardownSchemas(adapter: PostgreSQLAdapter) {
-  await adapter.exec(`DROP TABLE IF EXISTS music.songs, music.albums, music.albums_songs CASCADE`);
+  await adapter.execute(
+    `DROP TABLE IF EXISTS music.songs, music.albums, music.albums_songs CASCADE`,
+  );
   await adapter.dropSchema(SCHEMA2_NAME, { ifExists: true });
   await adapter.dropSchema(SCHEMA_NAME, { ifExists: true });
   await adapter.dropSchema("test_schema3", { ifExists: true });
@@ -337,8 +339,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     it("schema change with prepared stmt", async () => {
       expect(adapter.preparedStatements).toBe(true);
       const tbl = "schema_prepared_stmt_devs";
-      await adapter.exec(`DROP TABLE IF EXISTS ${tbl}`);
-      await adapter.exec(`CREATE TABLE ${tbl} (id serial primary key, name varchar(255))`);
+      await adapter.execute(`DROP TABLE IF EXISTS ${tbl}`);
+      await adapter.execute(`CREATE TABLE ${tbl} (id serial primary key, name varchar(255))`);
       let altered = false;
       try {
         await adapter.execQuery(`select * from ${tbl} where id = $1`, "sql", [1]);
@@ -349,7 +351,7 @@ describeIfPg("PostgreSQLAdapter", () => {
         if (altered) {
           await adapter.execQuery(`alter table ${tbl} drop column zomg`, "sql", []);
         }
-        await adapter.exec(`DROP TABLE IF EXISTS ${tbl}`);
+        await adapter.execute(`DROP TABLE IF EXISTS ${tbl}`);
       }
     });
 
@@ -558,7 +560,7 @@ describeIfPg("PostgreSQLAdapter", () => {
 
     it("remove index when schema specified", async () => {
       const createIndex = () =>
-        adapter.exec(
+        adapter.execute(
           `CREATE INDEX "things_Index" ON ${SCHEMA_NAME}.${TABLE_NAME} (${INDEX_A_COLUMN})`,
         );
 
@@ -579,7 +581,7 @@ describeIfPg("PostgreSQLAdapter", () => {
           name: `${SCHEMA_NAME}.things_Index`,
         }),
       ).rejects.toThrow(ArgumentError);
-      await adapter.exec(`DROP INDEX ${SCHEMA_NAME}."things_Index"`);
+      await adapter.execute(`DROP INDEX ${SCHEMA_NAME}."things_Index"`);
     });
 
     it("primary key with schema specified", async () => {
@@ -664,7 +666,7 @@ describeIfPg("PostgreSQLAdapter", () => {
 
     it("reset pk sequence", async () => {
       const seqName = `${SCHEMA_NAME}.${UNMATCHED_SEQUENCE_NAME}`;
-      await adapter.exec(`SELECT setval('${seqName}', 123)`);
+      await adapter.execute(`SELECT setval('${seqName}', 123)`);
       const before = await adapter.execute(`SELECT nextval('${seqName}') AS val`);
       expect(Number(before[0].val)).toBe(124);
 
@@ -709,31 +711,35 @@ describeIfPg("PostgreSQLAdapter", () => {
       await adapter.createSchema("my_schema");
     });
     afterEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS my_schema.wagons, my_other_schema.wagons CASCADE`);
+      await adapter.execute(
+        `DROP TABLE IF EXISTS my_schema.wagons, my_other_schema.wagons CASCADE`,
+      );
       await adapter.dropSchema("my_other_schema", { ifExists: true });
       await adapter.dropSchema("my_schema", { ifExists: true });
     });
 
     it("dump foreign key targeting different schema", async () => {
       try {
-        await adapter.exec(
+        await adapter.execute(
           `CREATE TABLE my_schema.trains (id serial primary key, name varchar(50))`,
         );
-        await adapter.exec(`CREATE TABLE wagons (id serial primary key, train_id integer)`);
+        await adapter.execute(`CREATE TABLE wagons (id serial primary key, train_id integer)`);
         await adapter.addForeignKey("wagons", "my_schema.trains");
         const lines: string[] = [];
         await adapter.createSchemaDumper().foreignKeys("wagons", lines);
         const output = lines.join("\n");
         expect(output).toMatch(/addForeignKey\("wagons", "my_schema\.trains"/);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS wagons`);
-        await adapter.exec(`DROP TABLE IF EXISTS my_schema.trains`);
+        await adapter.execute(`DROP TABLE IF EXISTS wagons`);
+        await adapter.execute(`DROP TABLE IF EXISTS my_schema.trains`);
       }
     });
 
     it("create foreign key same schema", async () => {
-      await adapter.exec(`CREATE TABLE my_schema.trains (id serial primary key)`);
-      await adapter.exec(`CREATE TABLE my_schema.wagons (id serial primary key, train_id integer)`);
+      await adapter.execute(`CREATE TABLE my_schema.trains (id serial primary key)`);
+      await adapter.execute(
+        `CREATE TABLE my_schema.wagons (id serial primary key, train_id integer)`,
+      );
       await adapter.addForeignKey("my_schema.wagons", "my_schema.trains");
       expect(await adapter.foreignKeyExists("my_schema.wagons", "my_schema.trains")).toBe(true);
     });
@@ -741,8 +747,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     it("create foreign key different schemas", async () => {
       await adapter.dropSchema("my_other_schema", { ifExists: true });
       await adapter.createSchema("my_other_schema");
-      await adapter.exec(`CREATE TABLE my_schema.trains (id serial primary key)`);
-      await adapter.exec(
+      await adapter.execute(`CREATE TABLE my_schema.trains (id serial primary key)`);
+      await adapter.execute(
         `CREATE TABLE my_other_schema.wagons (id serial primary key, train_id integer)`,
       );
       await adapter.addForeignKey("my_other_schema.wagons", "my_schema.trains");
@@ -755,44 +761,44 @@ describeIfPg("PostgreSQLAdapter", () => {
   describe("SchemaIndexOpclassTest", () => {
     it("string opclass is dumped", async () => {
       try {
-        await adapter.exec(
+        await adapter.execute(
           `CREATE TABLE trains (id serial primary key, name varchar(50), description text)`,
         );
-        await adapter.exec(
+        await adapter.execute(
           `CREATE INDEX trains_name_and_description ON trains USING btree(name text_pattern_ops, description text_pattern_ops)`,
         );
         const lines: string[] = [];
         await adapter.createSchemaDumper().dumpTable(lines, "trains");
         expect(lines.join("\n")).toContain(`opclass: "text_pattern_ops"`);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS trains`);
+        await adapter.execute(`DROP TABLE IF EXISTS trains`);
       }
     });
     it("non default opclass is dumped", async () => {
       try {
-        await adapter.exec(
+        await adapter.execute(
           `CREATE TABLE trains (id serial primary key, name varchar(50), description text)`,
         );
-        await adapter.exec(
+        await adapter.execute(
           `CREATE INDEX trains_name_and_description ON trains USING btree(name, description text_pattern_ops)`,
         );
         const lines: string[] = [];
         await adapter.createSchemaDumper().dumpTable(lines, "trains");
         expect(lines.join("\n")).toContain(`opclass: { description: "text_pattern_ops" }`);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS trains`);
+        await adapter.execute(`DROP TABLE IF EXISTS trains`);
       }
     });
     it("opclass class parsing on non reserved and cannot be function or type keyword", async () => {
       try {
-        await adapter.exec(
+        await adapter.execute(
           `CREATE TABLE trains (id serial primary key, name varchar(50), position varchar(50))`,
         );
-        await adapter.exec(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
-        await adapter.exec(
+        await adapter.execute(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+        await adapter.execute(
           `CREATE INDEX trains_position ON trains USING gin(position gin_trgm_ops)`,
         );
-        await adapter.exec(
+        await adapter.execute(
           `CREATE INDEX trains_name_and_position ON trains USING btree(name, position text_pattern_ops)`,
         );
         const lines: string[] = [];
@@ -801,7 +807,7 @@ describeIfPg("PostgreSQLAdapter", () => {
         expect(output).toContain(`opclass: "gin_trgm_ops"`);
         expect(output).toContain(`opclass: { position: "text_pattern_ops" }`);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS trains`);
+        await adapter.execute(`DROP TABLE IF EXISTS trains`);
       }
     });
   });
@@ -809,32 +815,32 @@ describeIfPg("PostgreSQLAdapter", () => {
   describe("SchemaIndexNullsOrderTest", () => {
     it("nulls order is dumped", async () => {
       try {
-        await adapter.exec(
+        await adapter.execute(
           `CREATE TABLE trains (id serial primary key, name varchar(50), description text)`,
         );
-        await adapter.exec(
+        await adapter.execute(
           `CREATE INDEX trains_name_and_description ON trains USING btree(name NULLS FIRST, description)`,
         );
         const lines: string[] = [];
         await adapter.createSchemaDumper().dumpTable(lines, "trains");
         expect(lines.join("\n")).toContain(`order: { name: "NULLS FIRST" }`);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS trains`);
+        await adapter.execute(`DROP TABLE IF EXISTS trains`);
       }
     });
     it("non default order with nulls is dumped", async () => {
       try {
-        await adapter.exec(
+        await adapter.execute(
           `CREATE TABLE trains (id serial primary key, name varchar(50), description text)`,
         );
-        await adapter.exec(
+        await adapter.execute(
           `CREATE INDEX trains_name_and_desc ON trains USING btree(name DESC NULLS LAST, description)`,
         );
         const lines: string[] = [];
         await adapter.createSchemaDumper().dumpTable(lines, "trains");
         expect(lines.join("\n")).toContain(`order: { name: "DESC NULLS LAST" }`);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS trains`);
+        await adapter.execute(`DROP TABLE IF EXISTS trains`);
       }
     });
   });
@@ -846,14 +852,14 @@ describeIfPg("PostgreSQLAdapter", () => {
     beforeEach(async () => {
       await adapter.dropSchema(DOMAIN_SCHEMA, { ifExists: true });
       await adapter.createSchema(DOMAIN_SCHEMA);
-      await adapter.exec(`CREATE DOMAIN ${DOMAIN_SCHEMA}.text AS text`);
-      await adapter.exec(`CREATE DOMAIN ${DOMAIN_SCHEMA}.varchar AS varchar`);
-      await adapter.exec(`CREATE DOMAIN ${DOMAIN_SCHEMA}.numeric AS numeric`);
-      await adapter.exec(`CREATE DOMAIN ${DOMAIN_SCHEMA}.bpchar AS bpchar`);
+      await adapter.execute(`CREATE DOMAIN ${DOMAIN_SCHEMA}.text AS text`);
+      await adapter.execute(`CREATE DOMAIN ${DOMAIN_SCHEMA}.varchar AS varchar`);
+      await adapter.execute(`CREATE DOMAIN ${DOMAIN_SCHEMA}.numeric AS numeric`);
+      await adapter.execute(`CREATE DOMAIN ${DOMAIN_SCHEMA}.bpchar AS bpchar`);
       oldSearchPath = await adapter.schemaSearchPath();
       await adapter.setSchemaSearchPath(`${DOMAIN_SCHEMA}, pg_catalog`);
       // eslint-disable-next-line blazetrails/require-table-teardown
-      await adapter.exec(`
+      await adapter.execute(`
         CREATE TABLE defaults (
           id serial primary key,
           text_col ${DOMAIN_SCHEMA}.text DEFAULT 'some value',
@@ -889,7 +895,7 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("bpchar defaults in new schema when overriding domain", async () => {
-      await adapter.exec(
+      await adapter.execute(
         `ALTER TABLE defaults ADD bpchar_col ${DOMAIN_SCHEMA}.bpchar DEFAULT 'some value'`,
       );
       const cols = await adapter.columns("defaults");
@@ -899,7 +905,7 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("text defaults after updating column default", async () => {
-      await adapter.exec(
+      await adapter.execute(
         `ALTER TABLE defaults ALTER COLUMN text_col SET DEFAULT 'some text'::${DOMAIN_SCHEMA}.text`,
       );
       const cols = await adapter.columns("defaults");
@@ -910,7 +916,9 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("default containing quote and colons", async () => {
-      await adapter.exec(`ALTER TABLE defaults ALTER COLUMN string_col SET DEFAULT 'foo''::bar'`);
+      await adapter.execute(
+        `ALTER TABLE defaults ALTER COLUMN string_col SET DEFAULT 'foo''::bar'`,
+      );
       const cols = await adapter.columns("defaults");
       const stringCol = cols.find((c) => c.name === "string_col");
       expect(stringCol).toBeDefined();
@@ -924,13 +932,13 @@ describeIfPg("PostgreSQLAdapter", () => {
       await adapter.createSchema("my.schema");
     });
     afterEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS "my.schema" CASCADE`);
+      await adapter.execute(`DROP TABLE IF EXISTS "my.schema" CASCADE`);
       await adapter.dropSchema("my.schema", { ifExists: true });
     });
 
     it("rename_table", async () => {
       await adapter.setSchemaSearchPath('"my.schema"');
-      await adapter.exec(`CREATE TABLE "my.schema".posts (id serial primary key)`);
+      await adapter.execute(`CREATE TABLE "my.schema".posts (id serial primary key)`);
       await adapter.renameTable("posts", "articles");
       const tbls = await adapter.tables();
       expect(tbls).toContain("articles");
@@ -962,7 +970,7 @@ describeIfPg("PostgreSQLAdapter", () => {
   describe("SchemaJoinTablesTest", () => {
     it("create join table", async () => {
       try {
-        await adapter.exec(`CREATE SCHEMA IF NOT EXISTS some_schema`);
+        await adapter.execute(`CREATE SCHEMA IF NOT EXISTS some_schema`);
         await adapter.createJoinTable("some_schema.users", "some_schema.roles");
         expect(await adapter.tableExists("some_schema.roles_users")).toBe(true);
         const cols = await adapter.columns("some_schema.roles_users");
@@ -970,8 +978,8 @@ describeIfPg("PostgreSQLAdapter", () => {
         expect(colNames).toContain("role_id");
         expect(colNames).toContain("user_id");
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS some_schema.roles_users`);
-        await adapter.exec(`DROP SCHEMA IF EXISTS some_schema CASCADE`);
+        await adapter.execute(`DROP TABLE IF EXISTS some_schema.roles_users`);
+        await adapter.execute(`DROP SCHEMA IF EXISTS some_schema CASCADE`);
       }
     });
   });
@@ -998,39 +1006,41 @@ describeIfPg("PostgreSQLAdapter", () => {
   describe("SchemaIndexNullsNotDistinctTest", () => {
     itIfSupports("nulls_not_distinct", "nulls not distinct is dumped", async () => {
       try {
-        await adapter.exec(`CREATE TABLE trains (id serial primary key, name varchar(50))`);
+        await adapter.execute(`CREATE TABLE trains (id serial primary key, name varchar(50))`);
         if (!(await adapter.supportsNullsNotDistinct())) return;
-        await adapter.exec(
+        await adapter.execute(
           `CREATE INDEX trains_name ON trains USING btree(name) NULLS NOT DISTINCT`,
         );
         const lines: string[] = [];
         await adapter.createSchemaDumper().dumpTable(lines, "trains");
         expect(lines.join("\n")).toContain("nullsNotDistinct: true");
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS trains`);
+        await adapter.execute(`DROP TABLE IF EXISTS trains`);
       }
     });
     itIfSupports("nulls_not_distinct", "nulls distinct is dumped", async () => {
       try {
-        await adapter.exec(`CREATE TABLE trains (id serial primary key, name varchar(50))`);
+        await adapter.execute(`CREATE TABLE trains (id serial primary key, name varchar(50))`);
         if (!(await adapter.supportsNullsNotDistinct())) return;
-        await adapter.exec(`CREATE INDEX trains_name ON trains USING btree(name) NULLS DISTINCT`);
+        await adapter.execute(
+          `CREATE INDEX trains_name ON trains USING btree(name) NULLS DISTINCT`,
+        );
         const lines: string[] = [];
         await adapter.createSchemaDumper().dumpTable(lines, "trains");
         expect(lines.join("\n")).not.toContain("nullsNotDistinct");
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS trains`);
+        await adapter.execute(`DROP TABLE IF EXISTS trains`);
       }
     });
     it("nulls not set is dumped", async () => {
       try {
-        await adapter.exec(`CREATE TABLE trains (id serial primary key, name varchar(50))`);
-        await adapter.exec(`CREATE INDEX trains_name ON trains USING btree(name)`);
+        await adapter.execute(`CREATE TABLE trains (id serial primary key, name varchar(50))`);
+        await adapter.execute(`CREATE INDEX trains_name ON trains USING btree(name)`);
         const lines: string[] = [];
         await adapter.createSchemaDumper().dumpTable(lines, "trains");
         expect(lines.join("\n")).not.toContain("nullsNotDistinct");
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS trains`);
+        await adapter.execute(`DROP TABLE IF EXISTS trains`);
       }
     });
   });
@@ -1104,12 +1114,14 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("table comment is dumped and round-trips via createTable", async () => {
-      await adapter.exec(`CREATE TABLE commented_table (id serial primary key, name varchar(50))`);
-      await adapter.exec(`COMMENT ON TABLE commented_table IS 'a test table'`);
+      await adapter.execute(
+        `CREATE TABLE commented_table (id serial primary key, name varchar(50))`,
+      );
+      await adapter.execute(`COMMENT ON TABLE commented_table IS 'a test table'`);
       const lines: string[] = [];
       await adapter.createSchemaDumper().dumpTable(lines, "commented_table");
       expect(lines.join("\n")).toContain(`comment: "a test table"`);
-      await adapter.exec(`DROP TABLE IF EXISTS commented_table`);
+      await adapter.execute(`DROP TABLE IF EXISTS commented_table`);
 
       const ss = adapter;
       await ss.createTable("commented_table", { comment: "a test table" }, (t) => {

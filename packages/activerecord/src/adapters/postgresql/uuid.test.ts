@@ -22,12 +22,12 @@ describeIfPg("PostgreSQLAdapter", () => {
 
   beforeAll(async () => {
     adapter = Base.connection as PostgreSQLAdapter;
-    await adapter.exec(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
+    await adapter.execute(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
   });
 
   beforeEach(async () => {
-    await adapter.exec(`DROP TABLE IF EXISTS uuid_data_type`);
-    await adapter.exec(`
+    await adapter.execute(`DROP TABLE IF EXISTS uuid_data_type`);
+    await adapter.execute(`
       CREATE TABLE uuid_data_type (
         id serial primary key,
         guid uuid DEFAULT gen_random_uuid(),
@@ -36,7 +36,7 @@ describeIfPg("PostgreSQLAdapter", () => {
     `);
   });
   afterEach(async () => {
-    await adapter.exec(`DROP TABLE IF EXISTS uuid_data_type`);
+    await adapter.execute(`DROP TABLE IF EXISTS uuid_data_type`);
   });
 
   describe("PostgreSQLUUIDTest", () => {
@@ -113,8 +113,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("uuid primary key", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_pk_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_pk_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_pk_test (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           name text
@@ -128,13 +128,13 @@ describeIfPg("PostgreSQLAdapter", () => {
         `);
         expect(rows[0].data_type).toBe("uuid");
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_pk_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_pk_test`);
       }
     });
 
     it("uuid primary key default", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_pk_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_pk_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_pk_test (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           name text
@@ -147,13 +147,13 @@ describeIfPg("PostgreSQLAdapter", () => {
         expect(rows[0].id).toBeTruthy();
         expect(isValidUuid(rows[0].id as string)).toBe(true);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_pk_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_pk_test`);
       }
     });
 
     it("uuid primary key insert", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_pk_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_pk_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_pk_test (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           name text
@@ -168,13 +168,13 @@ describeIfPg("PostgreSQLAdapter", () => {
         const rows = await adapter.execute(`SELECT id FROM uuid_pk_test`);
         expect(rows[0].id).toBe(uuid);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_pk_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_pk_test`);
       }
     });
 
     it("uuid pk with auto populate", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_pk_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_pk_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_pk_test (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           name text
@@ -186,13 +186,13 @@ describeIfPg("PostgreSQLAdapter", () => {
         expect(rows[0].name).toBe("auto");
         expect(isValidUuid(rows[0].id as string)).toBe(true);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_pk_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_pk_test`);
       }
     });
 
     it("uuid pk create", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_pk_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_pk_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_pk_test (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           name text
@@ -204,13 +204,13 @@ describeIfPg("PostgreSQLAdapter", () => {
         expect(rows).toHaveLength(1);
         expect(isValidUuid(rows[0].id as string)).toBe(true);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_pk_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_pk_test`);
       }
     });
 
     it("uuid pk find", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_pk_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_pk_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_pk_test (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           name text
@@ -226,7 +226,7 @@ describeIfPg("PostgreSQLAdapter", () => {
         expect(rows).toHaveLength(1);
         expect(rows[0].name).toBe("findme");
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_pk_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_pk_test`);
       }
     });
 
@@ -266,8 +266,8 @@ describeIfPg("PostgreSQLAdapter", () => {
 
     it("uuid uniqueness", async () => {
       const uuid = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_unique_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_unique_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_unique_test (
           id serial primary key,
           guid uuid UNIQUE
@@ -281,13 +281,13 @@ describeIfPg("PostgreSQLAdapter", () => {
             .then((r) => r.toArray()),
         ).rejects.toThrow();
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_unique_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_unique_test`);
       }
     });
 
     it("uuid array", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_array_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_array_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_array_test (
           id serial primary key,
           guids uuid[]
@@ -305,7 +305,7 @@ describeIfPg("PostgreSQLAdapter", () => {
         expect(guids).toContain(uuid1);
         expect(guids).toContain(uuid2);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_array_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_array_test`);
       }
     });
 
@@ -326,15 +326,15 @@ describeIfPg("PostgreSQLAdapter", () => {
 
     it("uuid association", async () => {
       const { registerModel } = await import("../../index.js");
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_assoc_comments`);
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_assoc_posts`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_assoc_comments`);
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_assoc_posts`);
+      await adapter.execute(`
         CREATE TABLE uuid_assoc_posts (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           title text
         )
       `);
-      await adapter.exec(`
+      await adapter.execute(`
         CREATE TABLE uuid_assoc_comments (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           uuid_assoc_post_id uuid REFERENCES uuid_assoc_posts(id),
@@ -377,21 +377,21 @@ describeIfPg("PostgreSQLAdapter", () => {
         const found = await (post as any).uuidAssocComments.find(comment.id);
         expect(found.id).toBe(comment.id);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_assoc_comments`);
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_assoc_posts`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_assoc_comments`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_assoc_posts`);
       }
     });
 
     it("uuid foreign key", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_fk_child`);
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_fk_parent`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_fk_child`);
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_fk_parent`);
+      await adapter.execute(`
         CREATE TABLE uuid_fk_parent (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           name text
         )
       `);
-      await adapter.exec(`
+      await adapter.execute(`
         CREATE TABLE uuid_fk_child (
           id serial primary key,
           parent_id uuid REFERENCES uuid_fk_parent(id)
@@ -411,20 +411,20 @@ describeIfPg("PostgreSQLAdapter", () => {
         ).toArray();
         expect(children).toHaveLength(1);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_fk_child`);
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_fk_parent`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_fk_child`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_fk_parent`);
       }
     });
 
     it("uuid index", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_index_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_index_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_index_test (
           id serial primary key,
           guid uuid
         )
       `);
-      await adapter.exec(`CREATE INDEX idx_uuid_test ON uuid_index_test (guid)`);
+      await adapter.execute(`CREATE INDEX idx_uuid_test ON uuid_index_test (guid)`);
       try {
         const rows = await adapter.execute(`
           SELECT indexname FROM pg_indexes
@@ -432,20 +432,20 @@ describeIfPg("PostgreSQLAdapter", () => {
         `);
         expect(rows).toHaveLength(1);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_index_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_index_test`);
       }
     });
 
     it("uuid change column", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_change_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_change_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_change_test (
           id serial primary key,
           guid text
         )
       `);
       try {
-        await adapter.exec(
+        await adapter.execute(
           `ALTER TABLE uuid_change_test ALTER COLUMN guid TYPE uuid USING guid::uuid`,
         );
         const rows = await adapter.execute(`
@@ -454,13 +454,13 @@ describeIfPg("PostgreSQLAdapter", () => {
         `);
         expect(rows[0].data_type).toBe("uuid");
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_change_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_change_test`);
       }
     });
 
     it("uuid remove column", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_remove_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_remove_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_remove_test (
           id serial primary key,
           guid uuid,
@@ -468,7 +468,7 @@ describeIfPg("PostgreSQLAdapter", () => {
         )
       `);
       try {
-        await adapter.exec(`ALTER TABLE uuid_remove_test DROP COLUMN guid`);
+        await adapter.execute(`ALTER TABLE uuid_remove_test DROP COLUMN guid`);
         const rows = await adapter.execute(`
           SELECT column_name FROM information_schema.columns
           WHERE table_name = 'uuid_remove_test'
@@ -477,13 +477,13 @@ describeIfPg("PostgreSQLAdapter", () => {
         expect(columns).not.toContain("guid");
         expect(columns).toContain("name");
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_remove_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_remove_test`);
       }
     });
 
     itIfSupports("pgcrypto_uuid", "uuid column default", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_column_default_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_column_default_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_column_default_test (
           id serial primary key,
           guid uuid DEFAULT gen_random_uuid()
@@ -497,13 +497,13 @@ describeIfPg("PostgreSQLAdapter", () => {
         const column = cols.find((c) => c.name === "guid");
         expect(column!.defaultFunction).toBe("gen_random_uuid()");
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_column_default_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_column_default_test`);
       }
     });
 
     it("change column default", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_default_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_default_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_default_test (
           id serial primary key,
           guid uuid DEFAULT gen_random_uuid()
@@ -516,7 +516,7 @@ describeIfPg("PostgreSQLAdapter", () => {
         `);
         expect(rows[0].column_default).toMatch(/gen_random_uuid/);
 
-        await adapter.exec(
+        await adapter.execute(
           `ALTER TABLE uuid_default_test ALTER COLUMN guid SET DEFAULT '00000000-0000-0000-0000-000000000000'::uuid`,
         );
         rows = await adapter.execute(`
@@ -525,34 +525,34 @@ describeIfPg("PostgreSQLAdapter", () => {
         `);
         expect(rows[0].column_default).toMatch(/00000000/);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_default_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_default_test`);
       }
     });
 
     it("add column with null true and default nil", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_null_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_null_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_null_test (id serial primary key)
       `);
       try {
-        await adapter.exec(`ALTER TABLE uuid_null_test ADD COLUMN guid uuid DEFAULT NULL`);
+        await adapter.execute(`ALTER TABLE uuid_null_test ADD COLUMN guid uuid DEFAULT NULL`);
         const rows = await adapter.execute(`
           SELECT column_default, is_nullable FROM information_schema.columns
           WHERE table_name = 'uuid_null_test' AND column_name = 'guid'
         `);
         expect(rows[0].is_nullable).toBe("YES");
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_null_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_null_test`);
       }
     });
 
     it("add column with default array", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_arr_default_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_arr_default_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_arr_default_test (id serial primary key)
       `);
       try {
-        await adapter.exec(
+        await adapter.execute(
           `ALTER TABLE uuid_arr_default_test ADD COLUMN guids uuid[] DEFAULT '{}'`,
         );
         const rows = await adapter.execute(`
@@ -561,7 +561,7 @@ describeIfPg("PostgreSQLAdapter", () => {
         `);
         expect(rows[0].column_default).toMatch(/\{\}/);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_arr_default_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_arr_default_test`);
       }
     });
 
@@ -626,8 +626,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("uniqueness validation ignores uuid", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_uniqueness_validation_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_uniqueness_validation_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_uniqueness_validation_test (
           id serial primary key,
           guid uuid UNIQUE
@@ -655,15 +655,15 @@ describeIfPg("PostgreSQLAdapter", () => {
         const r3 = new UuidUniq({ guid: "b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11" });
         expect(await r3.save()).toBe(true);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_uniqueness_validation_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_uniqueness_validation_test`);
       }
     });
   });
 
   describe("PostgreSQLUUIDGenerationTest", () => {
     it("id is uuid", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_gen_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_gen_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_gen_test (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           name text
@@ -676,13 +676,13 @@ describeIfPg("PostgreSQLAdapter", () => {
         `);
         expect(rows[0].data_type).toBe("uuid");
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_gen_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_gen_test`);
       }
     });
 
     it("id has a default", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_gen_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_gen_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_gen_test (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           name text
@@ -694,13 +694,13 @@ describeIfPg("PostgreSQLAdapter", () => {
         expect(rows[0].id).toBeTruthy();
         expect(isValidUuid(rows[0].id as string)).toBe(true);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_gen_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_gen_test`);
       }
     });
 
     it("auto create uuid", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_gen_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_gen_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_gen_test (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           other uuid DEFAULT gen_random_uuid(),
@@ -714,13 +714,13 @@ describeIfPg("PostgreSQLAdapter", () => {
         expect(isValidUuid(rows[0].other as string)).toBe(true);
         expect(rows[0].id).not.toBe(rows[0].other);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_gen_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_gen_test`);
       }
     });
 
     it("pk and sequence for uuid primary key", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_gen_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_gen_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_gen_test (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY
         )
@@ -731,13 +731,13 @@ describeIfPg("PostgreSQLAdapter", () => {
         `);
         expect(rows[0].seq).toBeNull();
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_gen_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_gen_test`);
       }
     });
 
     it("schema dumper for uuid primary key", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuids`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuids`);
+      await adapter.execute(`
         CREATE TABLE pg_uuids (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           name text,
@@ -749,19 +749,19 @@ describeIfPg("PostgreSQLAdapter", () => {
         expect(output).toMatch(/createTable\("pg_uuids".*id: "uuid"/);
         expect(output).toMatch(/default: \(\) => "gen_random_uuid\(\)"/);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS pg_uuids`);
+        await adapter.execute(`DROP TABLE IF EXISTS pg_uuids`);
       }
     });
 
     it("schema dumper for uuid primary key with custom default", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuids_2`);
-      await adapter.exec(`DROP FUNCTION IF EXISTS my_uuid_generator()`);
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuids_2`);
+      await adapter.execute(`DROP FUNCTION IF EXISTS my_uuid_generator()`);
       try {
-        await adapter.exec(`
+        await adapter.execute(`
           CREATE OR REPLACE FUNCTION my_uuid_generator() RETURNS uuid
           AS $$ SELECT gen_random_uuid() $$ LANGUAGE SQL VOLATILE
         `);
-        await adapter.exec(`
+        await adapter.execute(`
           CREATE TABLE pg_uuids_2 (
             id uuid DEFAULT my_uuid_generator() PRIMARY KEY,
             name text
@@ -772,14 +772,14 @@ describeIfPg("PostgreSQLAdapter", () => {
           /createTable\("pg_uuids_2".*id: "uuid".*default: \(\) => "my_uuid_generator\(\)"/,
         );
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS pg_uuids_2`);
-        await adapter.exec(`DROP FUNCTION IF EXISTS my_uuid_generator()`);
+        await adapter.execute(`DROP TABLE IF EXISTS pg_uuids_2`);
+        await adapter.execute(`DROP FUNCTION IF EXISTS my_uuid_generator()`);
       }
     });
 
     it("schema dumper for uuid primary key default", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuids_3`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuids_3`);
+      await adapter.execute(`
         CREATE TABLE pg_uuids_3 (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           name text
@@ -791,12 +791,12 @@ describeIfPg("PostgreSQLAdapter", () => {
           /createTable\("pg_uuids_3".*id: "uuid".*default: \(\) => "gen_random_uuid\(\)"/,
         );
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS pg_uuids_3`);
+        await adapter.execute(`DROP TABLE IF EXISTS pg_uuids_3`);
       }
     });
 
     it("createTable round-trips uuid PK default", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuids_rt`);
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuids_rt`);
       try {
         await adapter.createTable("pg_uuids_rt", {
           id: "uuid",
@@ -818,8 +818,8 @@ describeIfPg("PostgreSQLAdapter", () => {
 
   describe("PostgreSQLUUIDTestNilDefault", () => {
     it("id allows default override via nil", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS uuid_nil_default_test`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS uuid_nil_default_test`);
+      await adapter.execute(`
         CREATE TABLE uuid_nil_default_test (
           id uuid PRIMARY KEY,
           name text
@@ -832,13 +832,13 @@ describeIfPg("PostgreSQLAdapter", () => {
         `);
         expect(rows[0].column_default).toBeNull();
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS uuid_nil_default_test`);
+        await adapter.execute(`DROP TABLE IF EXISTS uuid_nil_default_test`);
       }
     });
 
     it("schema dumper for uuid primary key with default override via nil", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuids_nil`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuids_nil`);
+      await adapter.execute(`
         CREATE TABLE pg_uuids_nil (
           id uuid PRIMARY KEY,
           name text
@@ -848,7 +848,7 @@ describeIfPg("PostgreSQLAdapter", () => {
         const output = await SchemaDumper.dumpTableSchema(adapter, "pg_uuids_nil");
         expect(output).toMatch(/createTable\("pg_uuids_nil".*id: "uuid".*default: null/);
       } finally {
-        await adapter.exec(`DROP TABLE IF EXISTS pg_uuids_nil`);
+        await adapter.execute(`DROP TABLE IF EXISTS pg_uuids_nil`);
       }
     });
 
@@ -859,15 +859,15 @@ describeIfPg("PostgreSQLAdapter", () => {
     let UuidPost: any;
 
     beforeEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuid_comments`);
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuid_posts`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuid_comments`);
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuid_posts`);
+      await adapter.execute(`
         CREATE TABLE pg_uuid_posts (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           title text
         )
       `);
-      await adapter.exec(`
+      await adapter.execute(`
         CREATE TABLE pg_uuid_comments (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           uuid_post_id uuid REFERENCES pg_uuid_posts(id),
@@ -904,8 +904,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     afterEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuid_comments`);
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuid_posts`);
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuid_comments`);
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuid_posts`);
     });
 
     it("collection association with uuid", async () => {
@@ -932,23 +932,23 @@ describeIfPg("PostgreSQLAdapter", () => {
     let UuidForum: any;
 
     beforeEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuid_dj_comments`);
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuid_dj_posts`);
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuid_dj_forums`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuid_dj_comments`);
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuid_dj_posts`);
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuid_dj_forums`);
+      await adapter.execute(`
         CREATE TABLE pg_uuid_dj_forums (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           name text
         )
       `);
-      await adapter.exec(`
+      await adapter.execute(`
         CREATE TABLE pg_uuid_dj_posts (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           uuid_forum_id uuid REFERENCES pg_uuid_dj_forums(id),
           title text
         )
       `);
-      await adapter.exec(`
+      await adapter.execute(`
         CREATE TABLE pg_uuid_dj_comments (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
           uuid_post_id uuid REFERENCES pg_uuid_dj_posts(id),
@@ -1020,9 +1020,9 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     afterEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuid_dj_comments`);
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuid_dj_posts`);
-      await adapter.exec(`DROP TABLE IF EXISTS pg_uuid_dj_forums`);
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuid_dj_comments`);
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuid_dj_posts`);
+      await adapter.execute(`DROP TABLE IF EXISTS pg_uuid_dj_forums`);
     });
 
     it("uuid primary key and disable joins with delegate cache", async () => {

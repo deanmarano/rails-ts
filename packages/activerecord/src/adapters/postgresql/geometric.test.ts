@@ -16,8 +16,8 @@ describeIfPg("PostgreSQLAdapter", () => {
 
   describe("PostgreSQLPointTest", () => {
     beforeEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS postgresql_points`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS postgresql_points`);
+      await adapter.execute(`
         CREATE TABLE postgresql_points (
           id serial primary key,
           x point,
@@ -28,7 +28,7 @@ describeIfPg("PostgreSQLAdapter", () => {
       `);
     });
     afterEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS postgresql_points`);
+      await adapter.execute(`DROP TABLE IF EXISTS postgresql_points`);
     });
 
     it("point column", async () => {
@@ -187,12 +187,12 @@ describeIfPg("PostgreSQLAdapter", () => {
 
   describe("PostgreSQLGeometricTypesTest", () => {
     afterEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
     });
 
     it("line column", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_line line)
       `);
       const rows = await adapter.execute(`
@@ -203,8 +203,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("line default", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (
           id serial primary key,
           a_line line DEFAULT '{1,2,3}'
@@ -218,8 +218,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("line type cast", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_line line)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_line) VALUES ($1)`, "SQL", [
@@ -230,8 +230,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("line write", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_line line)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_line) VALUES ($1)`, "SQL", [
@@ -242,8 +242,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("lseg column", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_lseg lseg)
       `);
       const rows = await adapter.execute(`
@@ -254,8 +254,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("lseg type cast", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_lseg lseg)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_lseg) VALUES ($1)`, "SQL", [
@@ -266,8 +266,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("lseg write", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_lseg lseg)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_lseg) VALUES ($1)`, "SQL", [
@@ -278,8 +278,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("box column", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_box box)
       `);
       const rows = await adapter.execute(`
@@ -290,8 +290,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("box type cast", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_box box)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_box) VALUES ($1)`, "SQL", [
@@ -302,8 +302,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("box write", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_box box)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_box) VALUES ($1)`, "SQL", [
@@ -314,8 +314,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("path column", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_path path)
       `);
       const rows = await adapter.execute(`
@@ -326,8 +326,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("path open", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_path path)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_path) VALUES ($1)`, "SQL", [
@@ -340,8 +340,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("path closed", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_path path)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_path) VALUES ($1)`, "SQL", [
@@ -354,8 +354,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("path type cast", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_path path)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_path) VALUES ($1)`, "SQL", [
@@ -366,8 +366,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("path write", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_path path)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_path) VALUES ($1)`, "SQL", [
@@ -378,8 +378,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("polygon column", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_polygon polygon)
       `);
       const rows = await adapter.execute(`
@@ -390,8 +390,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("polygon type cast", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_polygon polygon)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_polygon) VALUES ($1)`, "SQL", [
@@ -402,8 +402,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("polygon write", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_polygon polygon)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_polygon) VALUES ($1)`, "SQL", [
@@ -414,8 +414,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("circle column", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_circle circle)
       `);
       const rows = await adapter.execute(`
@@ -426,8 +426,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("circle type cast", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_circle circle)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_circle) VALUES ($1)`, "SQL", [
@@ -440,8 +440,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("circle write", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_circle circle)
       `);
       await adapter.execQuery(`INSERT INTO test_geometric_types (a_circle) VALUES ($1)`, "SQL", [
@@ -452,8 +452,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("geometric nil", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_point point)
       `);
       await adapter.execute(`INSERT INTO test_geometric_types (a_point) VALUES (NULL)`);
@@ -462,8 +462,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("creating column with point type", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_point point)
       `);
       const rows = await adapter.execute(`
@@ -474,8 +474,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("creating column with line type", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_line line)
       `);
       const rows = await adapter.execute(`
@@ -486,8 +486,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("creating column with lseg type", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_lseg lseg)
       `);
       const rows = await adapter.execute(`
@@ -498,8 +498,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("creating column with box type", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_box box)
       `);
       const rows = await adapter.execute(`
@@ -510,8 +510,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("creating column with path type", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_path path)
       `);
       const rows = await adapter.execute(`
@@ -522,8 +522,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("creating column with polygon type", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_polygon polygon)
       `);
       const rows = await adapter.execute(`
@@ -534,8 +534,8 @@ describeIfPg("PostgreSQLAdapter", () => {
     });
 
     it("creating column with circle type", async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS test_geometric_types`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS test_geometric_types`);
+      await adapter.execute(`
         CREATE TABLE test_geometric_types (id serial primary key, a_circle circle)
       `);
       const rows = await adapter.execute(`
@@ -548,8 +548,8 @@ describeIfPg("PostgreSQLAdapter", () => {
 
   describe("PostgreSQLGeometricTest", () => {
     beforeEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS postgresql_geometric`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS postgresql_geometric`);
+      await adapter.execute(`
         CREATE TABLE postgresql_geometric (
           id serial primary key,
           a_lseg lseg,
@@ -561,7 +561,7 @@ describeIfPg("PostgreSQLAdapter", () => {
       `);
     });
     afterEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS postgresql_geometric`);
+      await adapter.execute(`DROP TABLE IF EXISTS postgresql_geometric`);
     });
 
     it("geometric types", async () => {
@@ -631,8 +631,8 @@ describeIfPg("PostgreSQLAdapter", () => {
 
   describe("PostgreSQLGeometricLineTest", () => {
     beforeEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS postgresql_lines`);
-      await adapter.exec(`
+      await adapter.execute(`DROP TABLE IF EXISTS postgresql_lines`);
+      await adapter.execute(`
         CREATE TABLE postgresql_lines (
           id serial primary key,
           a_line line
@@ -640,7 +640,7 @@ describeIfPg("PostgreSQLAdapter", () => {
       `);
     });
     afterEach(async () => {
-      await adapter.exec(`DROP TABLE IF EXISTS postgresql_lines`);
+      await adapter.execute(`DROP TABLE IF EXISTS postgresql_lines`);
     });
 
     it("geometric line type", async () => {
