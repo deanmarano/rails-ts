@@ -336,6 +336,10 @@ class SubMinuteOffsetZonedDateTime extends Temporal.ZonedDateTime {
   override toInstant(): Temporal.Instant {
     return Temporal.Instant.fromEpochNanoseconds(this.#exactEpochNanoseconds);
   }
+
+  override withTimeZone(timeZone: Temporal.TimeZoneLike): Temporal.ZonedDateTime {
+    return this.toInstant().toZonedDateTimeISO(timeZone as Temporal.TimeZoneLike & string);
+  }
 }
 
 export class Time {

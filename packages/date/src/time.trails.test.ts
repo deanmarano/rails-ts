@@ -119,6 +119,13 @@ describe("Time", () => {
     expect(time.toTime().epochNanoseconds).toBe(BigInt(time.toI()) * 1000000000n);
   });
 
+  it("toTime moves a sub-minute-offset receiver to another zone by its exact instant", () => {
+    const time = Time.new("2013-09-04 03:00:00 -00:44:30");
+    expect(time.toTime().withTimeZone("UTC").toPlainDateTime().toString()).toBe(
+      "2013-09-04T03:44:30",
+    );
+  });
+
   it("Time.new rejects an out-of-range offset", () => {
     expect(() => new Time(2008, 3, 1, 6, 0, 0, 86400)).toThrow(ArgumentError);
     expect(() => new Time(2008, 3, 1, 6, 0, 0, -86400)).toThrow(ArgumentError);
